@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/MeowSalty/pinai/router"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	slogfiber "github.com/samber/slog-fiber"
@@ -37,9 +38,8 @@ func main() {
 	fiberApp.Use(slogfiber.New(fiberLogger))
 	fiberApp.Use(recover.New())
 
-	fiberApp.Get("/", func(c *fiber.Ctx) error {
-		return c.SendString("Hello, World!")
-	})
+	// 设置路由
+	router.SetupRoutes(fiberApp)
 
 	fiberApp.Listen(*port)
 }
