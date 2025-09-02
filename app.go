@@ -4,6 +4,8 @@ import (
 	"flag"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/MeowSalty/pinai/database"
 	"github.com/MeowSalty/pinai/router"
@@ -32,6 +34,7 @@ func main() {
 	// 创建日志组
 	appLogger := logger.WithGroup("app")
 	fiberLogger := logger.WithGroup("fiber")
+	gormLogger := logger.WithGroup("gorm")
 
 	slog.SetDefault(appLogger)
 
@@ -39,7 +42,7 @@ func main() {
 	flag.Parse()
 
 	// 连接数据库
-	db, err := database.Connect(*dbType, *dbHost, *dbPort, *dbUser, *dbPass, *dbName)
+	db, err := database.Connect(*dbType, *dbHost, *dbPort, *dbUser, *dbPass, *dbName, gormLogger)
 	if err != nil {
 		appLogger.Error("数据库连接失败", "error", err)
 		os.Exit(1)
@@ -58,5 +61,36 @@ func main() {
 	// 设置路由
 	router.SetupRoutes(fiberApp)
 
-	fiberApp.Listen(*port)
+	// 启动 Web 服务
+	go func() {
+		// 监听端口 3000
+		// go run app.go -port=:3000
+		if err := fiberApp.Listen(*port); err != nil {
+			fiberLogger.Error("无法启动 Web 服务", "error", err)
+			os.Exit(1) // 如果无法启动 Web 服务，退出应用
+		}
+	}()
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	_ = <-c
+	appLogger.Info("收到关闭信号，正在关闭应用...")
+
+	// 关闭 Web 服务
+	err = fiberApp.Shutdown()
+	if err != nil {
+		fiberLogger.Error("关闭 Web 服务失败", "error", err)
+	} else {
+		fiberLogger.Info("Web 服务已成功关闭")
+	}
+
+	// 关闭数据库连接
+	err = db.Close()
+	if err != nil {
+		appLogger.Error("关闭数据库连接失败", "error", err)
+	} else {
+		appLogger.Info("数据库连接已成功关闭")
+	}
+	appLogger.Info("应用已成功关闭")
 }
