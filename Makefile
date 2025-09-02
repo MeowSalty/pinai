@@ -1,7 +1,7 @@
 help: ## 显示帮助信息
 	@grep -F -h "##" $(MAKEFILE_LIST) | grep -F -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
-run-local: ## 本地运行应用
+run: ## 本地运行应用
 	make requirements
 	go run app.go
 
