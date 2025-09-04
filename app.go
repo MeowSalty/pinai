@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log/slog"
 	"os"
@@ -59,7 +60,10 @@ func main() {
 	fiberApp.Use(recover.New())
 
 	// 设置路由
-	router.SetupRoutes(fiberApp)
+	if err := router.SetupRoutes(fiberApp, context.Background(), appLogger); err != nil {
+		appLogger.Error("路由设置失败", "error", err)
+		os.Exit(1)
+	}
 
 	// 启动 Web 服务
 	go func() {

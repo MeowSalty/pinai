@@ -48,3 +48,6 @@ require (
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gen v0.3.27
 )
+
+//暂未上传,找本地包代替
+replace github.com/MeowSalty/portal => ../portal

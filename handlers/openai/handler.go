@@ -25,10 +25,10 @@ type OpenAIHandler struct {
 	logger *slog.Logger
 
 	// aigatewayService AI 网关服务实例，用于处理 AI 相关请求
-	aigatewayService services.AIGatewayService
+	aigatewayService services.PortalService
 }
 
-// NewOpenAIHandler 创建并初始化一个新的 OpenAI API 处理器实例
+// New 创建并初始化一个新的 OpenAI API 处理器实例
 //
 // 该函数使用依赖注入的方式创建 OpenAIHandler 实例，符合 Go 语言的最佳实践
 //
@@ -38,7 +38,7 @@ type OpenAIHandler struct {
 //
 // 返回值：
 //   - *OpenAIHandler: 初始化后的 OpenAI 处理器实例
-func NewOpenAIHandler(aigatewayService services.AIGatewayService, logger *slog.Logger) *OpenAIHandler {
+func New(aigatewayService services.PortalService, logger *slog.Logger) *OpenAIHandler {
 	return &OpenAIHandler{
 		logger:           logger,
 		aigatewayService: aigatewayService,
@@ -134,7 +134,7 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 //   - error: 处理过程中可能发生的错误
 func (h *OpenAIHandler) handleNonStream(c *fiber.Ctx, req *portalTypes.Request) error {
 	// 调用 AI 网关服务处理聊天补全请求
-	resp, err := h.aigatewayService.ProcessChatCompletion(c.Context(), req)
+	resp, err := h.aigatewayService.ChatCompletion(c.Context(), req)
 	if err != nil {
 		h.logger.ErrorContext(c.Context(), "聊天完成处理失败", "error", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "处理请求时发生内部错误"})

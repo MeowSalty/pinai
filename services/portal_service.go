@@ -9,129 +9,62 @@ import (
 	"github.com/MeowSalty/pinai/database"
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/portal"
-	"github.com/MeowSalty/portal/health"
-	"github.com/MeowSalty/portal/selector"
 	coreTypes "github.com/MeowSalty/portal/types"
 )
 
-// AIGatewayService AI 网关服务接口
+// PortalService AI 网关服务接口
 // 封装所有与 AI 网关相关的业务逻辑
-type AIGatewayService interface {
-	// ProcessChatCompletion 处理聊天完成请求
-	ProcessChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error)
-
-	// ProcessCompletion 处理文本补全请求
-	// ProcessCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error)
-
-	// CompletionStream 处理流式文本补全请求
-	// CompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error)
+type PortalService interface {
+	// ChatCompletion 处理聊天完成请求
+	ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error)
 
 	// Shutdown 优雅关闭服务
-	Shutdown(ctx context.Context) error
+	Shutdown(timeout time.Duration) error
 
 	// ChatCompletionStream 处理流式聊天完成请求
 	ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error)
 }
 
-// aiGatewayService AI 网关服务实现
-type aiGatewayService struct {
-	// gatewayManager aigateway 管理器实例
-	gatewayManager *portal.GatewayManager
-
-	// healthManager 健康状态管理器
-	healthManager *health.Manager
-
-	// logger 日志实例
-	logger *slog.Logger
-
-	// ctx 服务上下文
-	ctx context.Context
-
-	// cancel 取消函数
-	cancel context.CancelFunc
+// portalService AI 网关服务实现
+type portalService struct {
+	*portal.GatewayManager
 }
 
-// NewAIGatewayService 创建新的 AI 网关服务实例
+// NewPortalService 创建新的 AI 网关服务实例
 // 初始化所有必要的组件，包括健康管理器、选择器和适配器
-func NewAIGatewayService(ctx context.Context, logger *slog.Logger) (AIGatewayService, error) {
-	serviceCtx, cancel := context.WithCancel(ctx)
-	serviceLogger := logger.With("service", "aigateway")
-
-	serviceLogger.Info("正在初始化 AI 网关服务")
-
+func NewPortalService(ctx context.Context, logger *slog.Logger) (PortalService, error) {
 	// 创建数据仓库实现
 	repo := &DatabaseRepository{}
 
-	// 创建健康状态管理器
-	healthManager, err := health.NewManager(serviceCtx, repo, serviceLogger.WithGroup("health"), time.Minute)
-	if err != nil {
-		cancel()
-		serviceLogger.Error("创建健康管理器失败", "error", err)
-		return nil, fmt.Errorf("创建健康管理器失败：%w", err)
-	}
-
-	// 创建随机选择器
-	channelSelector := selector.NewRandomSelector(healthManager)
-
-	// 配置网关管理器
-	config := &portal.Config{
-		Repo:          repo,
-		HealthManager: healthManager,
-		Selector:      channelSelector,
-		Logger:        serviceLogger.WithGroup("gateway_manager"),
-	}
-
 	// 创建网关管理器
-	gatewayManager := portal.NewGatewayManager(config)
-
-	service := &aiGatewayService{
-		gatewayManager: gatewayManager,
-		healthManager:  healthManager,
-		logger:         serviceLogger,
-		ctx:            serviceCtx,
-		cancel:         cancel,
+	gatewayManager, err := portal.New(
+		ctx,
+		portal.WithRepository(repo),
+		portal.WithLogger(logger.WithGroup("portal")),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
 	}
 
-	serviceLogger.Info("AI 网关服务初始化完成")
-	return service, nil
+	return &portalService{GatewayManager: gatewayManager}, nil
 }
 
-// ProcessChatCompletion 处理聊天完成请求
+// ChatCompletion 处理聊天完成请求
 // 提供统一的聊天完成处理入口，包含日志记录和错误处理
-func (s *aiGatewayService) ProcessChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error) {
-	s.logger.InfoContext(ctx, "开始处理聊天完成请求",
-		slog.String("model", req.Model),
-		slog.Int("message_count", len(req.Messages)),
-		slog.Bool("stream", *req.Stream),
-	)
-
+func (s *portalService) ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error) {
 	// 调用 aigateway 进行处理
-	resp, err := s.gatewayManager.ChatCompletion(ctx, req)
+	resp, err := s.ChatCompletion(ctx, req)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "聊天完成处理失败", slog.Any("error", err))
 		return nil, fmt.Errorf("聊天完成处理失败：%w", err)
 	}
-
-	// 记录成功处理的信息
-	s.logger.InfoContext(ctx, "聊天完成处理成功",
-		"prompt_tokens", resp.Usage.PromptTokens,
-		"completion_tokens", resp.Usage.CompletionTokens,
-		"total_tokens", resp.Usage.TotalTokens,
-	)
 
 	return resp, nil
 }
 
 // ChatCompletionStream 处理流式聊天完成请求
-func (s *aiGatewayService) ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error) {
-	s.logger.InfoContext(ctx, "开始处理流式聊天完成请求",
-		slog.String("model", req.Model),
-		slog.Int("message_count", len(req.Messages)),
-	)
-
-	stream, err := s.gatewayManager.ChatCompletionStream(ctx, req)
+func (s *portalService) ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error) {
+	stream, err := s.ChatCompletionStream(ctx, req)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "无法启动聊天完成流", slog.Any("error", err))
 		return nil, fmt.Errorf("无法启动聊天完成流：%w", err)
 	}
 
@@ -140,24 +73,8 @@ func (s *aiGatewayService) ChatCompletionStream(ctx context.Context, req *coreTy
 
 // Shutdown 优雅关闭服务
 // 停止健康管理器和取消所有相关的上下文
-func (s *aiGatewayService) Shutdown(ctx context.Context) error {
-	s.logger.Info("开始关闭 AI 网关服务")
-
-	// 关闭健康管理器
-	if s.healthManager != nil {
-		s.logger.Info("正在关闭健康管理器")
-		s.healthManager.Shutdown()
-		s.logger.Info("健康管理器已关闭")
-	}
-
-	// 取消服务上下文
-	if s.cancel != nil {
-		s.cancel()
-		s.logger.Info("服务上下文已取消")
-	}
-
-	s.logger.Info("AI 网关服务关闭完成")
-	return nil
+func (s *portalService) Shutdown(timeout time.Duration) error {
+	return s.Shutdown(timeout)
 }
 
 // DatabaseRepository 数据仓库实现
@@ -183,7 +100,7 @@ func (r *DatabaseRepository) FindModelsByName(ctx context.Context, name string) 
 			q.Model.Alias_.Eq(name),
 		).Find()
 		if err != nil {
-			return nil, fmt.Errorf("查询模型失败：%w", err)
+			return nil, fmt.Errorf("按别名查询模型失败：%w", err)
 		}
 	}
 
@@ -321,20 +238,54 @@ func (r *DatabaseRepository) BatchUpdateHealthStatus(ctx context.Context, status
 		}
 	}
 
-	return tx.Commit()
+	// 检查提交事务是否有错误
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("提交事务失败：%w", err)
+	}
+
+	return nil
 }
 
-// CountRequestStats
+// CountRequestStats 统计请求数据
+//
+// 根据给定的查询参数统计请求数据
+//
+// 参数：
+//   - ctx: 上下文
+//   - params: 统计查询参数
+//
+// 返回值：
+//   - *coreTypes.StatsSummary: 统计摘要数据
+//   - error: 错误信息
 func (r *DatabaseRepository) CountRequestStats(ctx context.Context, params *coreTypes.StatsQueryParams) (*coreTypes.StatsSummary, error) {
 	panic("unimplemented")
 }
 
-// QueryRequestStats i
+// QueryRequestStats 查询请求统计数据
+//
+// 根据给定的查询参数查询请求统计数据
+//
+// 参数：
+//   - ctx: 上下文
+//   - params: 统计查询参数
+//
+// 返回值：
+//   - []*coreTypes.RequestStat: 请求统计列表
+//   - error: 错误信息
 func (r *DatabaseRepository) QueryRequestStats(ctx context.Context, params *coreTypes.StatsQueryParams) ([]*coreTypes.RequestStat, error) {
 	panic("unimplemented")
 }
 
-// SaveRequestStat
+// SaveRequestStat 保存请求统计
+//
+// 保存请求统计信息到数据库
+//
+// 参数：
+//   - ctx: 上下文
+//   - stat: 请求统计信息
+//
+// 返回值：
+//   - error: 错误信息
 func (r *DatabaseRepository) SaveRequestStat(ctx context.Context, stat *coreTypes.RequestStat) error {
 	panic("unimplemented")
 }

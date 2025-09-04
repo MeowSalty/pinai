@@ -7,10 +7,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// RegisterOpenAIRoutes registers the OpenAI compatible routes.
-func RegisterOpenAIRoutes(router fiber.Router, aiGatewayService services.AIGatewayService, logger *slog.Logger) {
+// SetupOpenAIRoutes registers the OpenAI compatible routes.
+func SetupOpenAIRoutes(router fiber.Router, aiGatewayService services.PortalService, logger *slog.Logger) {
 	// 创建 Handler 实例
-	handler := NewOpenAIHandler(aiGatewayService, logger)
+	handler := New(aiGatewayService, logger)
 
 	router.Get("/models", ListModels)
 	router.Post("/chat/completions", handler.ChatCompletions)

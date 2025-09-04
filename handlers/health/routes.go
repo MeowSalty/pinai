@@ -6,8 +6,8 @@ import (
 	"github.com/MeowSalty/pinai/services"
 )
 
-func SetupHealthRoutes(router fiber.Router) {
-	handler := NewHealthHandler(services.NewHealthService())
+func SetupHealthRoutes(router fiber.Router, healthService services.HealthServiceInterface) {
+	handler := NewHealthHandler(healthService)
 
 	healthGroup := router.Group("/health")
 	healthGroup.Get("/:resourceType/:id", handler.GetResourceHealth)
