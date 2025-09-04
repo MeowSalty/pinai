@@ -19,7 +19,7 @@ type PortalService interface {
 	ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error)
 
 	// Shutdown 优雅关闭服务
-	Shutdown(timeout time.Duration) error
+	Close(timeout time.Duration) error
 
 	// ChatCompletionStream 处理流式聊天完成请求
 	ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error)
@@ -27,7 +27,7 @@ type PortalService interface {
 
 // portalService AI 网关服务实现
 type portalService struct {
-	*portal.GatewayManager
+	portal *portal.GatewayManager
 }
 
 // NewPortalService 创建新的 AI 网关服务实例
@@ -46,14 +46,14 @@ func NewPortalService(ctx context.Context, logger *slog.Logger) (PortalService, 
 		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
 	}
 
-	return &portalService{GatewayManager: gatewayManager}, nil
+	return &portalService{portal: gatewayManager}, nil
 }
 
 // ChatCompletion 处理聊天完成请求
 // 提供统一的聊天完成处理入口，包含日志记录和错误处理
 func (s *portalService) ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error) {
 	// 调用 aigateway 进行处理
-	resp, err := s.ChatCompletion(ctx, req)
+	resp, err := s.portal.ChatCompletion(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("聊天完成处理失败：%w", err)
 	}
@@ -63,7 +63,7 @@ func (s *portalService) ChatCompletion(ctx context.Context, req *coreTypes.Reque
 
 // ChatCompletionStream 处理流式聊天完成请求
 func (s *portalService) ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error) {
-	stream, err := s.ChatCompletionStream(ctx, req)
+	stream, err := s.portal.ChatCompletionStream(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("无法启动聊天完成流：%w", err)
 	}
@@ -71,10 +71,10 @@ func (s *portalService) ChatCompletionStream(ctx context.Context, req *coreTypes
 	return stream, nil
 }
 
-// Shutdown 优雅关闭服务
+// Close 优雅关闭服务
 // 停止健康管理器和取消所有相关的上下文
-func (s *portalService) Shutdown(timeout time.Duration) error {
-	return s.Shutdown(timeout)
+func (s *portalService) Close(timeout time.Duration) error {
+	return s.portal.Shutdown(timeout)
 }
 
 // DatabaseRepository 数据仓库实现

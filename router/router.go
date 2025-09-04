@@ -1,9 +1,6 @@
 package router
 
 import (
-	"context"
-	"log/slog"
-
 	"github.com/MeowSalty/pinai/handlers/health"
 	"github.com/MeowSalty/pinai/handlers/openai"
 	"github.com/MeowSalty/pinai/handlers/provider"
@@ -13,12 +10,7 @@ import (
 )
 
 // SetupRoutes 配置 API 路由
-func SetupRoutes(web *fiber.App, ctx context.Context, logger *slog.Logger) error {
-	svcs, err := services.NewServices(ctx, logger.WithGroup("services"))
-	if err != nil {
-		return err
-	}
-
+func SetupRoutes(web *fiber.App, svcs *services.Services) error {
 	web.Use(cors.New())
 	webAPI := web.Group("/api")
 
@@ -29,7 +21,7 @@ func SetupRoutes(web *fiber.App, ctx context.Context, logger *slog.Logger) error
 	})
 
 	health.SetupHealthRoutes(webAPI, svcs.HealthService)
-	openai.SetupOpenAIRoutes(webAPI, svcs.AIGatewayService, logger)
+	openai.SetupOpenAIRoutes(webAPI, svcs.AIGatewayService)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService)
 	return nil
 }

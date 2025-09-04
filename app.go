@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/MeowSalty/pinai/database"
 	"github.com/MeowSalty/pinai/router"
+	"github.com/MeowSalty/pinai/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	slogfiber "github.com/samber/slog-fiber"
@@ -59,8 +61,16 @@ func main() {
 	fiberApp.Use(slogfiber.New(fiberLogger))
 	fiberApp.Use(recover.New())
 
+	// 初始化服务
+	appContext := context.Background()
+	svcs, err := services.NewServices(appContext, appLogger.WithGroup("services"))
+	if err != nil {
+		appLogger.Error("服务初始化失败", "error", err)
+		os.Exit(1)
+	}
+
 	// 设置路由
-	if err := router.SetupRoutes(fiberApp, context.Background(), appLogger); err != nil {
+	if err := router.SetupRoutes(fiberApp, svcs); err != nil {
 		appLogger.Error("路由设置失败", "error", err)
 		os.Exit(1)
 	}
@@ -80,6 +90,16 @@ func main() {
 
 	_ = <-c
 	appLogger.Info("收到关闭信号，正在关闭应用...")
+
+	// 关闭 AI 网关服务
+	if svcs.AIGatewayService != nil {
+		appLogger.Info("正在关闭 AI 网关服务")
+		if err := svcs.AIGatewayService.Close(5 * time.Second); err != nil {
+			appLogger.Error("关闭 AI 网关服务失败", "error", err)
+		} else {
+			appLogger.Info("AI 网关服务已成功关闭")
+		}
+	}
 
 	// 关闭 Web 服务
 	err = fiberApp.Shutdown()

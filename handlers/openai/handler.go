@@ -21,9 +21,6 @@ import (
 //
 // 该结构体封装了处理 OpenAI 兼容 API 请求所需的服务和日志记录器
 type OpenAIHandler struct {
-	// logger 日志记录器实例，用于记录处理过程中的日志信息
-	logger *slog.Logger
-
 	// aigatewayService AI 网关服务实例，用于处理 AI 相关请求
 	aigatewayService services.PortalService
 }
@@ -38,9 +35,8 @@ type OpenAIHandler struct {
 //
 // 返回值：
 //   - *OpenAIHandler: 初始化后的 OpenAI 处理器实例
-func New(aigatewayService services.PortalService, logger *slog.Logger) *OpenAIHandler {
+func New(aigatewayService services.PortalService) *OpenAIHandler {
 	return &OpenAIHandler{
-		logger:           logger,
 		aigatewayService: aigatewayService,
 	}
 }
@@ -100,19 +96,11 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	// 解析请求体到 ChatCompletionRequest 结构体
 	var req openaiTypes.ChatCompletionRequest
 	if err := c.BodyParser(&req); err != nil {
-		h.logger.ErrorContext(c.Context(), "请求解析失败", "error", err)
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "无法解析请求"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": fmt.Sprintf("无法解析请求: %v", err)})
 	}
 
 	// 将请求转换为内部使用的 Request 结构体
 	chatReq := openai.ChatCompletionRequestToRequest(&req)
-
-	// 记录请求处理开始日志
-	h.logger.InfoContext(c.Context(), "开始处理聊天完成请求",
-		"model", req.Model,
-		"message_count", len(req.Messages),
-		"stream", req.Stream,
-	)
 
 	// 根据是否启用流式传输选择不同的处理方法
 	if !req.Stream {
@@ -136,8 +124,7 @@ func (h *OpenAIHandler) handleNonStream(c *fiber.Ctx, req *portalTypes.Request) 
 	// 调用 AI 网关服务处理聊天补全请求
 	resp, err := h.aigatewayService.ChatCompletion(c.Context(), req)
 	if err != nil {
-		h.logger.ErrorContext(c.Context(), "聊天完成处理失败", "error", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "处理请求时发生内部错误"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("处理请求时发生内部错误: %v", err)})
 	}
 
 	// 将响应转换为 OpenAI 兼容格式
@@ -145,11 +132,7 @@ func (h *OpenAIHandler) handleNonStream(c *fiber.Ctx, req *portalTypes.Request) 
 
 	// 记录处理成功日志，包含 token 使用情况
 	if response != nil {
-		h.logger.InfoContext(c.Context(), "聊天完成处理成功",
-			"prompt_tokens", response.Usage.PromptTokens,
-			"completion_tokens", response.Usage.CompletionTokens,
-			"total_tokens", response.Usage.TotalTokens,
-		)
+
 	}
 
 	// 返回 JSON 格式的响应
@@ -176,11 +159,8 @@ func (h *OpenAIHandler) handleStream(c *fiber.Ctx, req *portalTypes.Request) err
 	// 调用 AI 网关服务启动聊天补全流程
 	stream, err := h.aigatewayService.ChatCompletionStream(c.Context(), req)
 	if err != nil {
-		h.logger.ErrorContext(c.Context(), "无法启动聊天完成流", "error", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "无法启动聊天完成流"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("无法启动聊天完成流：%v", err)})
 	}
-
-	h.logger.InfoContext(c.Context(), "启动聊天完成流成功")
 
 	// 使用 StreamWriter 处理流式响应
 	c.Status(fiber.StatusOK).Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
@@ -188,7 +168,6 @@ func (h *OpenAIHandler) handleStream(c *fiber.Ctx, req *portalTypes.Request) err
 		for chunk := range stream {
 			// 检查是否有错误信息
 			if len(chunk.Choices) != 0 && chunk.Choices[0].Error != nil {
-				h.logger.ErrorContext(c.Context(), "从流中收到错误", "error", chunk.Choices[0].Error)
 				// 构造并发送错误事件给客户端
 				errorEvent := map[string]interface{}{
 					"error": map[string]interface{}{
@@ -200,7 +179,7 @@ func (h *OpenAIHandler) handleStream(c *fiber.Ctx, req *portalTypes.Request) err
 				// 序列化错误事件
 				jsonBytes, marshalErr := json.Marshal(errorEvent)
 				if marshalErr != nil {
-					h.logger.ErrorContext(c.Context(), "无法序列化错误事件", "error", marshalErr)
+					slog.Error("无法序列化错误事件", "error", marshalErr)
 					break
 				}
 
@@ -213,7 +192,7 @@ func (h *OpenAIHandler) handleStream(c *fiber.Ctx, req *portalTypes.Request) err
 			// 序列化数据块
 			jsonBytes, err := json.Marshal(chunk)
 			if err != nil {
-				h.logger.ErrorContext(c.Context(), "无法序列化 SSE 事件", "error", err)
+				slog.Error("无法序列化 SSE 事件", "error", err)
 				continue
 			}
 
@@ -222,7 +201,7 @@ func (h *OpenAIHandler) handleStream(c *fiber.Ctx, req *portalTypes.Request) err
 
 			// 刷新写入器，确保数据被发送
 			if err := w.Flush(); err != nil {
-				h.logger.ErrorContext(c.Context(), "无法刷新写入器", "error", err)
+				slog.Error("无法刷新写入器", "error", err)
 				break // 客户端可能已断开连接
 			}
 		}
@@ -230,7 +209,7 @@ func (h *OpenAIHandler) handleStream(c *fiber.Ctx, req *portalTypes.Request) err
 		// 发送流结束标记
 		fmt.Fprintf(w, "data: [DONE]\n\n")
 		if err := w.Flush(); err != nil {
-			h.logger.ErrorContext(c.Context(), "无法刷新最后的 [DONE] 消息", "error", err)
+			slog.ErrorContext(c.Context(), "无法刷新最后的 [DONE] 消息", "error", err)
 		}
 	}))
 
