@@ -67,9 +67,6 @@ func Connect(dbType, host, port, user, password, dbname string, logger *slog.Log
 func autoMigrate(db *gorm.DB) error {
 	// Add your model migrations here
 	return db.AutoMigrate(
-		&types.Health{},
-		&types.Platform{},
-		&types.APIKey{},
-		&types.Model{},
+		types.Types...,
 	)
 }

@@ -258,7 +258,44 @@ func (r *DatabaseRepository) BatchUpdateHealthStatus(ctx context.Context, status
 //   - *coreTypes.StatsSummary: 统计摘要数据
 //   - error: 错误信息
 func (r *DatabaseRepository) CountRequestStats(ctx context.Context, params *coreTypes.StatsQueryParams) (*coreTypes.StatsSummary, error) {
-	panic("unimplemented")
+	q := database.Q.WithContext(ctx).RequestStat
+
+	// 根据查询参数构建查询条件
+	if params.ModelName != nil && *params.ModelName != "" {
+		q = q.Where(database.Q.RequestStat.ModelName.Eq(*params.ModelName))
+	}
+
+	if params.StartTime != nil && !params.StartTime.IsZero() {
+		q = q.Where(database.Q.RequestStat.Timestamp.Gte(*params.StartTime))
+	}
+
+	if params.EndTime != nil && !params.EndTime.IsZero() {
+		q = q.Where(database.Q.RequestStat.Timestamp.Lte(*params.EndTime))
+	}
+
+	if params.Success != nil {
+		q = q.Where(database.Q.RequestStat.Success.Is(*params.Success))
+	}
+
+	// 执行统计查询
+	summary := &coreTypes.StatsSummary{}
+
+	// 查询总请求数
+	totalCount, err := q.Count()
+	if err != nil {
+		return nil, fmt.Errorf("统计总请求数失败：%w", err)
+	}
+	summary.TotalRequests = totalCount
+
+	// 查询成功请求数
+	successCondition := true
+	successCount, err := q.Where(database.Q.RequestStat.Success.Is(successCondition)).Count()
+	if err != nil {
+		return nil, fmt.Errorf("统计成功请求数失败：%w", err)
+	}
+	summary.SuccessRequests = successCount
+
+	return summary, nil
 }
 
 // QueryRequestStats 查询请求统计数据
@@ -273,7 +310,52 @@ func (r *DatabaseRepository) CountRequestStats(ctx context.Context, params *core
 //   - []*coreTypes.RequestStat: 请求统计列表
 //   - error: 错误信息
 func (r *DatabaseRepository) QueryRequestStats(ctx context.Context, params *coreTypes.StatsQueryParams) ([]*coreTypes.RequestStat, error) {
-	panic("unimplemented")
+	q := database.Q.WithContext(ctx).RequestStat
+
+	// 根据查询参数构建查询条件
+	if params.ModelName != nil && *params.ModelName != "" {
+		q = q.Where(database.Q.RequestStat.ModelName.Eq(*params.ModelName))
+	}
+
+	if params.StartTime != nil && !params.StartTime.IsZero() {
+		q = q.Where(database.Q.RequestStat.Timestamp.Gte(*params.StartTime))
+	}
+
+	if params.EndTime != nil && !params.EndTime.IsZero() {
+		q = q.Where(database.Q.RequestStat.Timestamp.Lte(*params.EndTime))
+	}
+
+	if params.Success != nil {
+		q = q.Where(database.Q.RequestStat.Success.Is(*params.Success))
+	}
+
+	// 执行查询
+	results, err := q.Find()
+	if err != nil {
+		return nil, fmt.Errorf("查询请求统计数据失败：%w", err)
+	}
+
+	// 转换为 coreTypes.RequestStat 类型
+	requestStats := make([]*coreTypes.RequestStat, len(results))
+	for i, result := range results {
+		requestStats[i] = &coreTypes.RequestStat{
+			ID:          result.ID,
+			Timestamp:   result.Timestamp,
+			RequestType: result.RequestType,
+			ModelName:   result.ModelName,
+			ChannelInfo: coreTypes.ChannelInfo{
+				PlatformID: result.ChannelInfo.PlatformID,
+				APIKeyID:   result.ChannelInfo.APIKeyID,
+				ModelID:    result.ChannelInfo.ModelID,
+			},
+			Duration:      result.Duration,
+			FirstByteTime: result.FirstByteTime,
+			Success:       result.Success,
+			ErrorMsg:      result.ErrorMsg,
+		}
+	}
+
+	return requestStats, nil
 }
 
 // SaveRequestStat 保存请求统计
@@ -287,5 +369,28 @@ func (r *DatabaseRepository) QueryRequestStats(ctx context.Context, params *core
 // 返回值：
 //   - error: 错误信息
 func (r *DatabaseRepository) SaveRequestStat(ctx context.Context, stat *coreTypes.RequestStat) error {
-	panic("unimplemented")
+	// 将 coreTypes.RequestStat 转换为数据库类型
+	dbStat := &types.RequestStat{
+		ID:          stat.ID,
+		Timestamp:   stat.Timestamp,
+		RequestType: stat.RequestType,
+		ModelName:   stat.ModelName,
+		ChannelInfo: types.ChannelInfo{
+			PlatformID: stat.ChannelInfo.PlatformID,
+			APIKeyID:   stat.ChannelInfo.APIKeyID,
+			ModelID:    stat.ChannelInfo.ModelID,
+		},
+		Duration:      stat.Duration,
+		FirstByteTime: stat.FirstByteTime,
+		Success:       stat.Success,
+		ErrorMsg:      stat.ErrorMsg,
+	}
+
+	// 保存到数据库
+	err := database.Q.WithContext(ctx).RequestStat.Create(dbStat)
+	if err != nil {
+		return fmt.Errorf("保存请求统计信息失败：%w", err)
+	}
+
+	return nil
 }

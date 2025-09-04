@@ -9,4 +9,8 @@ var Types = []interface{}{
 	Platform{},
 	APIKey{},
 	Model{},
+
+	// Stats
+	RequestStat{},
+	ChannelInfo{},
 }
