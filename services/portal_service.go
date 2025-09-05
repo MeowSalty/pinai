@@ -13,6 +13,7 @@ import (
 )
 
 // PortalService AI 网关服务接口
+//
 // 封装所有与 AI 网关相关的业务逻辑
 type PortalService interface {
 	// ChatCompletion 处理聊天完成请求
@@ -31,7 +32,16 @@ type portalService struct {
 }
 
 // NewPortalService 创建新的 AI 网关服务实例
-// 初始化所有必要的组件，包括健康管理器、选择器和适配器
+//
+// 该函数初始化所有必要的组件，包括数据仓库和网关管理器，并正确配置日志记录器。
+//
+// 参数：
+//   - ctx: 上下文，用于初始化网关管理器
+//   - logger: 日志记录器实例，用于记录处理过程中的日志信息
+//
+// 返回值：
+//   - PortalService: 初始化后的 AI 网关服务实例
+//   - error: 初始化过程中可能出现的错误
 func NewPortalService(ctx context.Context, logger *slog.Logger) (PortalService, error) {
 	// 创建数据仓库实现
 	repo := &DatabaseRepository{}
@@ -50,6 +60,7 @@ func NewPortalService(ctx context.Context, logger *slog.Logger) (PortalService, 
 }
 
 // ChatCompletion 处理聊天完成请求
+//
 // 提供统一的聊天完成处理入口，包含日志记录和错误处理
 func (s *portalService) ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error) {
 	// 调用 aigateway 进行处理
@@ -72,12 +83,14 @@ func (s *portalService) ChatCompletionStream(ctx context.Context, req *coreTypes
 }
 
 // Close 优雅关闭服务
+//
 // 停止健康管理器和取消所有相关的上下文
 func (s *portalService) Close(timeout time.Duration) error {
 	return s.portal.Shutdown(timeout)
 }
 
 // DatabaseRepository 数据仓库实现
+//
 // 提供 aigateway 所需的数据访问接口
 type DatabaseRepository struct{}
 
