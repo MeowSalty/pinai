@@ -2,10 +2,10 @@ package openai
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/MeowSalty/pinai/database"
 	"github.com/MeowSalty/pinai/handlers/openai/types"
@@ -14,7 +14,6 @@ import (
 	openaiTypes "github.com/MeowSalty/portal/adapter/openai/types"
 	portalTypes "github.com/MeowSalty/portal/types"
 	"github.com/gofiber/fiber/v2"
-	"github.com/valyala/fasthttp"
 )
 
 // OpenAIHandler 结构体定义了 OpenAI 兼容 API 的处理器
@@ -27,11 +26,10 @@ type OpenAIHandler struct {
 
 // New 创建并初始化一个新的 OpenAI API 处理器实例
 //
-// 该函数使用依赖注入的方式创建 OpenAIHandler 实例，符合 Go 语言的最佳实践
+// 该函数使用依赖注入的方式创建 OpenAIHandler 实例
 //
 // 参数：
 //   - aigatewayService: AI 网关服务实例，用于处理 AI 相关请求
-//   - logger: 日志记录器实例，用于记录处理过程中的日志信息
 //
 // 返回值：
 //   - *OpenAIHandler: 初始化后的 OpenAI 处理器实例
@@ -47,171 +45,140 @@ func New(aigatewayService services.PortalService) *OpenAIHandler {
 // @Tags         OpenAI
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  ModelList
+// @Success      200  {object}  types.ModelList
 // @Failure      500  {object}  fiber.Map
-// @Router       /v1/models [get]
+// @Router       /openai/v1/models [get]
 func ListModels(c *fiber.Ctx) error {
 	q := database.Q
-	ctx := c.Context()
+	m := q.Model
 
-	dbModels, err := q.WithContext(ctx).Model.Find()
+	models, err := m.WithContext(context.Background()).Find()
 	if err != nil {
-		slog.ErrorContext(ctx, "查询模型失败", "error", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "查询模型失败",
+			"error": fmt.Sprintf("无法获取模型列表：%v", err),
 		})
 	}
 
-	data := make([]types.Model, len(dbModels))
-	for i, m := range dbModels {
-		modelID := m.Name
-		if m.Alias != "" {
-			modelID = m.Alias
-		}
-		data[i] = types.Model{
-			ID:      modelID,
-			Object:  "model",
-			Created: time.Now().Unix(),
-			OwnedBy: "p-org",
-		}
+	modelList := types.ModelList{
+		Object: "list",
+		Data:   make([]types.Model, 0, len(models)),
 	}
 
-	return c.JSON(types.ModelList{
-		Object: "list",
-		Data:   data,
-	})
+	for _, model := range models {
+		modelList.Data = append(modelList.Data, types.Model{
+			ID:     model.Name,
+			Object: "model",
+		})
+	}
+
+	return c.JSON(modelList)
 }
 
-// ChatCompletions 处理聊天补全请求
-//
-// 该方法根据请求参数决定使用流式还是非流式方式处理聊天补全请求。
-// 支持 OpenAI 兼容的聊天补全接口，可以处理各种模型的请求。
-//
-// 参数：
-//   - c: Fiber 上下文对象，包含 HTTP 请求和响应相关信息
-//
-// 返回值：
-//   - error: 处理过程中可能发生的错误
+// ChatCompletions 处理聊天完成请求
+// @Summary      聊天完成
+// @Description  创建聊天完成响应
+// @Tags         OpenAI
+// @Accept       json
+// @Produce      json
+// @Param        request  body      openaiTypes.ChatCompletionRequest  true  "聊天完成请求"
+// @Success      200      {object}  openaiTypes.ChatCompletionResponse
+// @Failure      400      {object}  fiber.Map
+// @Failure      401      {object}  fiber.Map
+// @Failure      500      {object}  fiber.Map
+// @Router       /openai/v1/chat/completions [post]
 func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
-	// 解析请求体到 ChatCompletionRequest 结构体
+	// 解析请求
 	var req openaiTypes.ChatCompletionRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": fmt.Sprintf("无法解析请求: %v", err)})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("无效的请求格式： %v", err),
+		})
 	}
 
-	// 将请求转换为内部使用的 Request 结构体
-	chatReq := openai.ChatCompletionRequestToRequest(&req)
+	// 转换请求格式
+	portalReq := openai.ChatCompletionRequestToRequest(&req)
 
-	// 根据是否启用流式传输选择不同的处理方法
-	if !req.Stream {
-		return h.handleNonStream(c, chatReq)
+	// 调用 AI 网关服务
+	ctx := context.Background()
+
+	if req.Stream {
+		// 流式响应
+		return h.handleStreamResponse(c, ctx, portalReq)
 	}
 
-	return h.handleStream(c, chatReq)
-}
-
-// handleNonStream 处理非流式的聊天补全请求
-//
-// 该方法处理非流式的聊天补全请求，一次性返回完整的响应结果。
-//
-// 参数：
-//   - c: Fiber 上下文对象，包含 HTTP 请求和响应相关信息
-//   - req: 聊天补全请求对象
-//
-// 返回值：
-//   - error: 处理过程中可能发生的错误
-func (h *OpenAIHandler) handleNonStream(c *fiber.Ctx, req *portalTypes.Request) error {
-	// 调用 AI 网关服务处理聊天补全请求
-	resp, err := h.aigatewayService.ChatCompletion(c.Context(), req)
+	// 非流式响应
+	resp, err := h.aigatewayService.ChatCompletion(ctx, portalReq)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("处理请求时发生内部错误: %v", err)})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("处理请求时出错：%v", err),
+		})
 	}
 
-	// 将响应转换为 OpenAI 兼容格式
-	response := openai.ResponseToChatCompletionResponse(resp)
+	// 转换响应格式
+	openaiResp := openai.ResponseToChatCompletionResponse(resp)
 
-	// 记录处理成功日志，包含 token 使用情况
-	if response != nil {
-
-	}
-
-	// 返回 JSON 格式的响应
-	return c.JSON(response)
+	return c.JSON(openaiResp)
 }
 
-// handleStream 处理流式的聊天补全请求
-//
-// 该方法处理流式的聊天补全请求，通过 Server-Sent Events (SSE) 实时返回响应结果。
-//
-// 参数：
-//   - c: Fiber 上下文对象，包含 HTTP 请求和响应相关信息
-//   - req: 聊天补全请求对象
-//
-// 返回值：
-//   - error: 处理过程中可能发生的错误
-func (h *OpenAIHandler) handleStream(c *fiber.Ctx, req *portalTypes.Request) error {
-	// 设置流式响应的 HTTP 头信息
+// handleStreamResponse 处理流式响应
+func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, ctx context.Context, req *portalTypes.Request) error {
+	// 设置流式响应头
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
 	c.Set("Transfer-Encoding", "chunked")
 
-	// 调用 AI 网关服务启动聊天补全流程
-	stream, err := h.aigatewayService.ChatCompletionStream(c.Context(), req)
+	// 获取流式响应通道
+	responseChan, err := h.aigatewayService.ChatCompletionStream(ctx, req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("无法启动聊天完成流：%v", err)})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("启动流式传输时出错：%v", err),
+		})
 	}
 
-	// 使用 StreamWriter 处理流式响应
-	c.Status(fiber.StatusOK).Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		// 遍历流中的每个数据块
-		for chunk := range stream {
-			// 检查是否有错误信息
-			if len(chunk.Choices) != 0 && chunk.Choices[0].Error != nil {
-				// 构造并发送错误事件给客户端
-				errorEvent := map[string]interface{}{
-					"error": map[string]interface{}{
-						"type":    "stream_error",
-						"message": chunk.Choices[0].Error.Message,
-					},
-				}
+	// 获取原始 TCP 连接
+	conn := c.Context().Response.BodyWriter()
+	writer := bufio.NewWriterSize(conn, 1024)
 
-				// 序列化错误事件
-				jsonBytes, marshalErr := json.Marshal(errorEvent)
-				if marshalErr != nil {
-					slog.Error("无法序列化错误事件", "error", marshalErr)
-					break
-				}
+	// 发送流式事件
+	var lastResp *portalTypes.Response
+	for resp := range responseChan {
+		// 转换为 OpenAI 格式
+		openaiResp := openai.ResponseToChatCompletionResponse(resp)
 
-				// 发送错误事件
-				fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes))
-				w.Flush()
-				break
-			}
-
-			// 序列化数据块
-			jsonBytes, err := json.Marshal(chunk)
-			if err != nil {
-				slog.Error("无法序列化 SSE 事件", "error", err)
-				continue
-			}
-
-			// 写入 SSE 格式的数据
-			fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes))
-
-			// 刷新写入器，确保数据被发送
-			if err := w.Flush(); err != nil {
-				slog.Error("无法刷新写入器", "error", err)
-				break // 客户端可能已断开连接
-			}
+		// 发送事件
+		data, _ := json.Marshal(openaiResp)
+		_, err := fmt.Fprintf(writer, "data: %s\n\n", data)
+		if err != nil {
+			slog.Error("写入流式响应失败", "error", err)
+			break
 		}
 
-		// 发送流结束标记
-		fmt.Fprintf(w, "data: [DONE]\n\n")
-		if err := w.Flush(); err != nil {
-			slog.ErrorContext(c.Context(), "无法刷新最后的 [DONE] 消息", "error", err)
-		}
-	}))
+		// 刷新缓冲区
+		writer.Flush()
+		lastResp = resp
+	}
 
+	// 发送结束标记和最终统计信息
+	if lastResp != nil {
+		// 添加结束原因
+		if len(lastResp.Choices) > 0 {
+			finishReason := "stop"
+			lastResp.Choices[0].FinishReason = &finishReason
+		}
+
+		// 转换并发送最终消息
+		finalResp := openai.ResponseToChatCompletionResponse(lastResp)
+		finalData, _ := json.Marshal(finalResp)
+		fmt.Fprintf(writer, "data: %s\n\n", finalData)
+	}
+
+	// 发送流结束标记
+	_, err = fmt.Fprintf(writer, "data: [DONE]\n\n")
+	if err != nil {
+		slog.Error("写入流结束标记失败", "error", err)
+	}
+
+	writer.Flush()
 	return nil
 }
