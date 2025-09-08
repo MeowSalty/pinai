@@ -9,7 +9,7 @@ func main() {
 	// 初始化生成器配置
 	g := gen.NewGenerator(gen.Config{
 		OutPath:       "./database/query", // 输出目录，默认是./query
-		Mode:          gen.WithDefaultQuery | gen.WithQueryInterface,
+		Mode:          gen.WithDefaultQuery | gen.WithQueryInterface | gen.WithoutContext,
 		FieldNullable: true,
 	})
 

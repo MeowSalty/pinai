@@ -43,7 +43,7 @@ func newAPIKey(db *gorm.DB, opts ...gen.DOOption) aPIKey {
 }
 
 type aPIKey struct {
-	aPIKeyDo aPIKeyDo
+	aPIKeyDo
 
 	ALL        field.Asterisk
 	ID         field.Uint
@@ -74,14 +74,6 @@ func (a *aPIKey) updateTableName(table string) *aPIKey {
 
 	return a
 }
-
-func (a *aPIKey) WithContext(ctx context.Context) IAPIKeyDo { return a.aPIKeyDo.WithContext(ctx) }
-
-func (a aPIKey) TableName() string { return a.aPIKeyDo.TableName() }
-
-func (a aPIKey) Alias() string { return a.aPIKeyDo.Alias() }
-
-func (a aPIKey) Columns(cols ...field.Expr) gen.Columns { return a.aPIKeyDo.Columns(cols...) }
 
 func (a *aPIKey) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 	_f, ok := a.fieldMap[fieldName]

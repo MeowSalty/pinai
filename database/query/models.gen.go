@@ -44,7 +44,7 @@ func newModel(db *gorm.DB, opts ...gen.DOOption) model {
 }
 
 type model struct {
-	modelDo modelDo
+	modelDo
 
 	ALL        field.Asterisk
 	ID         field.Uint
@@ -77,14 +77,6 @@ func (m *model) updateTableName(table string) *model {
 
 	return m
 }
-
-func (m *model) WithContext(ctx context.Context) IModelDo { return m.modelDo.WithContext(ctx) }
-
-func (m model) TableName() string { return m.modelDo.TableName() }
-
-func (m model) Alias() string { return m.modelDo.Alias() }
-
-func (m model) Columns(cols ...field.Expr) gen.Columns { return m.modelDo.Columns(cols...) }
 
 func (m *model) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 	_f, ok := m.fieldMap[fieldName]

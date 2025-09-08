@@ -52,7 +52,7 @@ func newHealth(db *gorm.DB, opts ...gen.DOOption) health {
 }
 
 type health struct {
-	healthDo healthDo
+	healthDo
 
 	ALL               field.Asterisk
 	ID                field.Uint
@@ -110,14 +110,6 @@ func (h *health) updateTableName(table string) *health {
 
 	return h
 }
-
-func (h *health) WithContext(ctx context.Context) IHealthDo { return h.healthDo.WithContext(ctx) }
-
-func (h health) TableName() string { return h.healthDo.TableName() }
-
-func (h health) Alias() string { return h.healthDo.Alias() }
-
-func (h health) Columns(cols ...field.Expr) gen.Columns { return h.healthDo.Columns(cols...) }
 
 func (h *health) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 	_f, ok := h.fieldMap[fieldName]

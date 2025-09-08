@@ -46,7 +46,7 @@ func newRequestStat(db *gorm.DB, opts ...gen.DOOption) requestStat {
 }
 
 type requestStat struct {
-	requestStatDo requestStatDo
+	requestStatDo
 
 	ALL           field.Asterisk
 	ID            field.String
@@ -92,16 +92,6 @@ func (r *requestStat) updateTableName(table string) *requestStat {
 
 	return r
 }
-
-func (r *requestStat) WithContext(ctx context.Context) IRequestStatDo {
-	return r.requestStatDo.WithContext(ctx)
-}
-
-func (r requestStat) TableName() string { return r.requestStatDo.TableName() }
-
-func (r requestStat) Alias() string { return r.requestStatDo.Alias() }
-
-func (r requestStat) Columns(cols ...field.Expr) gen.Columns { return r.requestStatDo.Columns(cols...) }
 
 func (r *requestStat) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 	_f, ok := r.fieldMap[fieldName]

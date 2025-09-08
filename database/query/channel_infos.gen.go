@@ -38,7 +38,7 @@ func newChannelInfo(db *gorm.DB, opts ...gen.DOOption) channelInfo {
 }
 
 type channelInfo struct {
-	channelInfoDo channelInfoDo
+	channelInfoDo
 
 	ALL        field.Asterisk
 	PlatformID field.Uint
@@ -68,16 +68,6 @@ func (c *channelInfo) updateTableName(table string) *channelInfo {
 
 	return c
 }
-
-func (c *channelInfo) WithContext(ctx context.Context) IChannelInfoDo {
-	return c.channelInfoDo.WithContext(ctx)
-}
-
-func (c channelInfo) TableName() string { return c.channelInfoDo.TableName() }
-
-func (c channelInfo) Alias() string { return c.channelInfoDo.Alias() }
-
-func (c channelInfo) Columns(cols ...field.Expr) gen.Columns { return c.channelInfoDo.Columns(cols...) }
 
 func (c *channelInfo) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 	_f, ok := c.fieldMap[fieldName]

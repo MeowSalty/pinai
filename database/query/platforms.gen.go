@@ -40,7 +40,7 @@ func newPlatform(db *gorm.DB, opts ...gen.DOOption) platform {
 }
 
 type platform struct {
-	platformDo platformDo
+	platformDo
 
 	ALL       field.Asterisk
 	ID        field.Uint
@@ -74,14 +74,6 @@ func (p *platform) updateTableName(table string) *platform {
 
 	return p
 }
-
-func (p *platform) WithContext(ctx context.Context) IPlatformDo { return p.platformDo.WithContext(ctx) }
-
-func (p platform) TableName() string { return p.platformDo.TableName() }
-
-func (p platform) Alias() string { return p.platformDo.Alias() }
-
-func (p platform) Columns(cols ...field.Expr) gen.Columns { return p.platformDo.Columns(cols...) }
 
 func (p *platform) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 	_f, ok := p.fieldMap[fieldName]
