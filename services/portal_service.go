@@ -50,7 +50,7 @@ func NewPortalService(ctx context.Context, logger *slog.Logger) (PortalService, 
 	gatewayManager, err := portal.New(
 		ctx,
 		portal.WithRepository(repo),
-		portal.WithLogger(logger.WithGroup("portal")),
+		portal.WithLogger(logger),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
