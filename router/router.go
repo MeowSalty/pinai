@@ -13,6 +13,7 @@ import (
 func SetupRoutes(web *fiber.App, svcs *services.Services) error {
 	web.Use(cors.New())
 	webAPI := web.Group("/api")
+	openaiAPI := web.Group("/openai/v1")
 
 	webAPI.Get("/ping", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -21,7 +22,7 @@ func SetupRoutes(web *fiber.App, svcs *services.Services) error {
 	})
 
 	health.SetupHealthRoutes(webAPI, svcs.HealthService)
-	openai.SetupOpenAIRoutes(webAPI, svcs.AIGatewayService)
+	openai.SetupOpenAIRoutes(openaiAPI, svcs.AIGatewayService)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService)
 	return nil
 }
