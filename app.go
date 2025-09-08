@@ -58,7 +58,12 @@ func main() {
 	})
 
 	// 中间件
-	fiberApp.Use(slogfiber.New(fiberLogger))
+	fiberApp.Use(slogfiber.NewWithConfig(fiberLogger, slogfiber.Config{
+		Filters: []slogfiber.Filter{
+			// 忽略 /openai 路径下的请求，避免干扰流式传输
+			slogfiber.IgnoreHostContains("/openai"),
+		},
+	}))
 	fiberApp.Use(recover.New())
 
 	// 初始化服务
