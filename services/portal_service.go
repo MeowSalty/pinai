@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/MeowSalty/pinai/database"
+	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/portal"
 	coreTypes "github.com/MeowSalty/portal/types"
@@ -96,7 +96,7 @@ type DatabaseRepository struct{}
 
 // FindModelsByName 根据名称查找模型
 func (r *DatabaseRepository) FindModelsByName(ctx context.Context, name string) ([]*coreTypes.Model, error) {
-	q := database.Q
+	q := query.Q
 
 	// 使用 GORM 查询模型（先按名称查找，再按别名查找）
 	dbModels, err := q.WithContext(ctx).Model.Where(
@@ -133,7 +133,7 @@ func (r *DatabaseRepository) FindModelsByName(ctx context.Context, name string) 
 
 // GetPlatformByID 根据 ID 获取平台信息
 func (r *DatabaseRepository) GetPlatformByID(ctx context.Context, id uint) (*coreTypes.Platform, error) {
-	q := database.Q
+	q := query.Q
 
 	dbPlatform, err := q.WithContext(ctx).Platform.Where(q.Platform.ID.Eq(id)).First()
 	if err != nil {
@@ -157,7 +157,7 @@ func (r *DatabaseRepository) GetPlatformByID(ctx context.Context, id uint) (*cor
 
 // GetAllAPIKeys 获取平台的所有 API 密钥
 func (r *DatabaseRepository) GetAllAPIKeys(ctx context.Context, platformID uint) ([]*coreTypes.APIKey, error) {
-	q := database.Q
+	q := query.Q
 
 	dbKeys, err := q.WithContext(ctx).APIKey.Where(q.APIKey.PlatformID.Eq(platformID)).Find()
 	if err != nil {
@@ -178,7 +178,7 @@ func (r *DatabaseRepository) GetAllAPIKeys(ctx context.Context, platformID uint)
 
 // GetAllHealthStatus 获取所有健康状态
 func (r *DatabaseRepository) GetAllHealthStatus(ctx context.Context) ([]*coreTypes.Health, error) {
-	q := database.Q
+	q := query.Q
 
 	dbHealths, err := q.WithContext(ctx).Health.Find()
 	if err != nil {
@@ -214,7 +214,7 @@ func (r *DatabaseRepository) GetAllHealthStatus(ctx context.Context) ([]*coreTyp
 
 // BatchUpdateHealthStatus 批量更新健康状态
 func (r *DatabaseRepository) BatchUpdateHealthStatus(ctx context.Context, statuses []*coreTypes.Health) error {
-	q := database.Q
+	q := query.Q
 
 	// 开启事务
 	tx := q.Begin()
@@ -271,23 +271,23 @@ func (r *DatabaseRepository) BatchUpdateHealthStatus(ctx context.Context, status
 //   - *coreTypes.StatsSummary: 统计摘要数据
 //   - error: 错误信息
 func (r *DatabaseRepository) CountRequestStats(ctx context.Context, params *coreTypes.StatsQueryParams) (*coreTypes.StatsSummary, error) {
-	q := database.Q.WithContext(ctx).RequestStat
+	q := query.Q.WithContext(ctx).RequestStat
 
 	// 根据查询参数构建查询条件
 	if params.ModelName != nil && *params.ModelName != "" {
-		q = q.Where(database.Q.RequestStat.ModelName.Eq(*params.ModelName))
+		q = q.Where(query.Q.RequestStat.ModelName.Eq(*params.ModelName))
 	}
 
 	if params.StartTime != nil && !params.StartTime.IsZero() {
-		q = q.Where(database.Q.RequestStat.Timestamp.Gte(*params.StartTime))
+		q = q.Where(query.Q.RequestStat.Timestamp.Gte(*params.StartTime))
 	}
 
 	if params.EndTime != nil && !params.EndTime.IsZero() {
-		q = q.Where(database.Q.RequestStat.Timestamp.Lte(*params.EndTime))
+		q = q.Where(query.Q.RequestStat.Timestamp.Lte(*params.EndTime))
 	}
 
 	if params.Success != nil {
-		q = q.Where(database.Q.RequestStat.Success.Is(*params.Success))
+		q = q.Where(query.Q.RequestStat.Success.Is(*params.Success))
 	}
 
 	// 执行统计查询
@@ -302,7 +302,7 @@ func (r *DatabaseRepository) CountRequestStats(ctx context.Context, params *core
 
 	// 查询成功请求数
 	successCondition := true
-	successCount, err := q.Where(database.Q.RequestStat.Success.Is(successCondition)).Count()
+	successCount, err := q.Where(query.Q.RequestStat.Success.Is(successCondition)).Count()
 	if err != nil {
 		return nil, fmt.Errorf("统计成功请求数失败：%w", err)
 	}
@@ -323,23 +323,23 @@ func (r *DatabaseRepository) CountRequestStats(ctx context.Context, params *core
 //   - []*coreTypes.RequestStat: 请求统计列表
 //   - error: 错误信息
 func (r *DatabaseRepository) QueryRequestStats(ctx context.Context, params *coreTypes.StatsQueryParams) ([]*coreTypes.RequestStat, error) {
-	q := database.Q.WithContext(ctx).RequestStat
+	q := query.Q.WithContext(ctx).RequestStat
 
 	// 根据查询参数构建查询条件
 	if params.ModelName != nil && *params.ModelName != "" {
-		q = q.Where(database.Q.RequestStat.ModelName.Eq(*params.ModelName))
+		q = q.Where(query.Q.RequestStat.ModelName.Eq(*params.ModelName))
 	}
 
 	if params.StartTime != nil && !params.StartTime.IsZero() {
-		q = q.Where(database.Q.RequestStat.Timestamp.Gte(*params.StartTime))
+		q = q.Where(query.Q.RequestStat.Timestamp.Gte(*params.StartTime))
 	}
 
 	if params.EndTime != nil && !params.EndTime.IsZero() {
-		q = q.Where(database.Q.RequestStat.Timestamp.Lte(*params.EndTime))
+		q = q.Where(query.Q.RequestStat.Timestamp.Lte(*params.EndTime))
 	}
 
 	if params.Success != nil {
-		q = q.Where(database.Q.RequestStat.Success.Is(*params.Success))
+		q = q.Where(query.Q.RequestStat.Success.Is(*params.Success))
 	}
 
 	// 执行查询
@@ -400,7 +400,7 @@ func (r *DatabaseRepository) SaveRequestStat(ctx context.Context, stat *coreType
 	}
 
 	// 保存到数据库
-	err := database.Q.WithContext(ctx).RequestStat.Create(dbStat)
+	err := query.Q.WithContext(ctx).RequestStat.Create(dbStat)
 	if err != nil {
 		return fmt.Errorf("保存请求统计信息失败：%w", err)
 	}

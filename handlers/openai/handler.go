@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/MeowSalty/pinai/database"
+	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/handlers/openai/types"
 	"github.com/MeowSalty/pinai/services"
 	"github.com/MeowSalty/portal/adapter/openai"
@@ -49,10 +49,10 @@ func New(aigatewayService services.PortalService) *OpenAIHandler {
 // @Failure      500  {object}  fiber.Map
 // @Router       /openai/v1/models [get]
 func ListModels(c *fiber.Ctx) error {
-	q := database.Q
+	q := query.Q
 	m := q.Model
 
-	models, err := m.WithContext(context.Background()).Find()
+	models, err := m.WithContext(c.Context()).Find()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("无法获取模型列表：%v", err),

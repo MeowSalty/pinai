@@ -15,9 +15,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// Q 全局查询对象
-var Q = query.Q
-
 // Connect 连接到数据库
 //
 // 该函数根据提供的数据库类型和连接信息连接到数据库，并配置 slog-gorm 日志记录器。
