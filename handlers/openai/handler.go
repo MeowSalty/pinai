@@ -138,23 +138,57 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, ctx context.Context, 
 
 	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
 		var lastResp *portalTypes.Response
-		for resp := range responseChan {
-			// 转换为 OpenAI 格式
-			openaiResp := openai.ResponseToChatCompletionResponse(resp)
+		for {
+			select {
+			case <-c.Context().Done():
+				// 客户端已断开连接，取消流式响应
+				return
 
-			// 发送事件
-			data, _ := json.Marshal(openaiResp)
-			_, err := fmt.Fprintf(w, "data: %s\n\n", data)
-			if err != nil {
-				slog.Error("写入流式响应失败", "error", err)
-				break
+			case resp, ok := <-responseChan:
+				if !ok {
+					goto StreamEnd
+				}
+
+				// 检查是否有错误字段
+				if len(resp.Choices) > 0 && resp.Choices[0].Error != nil {
+					// 构造并发送错误事件给客户端
+					errorEvent := map[string]interface{}{
+						"error": map[string]interface{}{
+							"type":    "stream_error",
+							"message": resp.Choices[0].Error.Message,
+						},
+					}
+
+					// 序列化错误事件
+					jsonBytes, marshalErr := json.Marshal(errorEvent)
+					if marshalErr != nil {
+						slog.Error("无法序列化错误事件", "error", marshalErr)
+						break
+					}
+
+					// 发送错误事件
+					fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes))
+					w.Flush()
+					break
+				}
+
+				// 转换为 OpenAI 格式
+				openaiResp := openai.ResponseToChatCompletionResponse(resp)
+
+				// 发送事件
+				data, _ := json.Marshal(openaiResp)
+				_, err := fmt.Fprintf(w, "data: %s\n\n", data)
+				if err != nil {
+					slog.Error("写入流式响应失败", "error", err)
+					break
+				}
+
+				// 刷新缓冲区
+				w.Flush()
+				lastResp = resp
 			}
-
-			// 刷新缓冲区
-			w.Flush()
-			lastResp = resp
 		}
-
+	StreamEnd:
 		// 发送结束标记和最终统计信息
 		if lastResp != nil {
 			// 添加结束原因
