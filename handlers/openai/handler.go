@@ -136,49 +136,47 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, ctx context.Context, 
 		})
 	}
 
-	// 获取原始 TCP 连接
-	conn := c.Context().Response.BodyWriter()
-	writer := bufio.NewWriterSize(conn, 1024)
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		var lastResp *portalTypes.Response
+		for resp := range responseChan {
+			// 转换为 OpenAI 格式
+			openaiResp := openai.ResponseToChatCompletionResponse(resp)
 
-	// 发送流式事件
-	var lastResp *portalTypes.Response
-	for resp := range responseChan {
-		// 转换为 OpenAI 格式
-		openaiResp := openai.ResponseToChatCompletionResponse(resp)
+			// 发送事件
+			data, _ := json.Marshal(openaiResp)
+			_, err := fmt.Fprintf(w, "data: %s\n\n", data)
+			if err != nil {
+				slog.Error("写入流式响应失败", "error", err)
+				break
+			}
 
-		// 发送事件
-		data, _ := json.Marshal(openaiResp)
-		_, err := fmt.Fprintf(writer, "data: %s\n\n", data)
+			// 刷新缓冲区
+			w.Flush()
+			lastResp = resp
+		}
+
+		// 发送结束标记和最终统计信息
+		if lastResp != nil {
+			// 添加结束原因
+			if len(lastResp.Choices) > 0 {
+				finishReason := "stop"
+				lastResp.Choices[0].FinishReason = &finishReason
+			}
+
+			// 转换并发送最终消息
+			finalResp := openai.ResponseToChatCompletionResponse(lastResp)
+			finalData, _ := json.Marshal(finalResp)
+			fmt.Fprintf(w, "data: %s\n\n", finalData)
+		}
+
+		// 发送流结束标记
+		_, err = fmt.Fprintf(w, "data: [DONE]\n\n")
 		if err != nil {
-			slog.Error("写入流式响应失败", "error", err)
-			break
+			slog.Error("写入流结束标记失败", "error", err)
 		}
 
-		// 刷新缓冲区
-		writer.Flush()
-		lastResp = resp
-	}
+		w.Flush()
+	})
 
-	// 发送结束标记和最终统计信息
-	if lastResp != nil {
-		// 添加结束原因
-		if len(lastResp.Choices) > 0 {
-			finishReason := "stop"
-			lastResp.Choices[0].FinishReason = &finishReason
-		}
-
-		// 转换并发送最终消息
-		finalResp := openai.ResponseToChatCompletionResponse(lastResp)
-		finalData, _ := json.Marshal(finalResp)
-		fmt.Fprintf(writer, "data: %s\n\n", finalData)
-	}
-
-	// 发送流结束标记
-	_, err = fmt.Fprintf(writer, "data: [DONE]\n\n")
-	if err != nil {
-		slog.Error("写入流结束标记失败", "error", err)
-	}
-
-	writer.Flush()
 	return nil
 }
