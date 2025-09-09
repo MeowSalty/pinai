@@ -60,8 +60,8 @@ func main() {
 	// 中间件
 	fiberApp.Use(slogfiber.NewWithConfig(fiberLogger, slogfiber.Config{
 		Filters: []slogfiber.Filter{
-			// 忽略 /openai 路径下的请求，避免干扰流式传输
-			slogfiber.IgnoreHostContains("/openai"),
+			// 忽略 /completions 路径下的请求，避免干扰流式传输
+			slogfiber.IgnorePathContains("/completions"),
 		},
 	}))
 	fiberApp.Use(recover.New())
