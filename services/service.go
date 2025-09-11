@@ -10,6 +10,7 @@ type Services struct {
 	HealthService    HealthServiceInterface
 	AIGatewayService PortalService
 	ProviderService  ProviderService
+	StatsService     StatsServiceInterface
 }
 
 // NewServices 初始化所有服务并返回 Services 实例
@@ -38,9 +39,13 @@ func NewServices(ctx context.Context, logger *slog.Logger) (*Services, error) {
 	// 初始化供应商服务
 	providerService := NewProviderService()
 
+	// 初始化统计服务
+	statsService := NewStatsService()
+
 	return &Services{
 		HealthService:    healthService,
 		AIGatewayService: aiGatewayService,
 		ProviderService:  providerService,
+		StatsService:     statsService,
 	}, nil
 }
