@@ -1,0 +1,64 @@
+name: Create Release on Tag
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'  # 匹配语义化版本标签，如 v1.0.0, v2.1.4-beta 等
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 允许工作流写入内容（创建 Release）
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取所有历史记录以便生成 changelog
+
+    - name: Extract version from tag
+      id: get_version
+      run: |
+        # 去除标签前的 'v' 前缀，获取纯版本号
+        VERSION="${GITHUB_REF#refs/tags/v}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Generate release notes
+      id: generate_changelog
+      run: |
+        # 获取上一个标签
+        LATEST_TAG=$(git describe --tags --abbrev=0)
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 $LATEST_TAG^ 2>/dev/null || echo "")
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          # 如果没有上一个标签，显示所有提交
+          CHANGELOG=$(git log --oneline --pretty=format:"- %s (%h)" HEAD)
+        else
+          # 显示两个标签之间的提交
+          CHANGELOG=$(git log --oneline --pretty=format:"- %s (%h)" $PREVIOUS_TAG..$LATEST_TAG)
+        fi
+        
+        # 多行输出需要特殊处理
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "changelog<<$EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "$EOF" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ steps.get_version.outputs.version }}
+        body: |
+          # 版本 ${{ steps.get_version.outputs.version }} 发布说明
+          
+          ## 变更日志
+          ${{ steps.generate_changelog.outputs.changelog }}
+          
+          *自动生成于 $(date -u +"%Y-%m-%d %H:%M:%S") UTC*
+        draft: true
+        prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
