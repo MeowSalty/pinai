@@ -4,6 +4,7 @@ import (
 	"github.com/MeowSalty/pinai/handlers/health"
 	"github.com/MeowSalty/pinai/handlers/openai"
 	"github.com/MeowSalty/pinai/handlers/provider"
+	"github.com/MeowSalty/pinai/handlers/stats"
 	"github.com/MeowSalty/pinai/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -24,5 +25,6 @@ func SetupRoutes(web *fiber.App, svcs *services.Services) error {
 	health.SetupHealthRoutes(webAPI, svcs.HealthService)
 	openai.SetupOpenAIRoutes(openaiAPI, svcs.AIGatewayService)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService)
+	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
 	return nil
 }
