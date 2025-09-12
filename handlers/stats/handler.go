@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -52,8 +53,8 @@ func (h *StatsHandler) GetOverview(c *fiber.Ctx) error {
 // ListRequestStats 获取请求状态列表
 //
 // 查询参数：
-//   - start_time: 开始时间 (可选)
-//   - end_time: 结束时间 (可选)
+//   - start_time: 开始时间 (可选，支持 RFC3339 格式或 Unix 时间戳毫秒格式)
+//   - end_time: 结束时间 (可选，支持 RFC3339 格式或 Unix 时间戳毫秒格式)
 //   - success: 成功状态 (可选)
 //   - request_type: 请求类型 (可选)
 //   - model_name: 模型名称 (可选)
@@ -69,7 +70,7 @@ func (h *StatsHandler) ListRequestStats(c *fiber.Ctx) error {
 
 	// 解析时间范围参数
 	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
-		startTime, err := time.Parse(time.RFC3339, startTimeStr)
+		startTime, err := parseTime(startTimeStr)
 		if err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "开始时间格式错误")
 		}
@@ -77,7 +78,7 @@ func (h *StatsHandler) ListRequestStats(c *fiber.Ctx) error {
 	}
 
 	if endTimeStr := c.Query("end_time"); endTimeStr != "" {
-		endTime, err := time.Parse(time.RFC3339, endTimeStr)
+		endTime, err := parseTime(endTimeStr)
 		if err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "结束时间格式错误")
 		}
@@ -133,4 +134,28 @@ func (h *StatsHandler) ListRequestStats(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(response)
+}
+
+// parseTime 解析时间字符串，支持 RFC3339 格式和 Unix 时间戳 (毫秒)
+//
+// 参数：
+//   - timeStr: 时间字符串，可以是 RFC3339 格式或 Unix 时间戳 (毫秒)
+//
+// 返回值：
+//   - 成功：解析后的时间
+//   - 失败：错误信息
+func parseTime(timeStr string) (time.Time, error) {
+	// 首先尝试解析 RFC3339 格式
+	if t, err := time.Parse(time.RFC3339, timeStr); err == nil {
+		return t, nil
+	}
+
+	// 如果不是 RFC3339 格式，则尝试解析为 Unix 时间戳 (毫秒)
+	ts, err := strconv.ParseInt(timeStr, 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	// 将毫秒时间戳转换为 time.Time 类型
+	return time.Unix(0, ts*int64(time.Millisecond)), nil
 }
