@@ -86,10 +86,16 @@ jobs:
           certutil -hashfile "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}.zip" SHA256 > "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}-checksum.txt"
         shell: cmd
 
-      - name: Create checksum file (non-Windows)
-        if: matrix.os != 'windows-latest'
+      - name: Create checksum file (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sha256sum "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}.tar.gz" > "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}-checksum.txt"
+        shell: bash
+
+      - name: Create checksum file (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          shasum -a 256 "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}.tar.gz" > "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}-checksum.txt"
         shell: bash
 
       - name: Upload release assets
