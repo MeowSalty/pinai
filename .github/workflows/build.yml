@@ -6,10 +6,28 @@ on:
 
 jobs:
   build-and-upload:
-    name: Build and Upload Release Assets
-    runs-on: ubuntu-latest
+    name: Build and Upload Release Assets (${{ matrix.platform }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
     permissions:
-      contents: write # 允许工作流向发布添加资产
+      contents: write
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: amd64
+          - os: ubuntu-latest
+            platform: linux
+            arch: arm64
+          - os: windows-latest
+            platform: windows
+            arch: amd64
+          - os: macos-13
+            platform: darwin
+            arch: amd64
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
 
     steps:
       - name: Checkout code
@@ -22,51 +40,63 @@ jobs:
         with:
           go-version: "1.23"
 
-      - name: Get release info
-        id: release_info
+      - name: Set environment variables
         run: |
-          echo "tag_name=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          echo "release_id=${{ github.event.release.id }}" >> $GITHUB_OUTPUT
+          echo "GOOS=${{ matrix.platform }}" >> $GITHUB_ENV
+          echo "GOARCH=${{ matrix.arch }}" >> $GITHUB_ENV
+          echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        shell: bash
 
-      - name: Build for different platforms
+      - name: Install dependencies (Linux arm64)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
-          mkdir -p builds
-          # 为 Linux AMD64 构建
-          GOOS=linux GOARCH=amd64 go build -o builds/pinai-linux-amd64-${{ github.event.release.tag_name }} .
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+        shell: bash
 
-          # 为 Linux ARM64 构建
-          GOOS=linux GOARCH=arm64 go build -o builds/pinai-linux-arm64-${{ github.event.release.tag_name }} .
-
-          # 为 Windows AMD64 构建
-          GOOS=windows GOARCH=amd64 go build -o builds/pinai-windows-amd64-${{ github.event.release.tag_name }}.exe .
-
-          # 为 macOS AMD64 构建
-          GOOS=darwin GOARCH=amd64 go build -o builds/pinai-darwin-amd64-${{ github.event.release.tag_name }} .
-
-          # 为 macOS ARM64 (Apple Silicon) 构建
-          GOOS=darwin GOARCH=arm64 go build -o builds/pinai-darwin-arm64-${{ github.event.release.tag_name }} .
-
-      - name: Create archive files
+      - name: Build binary
         run: |
-          cd builds
+          EXTENSION=""
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            EXTENSION=".exe"
+          fi
 
-          # 为 Linux 和 macOS 创建 tar.gz 压缩包
-          tar -czf pinai-linux-amd64-${{ github.event.release.tag_name }}.tar.gz pinai-linux-amd64-${{ github.event.release.tag_name }}
-          tar -czf pinai-linux-arm64-${{ github.event.release.tag_name }}.tar.gz pinai-linux-arm64-${{ github.event.release.tag_name }}
-          tar -czf pinai-darwin-amd64-${{ github.event.release.tag_name }}.tar.gz pinai-darwin-amd64-${{ github.event.release.tag_name }}
-          tar -czf pinai-darwin-arm64-${{ github.event.release.tag_name }}.tar.gz pinai-darwin-arm64-${{ github.event.release.tag_name }}
+          BINARY_NAME="pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}${EXTENSION}"
+          go build -o "$BINARY_NAME" .
+        shell: bash
 
-          # 为 Windows 创建 zip 压缩包
-          zip pinai-windows-amd64-${{ github.event.release.tag_name }}.zip pinai-windows-amd64-${{ github.event.release.tag_name }}.exe
+      - name: Create archive files (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $binaryName = "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}.exe"
+          Compress-Archive -Path $binaryName -DestinationPath "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}.zip"
+        shell: powershell
 
-          # 创建校验和文件
-          sha256sum * > pinai-${{ github.event.release.tag_name }}-checksums.txt
+      - name: Create archive files (non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: |
+          BINARY_NAME="pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}"
+          tar -czf "$BINARY_NAME.tar.gz" "$BINARY_NAME"
+        shell: bash
+
+      - name: Create checksum file (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          certutil -hashfile "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}.zip" SHA256 > "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}-checksum.txt"
+        shell: cmd
+
+      - name: Create checksum file (non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: |
+          sha256sum "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}.tar.gz" > "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}-checksum.txt"
+        shell: bash
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.release.tag_name }}
           files: |
-            builds/*
+            pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
