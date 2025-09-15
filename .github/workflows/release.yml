@@ -46,6 +46,12 @@ jobs:
         echo "$CHANGELOG" >> $GITHUB_OUTPUT
         echo "$EOF" >> $GITHUB_OUTPUT
 
+    - name: Get current timestamp
+      id: timestamp
+      run: |
+        TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S")
+        echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
@@ -57,7 +63,7 @@ jobs:
           ## 变更日志
           ${{ steps.generate_changelog.outputs.changelog }}
           
-          *自动生成于 $(date -u +"%Y-%m-%d %H:%M:%S") UTC*
+          *自动生成于 ${{ steps.timestamp.outputs.timestamp }} UTC*
         draft: true
         prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
       env:
