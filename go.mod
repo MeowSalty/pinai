@@ -32,7 +32,7 @@ require (
 )
 
 require (
-	github.com/MeowSalty/portal v0.0.0-20250902074703-cf3096500533
+	github.com/MeowSalty/portal v0.1.0
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
@@ -48,6 +48,3 @@ require (
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gen v0.3.27
 )
-
-//暂未上传,找本地包代替
-replace github.com/MeowSalty/portal => ../portal
