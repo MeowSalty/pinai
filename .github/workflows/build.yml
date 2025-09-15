@@ -1,0 +1,72 @@
+name: Build and Release Assets
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-upload:
+    name: Build and Upload Release Assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 允许工作流向发布添加资产
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+
+      - name: Get release info
+        id: release_info
+        run: |
+          echo "tag_name=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          echo "release_id=${{ github.event.release.id }}" >> $GITHUB_OUTPUT
+
+      - name: Build for different platforms
+        run: |
+          mkdir -p builds
+          # 为 Linux AMD64 构建
+          GOOS=linux GOARCH=amd64 go build -o builds/pinai-linux-amd64-${{ github.event.release.tag_name }} .
+
+          # 为 Linux ARM64 构建
+          GOOS=linux GOARCH=arm64 go build -o builds/pinai-linux-arm64-${{ github.event.release.tag_name }} .
+
+          # 为 Windows AMD64 构建
+          GOOS=windows GOARCH=amd64 go build -o builds/pinai-windows-amd64-${{ github.event.release.tag_name }}.exe .
+
+          # 为 macOS AMD64 构建
+          GOOS=darwin GOARCH=amd64 go build -o builds/pinai-darwin-amd64-${{ github.event.release.tag_name }} .
+
+          # 为 macOS ARM64 (Apple Silicon) 构建
+          GOOS=darwin GOARCH=arm64 go build -o builds/pinai-darwin-arm64-${{ github.event.release.tag_name }} .
+
+      - name: Create archive files
+        run: |
+          cd builds
+
+          # 为 Linux 和 macOS 创建 tar.gz 压缩包
+          tar -czf pinai-linux-amd64-${{ github.event.release.tag_name }}.tar.gz pinai-linux-amd64-${{ github.event.release.tag_name }}
+          tar -czf pinai-linux-arm64-${{ github.event.release.tag_name }}.tar.gz pinai-linux-arm64-${{ github.event.release.tag_name }}
+          tar -czf pinai-darwin-amd64-${{ github.event.release.tag_name }}.tar.gz pinai-darwin-amd64-${{ github.event.release.tag_name }}
+          tar -czf pinai-darwin-arm64-${{ github.event.release.tag_name }}.tar.gz pinai-darwin-arm64-${{ github.event.release.tag_name }}
+
+          # 为 Windows 创建 zip 压缩包
+          zip pinai-windows-amd64-${{ github.event.release.tag_name }}.zip pinai-windows-amd64-${{ github.event.release.tag_name }}.exe
+
+          # 创建校验和文件
+          sha256sum * > pinai-${{ github.event.release.tag_name }}-checksums.txt
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: |
+            builds/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
