@@ -18,7 +18,7 @@ jobs:
           - linux/arm/v7
           - linux/arm64
           - linux/386
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository_owner }}
           tags: |
             type=ref,event=tag
             type=raw,value=latest,enable={{is_default_branch}}
@@ -54,7 +54,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=ghcr.io/${{ github.repository_owner }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             TARGETOS=linux
             TARGETARCH=${{ matrix.platform == 'linux/amd64' && 'amd64' || matrix.platform == 'linux/arm/v7' && 'arm' || matrix.platform == 'linux/arm64' && 'arm64' || '386' }}
@@ -81,7 +81,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
@@ -97,7 +97,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository_owner }}
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -110,8 +110,8 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf 'ghcr.io/${{ github.repository }}@sha256:%s ' *)
-          
+            $(printf 'ghcr.io/${{ github.repository_owner }}@sha256:%s ' *)
+
       - name: Inspect image
         run: |
-          docker buildx imagetools inspect ghcr.io/${{ github.repository }}:${{ github.event.release.tag_name }}
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}:${{ github.event.release.tag_name }}
