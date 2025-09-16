@@ -118,7 +118,7 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf 'ghcr.io/${{ env.REPO_LC }}@sha256:%s ' *)
+            $(for file in *; do echo "ghcr.io/${{ env.REPO_LC }}@sha256:$(cat $file)"; done)
 
       - name: Inspect image
         run: |
