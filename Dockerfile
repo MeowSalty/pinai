@@ -17,7 +17,7 @@ RUN go mod download
 COPY . .
 
 # 构建应用
-RUN go build -o pinai .
+RUN go build -ldflags="-s -w" -o pinai .
 
 # 使用alpine作为运行环境
 FROM alpine:latest
