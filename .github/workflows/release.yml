@@ -30,23 +30,34 @@ jobs:
         run: |
           # 获取当前标签
           LATEST_TAG=$(git describe --tags --abbrev=0)
+          echo "当前标签: $LATEST_TAG"
 
           # 判断当前版本是否为预发布版本
           if [[ $LATEST_TAG == *"-alpha"* ]] || [[ $LATEST_TAG == *"-beta"* ]] || [[ $LATEST_TAG == *"-rc"* ]]; then
             # 如果是预发布版本，则与上一个标签比较（无论正式版还是预发布版）
             PREVIOUS_TAG=$(git describe --tags --abbrev=0 $LATEST_TAG^ 2>/dev/null || echo "")
+            echo "检测为预发布版本，上一个标签: $PREVIOUS_TAG"
           else
             # 如果是正式版本，则只与上一个正式版本比较
             PREVIOUS_TAG=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+.[0-9]+.[0-9]+$' | grep -v "-" | head -n 2 | tail -n 1 2>/dev/null || echo "")
+            echo "检测为正式版本"
+            echo "找到的正式版本列表:"
+            git tag -l --sort=-v:refname | grep -E '^v[0-9]+.[0-9]+.[0-9]+$' | grep -v "-"
+            echo "上一个正式版本: $PREVIOUS_TAG"
           fi
 
           if [ -z "$PREVIOUS_TAG" ]; then
             # 如果没有找到合适的上一个标签，显示所有提交
+            echo "未找到合适的比较标签，显示所有提交"
             CHANGELOG=$(git log --oneline --pretty=format:"- %s (%h)" HEAD)
           else
             # 显示两个标签之间的提交
+            echo "显示从 $PREVIOUS_TAG 到 $LATEST_TAG 的提交"
             CHANGELOG=$(git log --oneline --pretty=format:"- %s (%h)" $PREVIOUS_TAG..$LATEST_TAG)
           fi
+
+          echo "变更日志内容:"
+          echo "$CHANGELOG"
 
           # 多行输出需要特殊处理
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
