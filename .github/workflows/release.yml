@@ -39,12 +39,31 @@ jobs:
             echo "检测为预发布版本，上一个标签: $PREVIOUS_TAG"
           else
             # 如果是正式版本，则只与上一个正式版本比较
-            # 获取除当前标签外的正式版本列表，并取第一个（最新的）
-            PREVIOUS_TAG=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+.[0-9]+.[0-9]+$' | grep -v "-" | grep -v "^$LATEST_TAG$" | head -n 1 2>/dev/null || echo "")
+            # 获取所有正式版本列表（包括当前版本）
+            ALL_RELEASE_TAGS=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "-" 2>/dev/null || echo "")
             echo "检测为正式版本"
-            echo "找到的正式版本列表（排除当前版本）:"
-            git tag -l --sort=-v:refname | grep -E '^v[0-9]+.[0-9]+.[0-9]+$' | grep -v "-" | grep -v "^$LATEST_TAG$"
-            echo "上一个正式版本: $PREVIOUS_TAG"
+            echo "找到的所有正式版本列表:"
+            echo "$ALL_RELEASE_TAGS"
+            
+            # 获取第一个（最新的）正式版本
+            FIRST_TAG=$(echo "$ALL_RELEASE_TAGS" | head -n 1)
+            echo "最新正式版本: $FIRST_TAG"
+            
+            # 如果最新正式版本与当前版本相同，则获取第二个作为上一个正式版本
+            if [[ "$FIRST_TAG" == "$LATEST_TAG" ]]; then
+              PREVIOUS_TAG=$(echo "$ALL_RELEASE_TAGS" | head -n 2 | tail -n 1)
+              echo "当前版本是最新正式版本，上一个正式版本: $PREVIOUS_TAG"
+            else
+              # 否则第一个就是上一个正式版本
+              PREVIOUS_TAG=$FIRST_TAG
+              echo "上一个正式版本: $PREVIOUS_TAG"
+            fi
+            
+            # 如果当前版本是第一个正式版本，则 PREVIOUS_TAG 会等于当前版本
+            if [[ "$PREVIOUS_TAG" == "$LATEST_TAG" ]]; then
+              echo "当前版本是第一个正式版本"
+              PREVIOUS_TAG=""
+            fi
           fi
 
           if [ -z "$PREVIOUS_TAG" ]; then
