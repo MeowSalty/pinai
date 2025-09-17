@@ -63,7 +63,7 @@ jobs:
           fi
 
           BINARY_NAME="pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.release.tag_name }}${EXTENSION}"
-          go build -o "$BINARY_NAME" .
+          go build -ldflags="-s -w" -o "$BINARY_NAME" .
         shell: bash
 
       - name: Create archive files (Windows)
