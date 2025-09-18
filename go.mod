@@ -43,7 +43,7 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/samber/slog-fiber v1.18.0
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.65.0 // indirect
+	github.com/valyala/fasthttp v1.65.0
 	golang.org/x/sys v0.35.0 // indirect
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gen v0.3.27

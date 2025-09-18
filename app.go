@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MeowSalty/pinai/database"
+	"github.com/MeowSalty/pinai/frontend"
 	"github.com/MeowSalty/pinai/router"
 	"github.com/MeowSalty/pinai/services"
 	"github.com/gofiber/fiber/v2"
@@ -20,6 +21,10 @@ import (
 var (
 	port = flag.String("port", ":3000", "监听端口")
 	prod = flag.Bool("prod", false, "在生产环境中启用 prefork")
+
+	// 前端相关参数
+	enableWeb = flag.Bool("enable-web", false, "启用前端支持")
+	webDir    = flag.String("web-dir", "./web", "前端文件目录")
 
 	// 数据库相关参数
 	dbType = flag.String("db-type", "sqlite", "数据库类型 (sqlite, mysql, postgres)")
@@ -38,11 +43,20 @@ func main() {
 	appLogger := logger.WithGroup("app")
 	fiberLogger := logger.WithGroup("fiber")
 	gormLogger := logger.WithGroup("gorm")
+	frontendLogger := logger.WithGroup("frontend")
 
 	slog.SetDefault(appLogger)
 
 	// 解析命令行参数
 	flag.Parse()
+
+	// 如果启用了前端支持，则初始化前端
+	if *enableWeb {
+		if err := frontend.InitializeWeb(frontendLogger, webDir); err != nil {
+			appLogger.Error("初始化前端失败", "error", err)
+			os.Exit(1)
+		}
+	}
 
 	// 连接数据库
 	db, err := database.Connect(*dbType, *dbHost, *dbPort, *dbUser, *dbPass, *dbName, gormLogger)
@@ -75,7 +89,7 @@ func main() {
 	}
 
 	// 设置路由
-	if err := router.SetupRoutes(fiberApp, svcs); err != nil {
+	if err := router.SetupRoutes(fiberApp, svcs, *enableWeb, *webDir); err != nil {
 		appLogger.Error("路由设置失败", "error", err)
 		os.Exit(1)
 	}
