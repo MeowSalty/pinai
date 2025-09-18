@@ -19,20 +19,20 @@ import (
 )
 
 var (
-	port = flag.String("port", ":3000", "监听端口")
-	prod = flag.Bool("prod", false, "在生产环境中启用 prefork")
+	port = flag.String("port", envPort, "监听端口")
+	prod = flag.Bool("prod", envProd, "在生产环境中启用 prefork")
 
 	// 前端相关参数
-	enableWeb = flag.Bool("enable-web", false, "启用前端支持")
-	webDir    = flag.String("web-dir", "./web", "前端文件目录")
+	enableWeb = flag.Bool("enable-web", envEnableWeb, "启用前端支持")
+	webDir    = flag.String("web-dir", envWebDir, "前端文件目录")
 
 	// 数据库相关参数
-	dbType = flag.String("db-type", "sqlite", "数据库类型 (sqlite, mysql, postgres)")
-	dbHost = flag.String("db-host", "", "数据库主机地址")
-	dbPort = flag.String("db-port", "", "数据库端口")
-	dbUser = flag.String("db-user", "", "数据库用户名")
-	dbPass = flag.String("db-pass", "", "数据库密码")
-	dbName = flag.String("db-name", "", "数据库名称")
+	dbType = flag.String("db-type", envDBType, "数据库类型 (sqlite, mysql, postgres)")
+	dbHost = flag.String("db-host", envDBHost, "数据库主机地址")
+	dbPort = flag.String("db-port", envDBPort, "数据库端口")
+	dbUser = flag.String("db-user", envDBUser, "数据库用户名")
+	dbPass = flag.String("db-pass", envDBPass, "数据库密码")
+	dbName = flag.String("db-name", envDBName, "数据库名称")
 )
 
 // getEnv 获取环境变量，如果不存在则使用默认值
