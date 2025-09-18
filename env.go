@@ -17,7 +17,7 @@ var (
 )
 
 // LoadEnvConfig 从环境变量加载配置
-func LoadEnv() {
+func loadEnv() {
 	// 从环境变量加载端口配置
 	if os.Getenv("PORT") != "" {
 		envPort = os.Getenv("PORT")
