@@ -23,7 +23,12 @@ PinAI 是一个基于 Go 语言开发的轻量级大语言模型路由网关，�
 
 ```bash
 # 拉取并运行最新版本
-docker run -d -p 3000:3000 ghcr.io/meowsalty/pinai:latest
+docker run -d \
+  -p 3000:3000 \
+  -e PORT=:3000 \
+  -e DB_TYPE=sqlite \
+  -e ENABLE_WEB=true \
+  ghcr.io/meowsalty/pinai:latest
 ```
 
 ### 本地运行
@@ -34,29 +39,31 @@ git clone https://github.com/MeowSalty/pinai.git
 cd pinai
 
 # 运行项目
-go run app.go
+go run app.go -enable-web=true
 ```
 
 服务默认在 `http://localhost:3000` 上运行。
 
 ## 🛠️ 配置选项
 
-PinAI 支持多种配置选项，可以通过命令行参数进行设置：
+PinAI 支持多种配置选项，可以通过命令行参数或环境变量进行设置：
 
-```bash
-go run app.go -port=:3000 -db-type=sqlite -prod
-```
+### 配置参数说明
 
-主要配置参数：
+| 命令行参数    | 环境变量     | 说明                                 | 默认值   |
+| ------------- | ------------ | ------------------------------------ | -------- |
+| `-port`       | `PORT`       | 监听端口                             | `:3000`  |
+| `-prod`       | `PROD`       | 在生产环境中启用 prefork 模式        | `false`  |
+| `-enable-web` | `ENABLE_WEB` | 启用前端支持                         | `false`  |
+| `-web-dir`    | `WEB_DIR`    | 前端文件目录                         | `./web`  |
+| `-db-type`    | `DB_TYPE`    | 数据库类型 (sqlite, mysql, postgres) | `sqlite` |
+| `-db-host`    | `DB_HOST`    | 数据库主机地址                       |          |
+| `-db-port`    | `DB_PORT`    | 数据库端口                           |          |
+| `-db-user`    | `DB_USER`    | 数据库用户名                         |          |
+| `-db-pass`    | `DB_PASS`    | 数据库密码                           |          |
+| `-db-name`    | `DB_NAME`    | 数据库名称                           |          |
 
-- `-port`：监听端口（默认 :3000）
-- `-prod`：在生产环境中启用 prefork 模式
-- `-db-type`：数据库类型（sqlite、mysql、postgres）
-- `-db-host`：数据库主机地址
-- `-db-port`：数据库端口
-- `-db-user`：数据库用户名
-- `-db-pass`：数据库密码
-- `-db-name`：数据库名称
+> 注意：命令行参数优先级高于环境变量。
 
 ## 📚 API 接口
 
