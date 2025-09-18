@@ -35,6 +35,121 @@ var (
 	dbName = flag.String("db-name", "", "数据库名称")
 )
 
+// getEnv 获取环境变量，如果不存在则使用默认值
+func getEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
+// parseFlagsWithEnv 解析 flag 参数，如果未设置则尝试从环境变量获取
+func parseFlagsWithEnv() {
+	flag.Parse()
+
+	// 检查 flag 是否被设置，如果没有被设置则尝试从环境变量获取，否则使用 flag 的默认值
+	portSet := false
+	prodSet := false
+	enableWebSet := false
+	webDirSet := false
+	dbTypeSet := false
+	dbHostSet := false
+	dbPortSet := false
+	dbUserSet := false
+	dbPassSet := false
+	dbNameSet := false
+
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "port":
+			portSet = true
+		case "prod":
+			prodSet = true
+		case "enable-web":
+			enableWebSet = true
+		case "web-dir":
+			webDirSet = true
+		case "db-type":
+			dbTypeSet = true
+		case "db-host":
+			dbHostSet = true
+		case "db-port":
+			dbPortSet = true
+		case "db-user":
+			dbUserSet = true
+		case "db-pass":
+			dbPassSet = true
+		case "db-name":
+			dbNameSet = true
+		}
+	})
+
+	// 只有当 flag 没有被显式设置时，才使用环境变量或默认值
+	if !portSet {
+		envPort := getEnv("PORT", "")
+		if envPort != "" {
+			*port = ":" + envPort
+		}
+	}
+
+	if !prodSet {
+		*prod = getEnv("PROD", "false") == "true"
+	}
+
+	if !enableWebSet {
+		*enableWeb = getEnv("ENABLE_WEB", "false") == "true"
+	}
+
+	if !webDirSet {
+		envWebDir := getEnv("WEB_DIR", "")
+		if envWebDir != "" {
+			*webDir = envWebDir
+		}
+	}
+
+	if !dbTypeSet {
+		envDBType := getEnv("DB_TYPE", "")
+		if envDBType != "" {
+			*dbType = envDBType
+		}
+	}
+
+	if !dbHostSet {
+		envDBHost := getEnv("DB_HOST", "")
+		if envDBHost != "" {
+			*dbHost = envDBHost
+		}
+	}
+
+	if !dbPortSet {
+		envDBPort := getEnv("DB_PORT", "")
+		if envDBPort != "" {
+			*dbPort = envDBPort
+		}
+	}
+
+	if !dbUserSet {
+		envDBUser := getEnv("DB_USER", "")
+		if envDBUser != "" {
+			*dbUser = envDBUser
+		}
+	}
+
+	if !dbPassSet {
+		envDBPass := getEnv("DB_PASS", "")
+		if envDBPass != "" {
+			*dbPass = envDBPass
+		}
+	}
+
+	if !dbNameSet {
+		envDBName := getEnv("DB_NAME", "")
+		if envDBName != "" {
+			*dbName = envDBName
+		}
+	}
+}
+
 func main() {
 	// 创建日志记录器
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -47,8 +162,8 @@ func main() {
 
 	slog.SetDefault(appLogger)
 
-	// 解析命令行参数
-	flag.Parse()
+	// 解析命令行参数和环境变量
+	parseFlagsWithEnv()
 
 	// 如果启用了前端支持，则初始化前端
 	if *enableWeb {
