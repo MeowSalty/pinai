@@ -10,7 +10,7 @@ COPY . .
 RUN go mod download
 
 # 构建应用
-RUN go build -ldflags="-s -w" -o pinai .
+RUN CGO_ENABLED=1 build -a -ldflags="-s -w" -o pinai .
 
 # 将二进制文件移动到'最终镜像'以减小镜像大小
 FROM alpine:latest as release
