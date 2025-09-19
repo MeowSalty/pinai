@@ -1,5 +1,5 @@
 # 构建应用程序二进制文件
-FROM golang:1.23 AS build
+FROM golang:1.23-alpine AS build
 
 WORKDIR /go/src/pinai
 
@@ -28,4 +28,5 @@ RUN apk -U upgrade \
 EXPOSE 3000
 
 # 使用dumb-init作为入口点以改善信号处理和进程管理
-ENTRYPOINT ["/usr/bin/dumb-init", "--", "/app/pinai"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["/app/pinai"]
