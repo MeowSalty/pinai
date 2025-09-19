@@ -1,10 +1,8 @@
 name: Build and Release Assets
 
 on:
-  workflow_run:
-    workflows: ["Create Release on Tag"]
-    types:
-      - completed
+  release:
+    types: [created]
 
 jobs:
   build-and-upload:
