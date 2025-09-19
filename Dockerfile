@@ -1,5 +1,5 @@
 # 构建应用程序二进制文件
-FROM golang:1.23-alpine AS build
+FROM golang:1.23 AS build
 
 WORKDIR /go/src/pinai
 
@@ -20,8 +20,7 @@ WORKDIR /app
 COPY --from=build /go/src/pinai/pinai .
 
 # 添加必要的包
-RUN apk -U upgrade \
-    && apk add --no-cache ca-certificates \
+RUN apk add --no-cache ca-certificates \
     && chmod +x /app/pinai
 
 # 暴露端口
