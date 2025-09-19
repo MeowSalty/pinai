@@ -21,12 +21,10 @@ COPY --from=build /go/src/pinai/pinai .
 
 # 添加必要的包
 RUN apk -U upgrade \
-    && apk add --no-cache dumb-init ca-certificates \
+    && apk add --no-cache ca-certificates \
     && chmod +x /app/pinai
 
 # 暴露端口
 EXPOSE 3000
 
-# 使用dumb-init作为入口点以改善信号处理和进程管理
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["/app/pinai"]
