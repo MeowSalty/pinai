@@ -75,8 +75,8 @@ func main() {
 	// 如果启用了前端支持，则初始化前端
 	if *enableWeb {
 		if err := frontend.InitializeWeb(frontendLogger, webDir); err != nil {
-			appLogger.Error("初始化前端失败", "error", err)
-			os.Exit(1)
+			appLogger.Error("初始化前端失败，本次运行将禁用前端支持", "error", err)
+			*enableWeb = false
 		}
 	}
 
