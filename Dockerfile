@@ -1,5 +1,5 @@
 # 构建应用程序二进制文件
-FROM golang:1.23 AS build
+FROM golang:1.23-alpine AS build
 
 WORKDIR /go/src/pinai
 
