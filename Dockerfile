@@ -1,6 +1,9 @@
 # 构建应用程序二进制文件
 FROM golang:1.23-alpine AS build
 
+# 安装 CGO 构建依赖
+RUN apk add --no-cache build-base
+
 WORKDIR /go/src/pinai
 
 # 复制所有代码和相关文件以编译
@@ -10,7 +13,7 @@ COPY . .
 RUN go mod download
 
 # 构建应用
-RUN CGO_ENABLED=1 go build -a -ldflags="-s -w" -o pinai .
+RUN go build -ldflags="-s -w" -o pinai .
 
 # 将二进制文件移动到'最终镜像'以减小镜像大小
 FROM alpine:latest as release
