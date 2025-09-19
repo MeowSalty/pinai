@@ -2,7 +2,7 @@ name: Build and Release Assets
 
 on:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   build-and-upload:

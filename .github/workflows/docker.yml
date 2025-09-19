@@ -2,7 +2,7 @@ name: Build and Push Docker Images
 
 on:
   release:
-    types: [created]
+    types: [published]
 
 env:
   REPO_LC: ${{ github.repository }}
