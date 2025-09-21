@@ -1,0 +1,348 @@
+name: Release and Build Assets
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*" # 匹配语义化版本标签，如 v1.0.0, v2.1.4-beta 等
+
+env:
+  REPO_LC: ${{ github.repository }}
+  PLATFORM_PAIR: PLATFORM_PAIR
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 允许工作流写入内容（创建 Release）
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取所有历史记录以便生成 changelog
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          # 去除标签前的 'v' 前缀，获取纯版本号
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: generate_changelog
+        run: |
+          # 获取当前标签
+          LATEST_TAG=$(git describe --tags --abbrev=0)
+          echo "当前标签: $LATEST_TAG"
+
+          # 判断当前版本是否为预发布版本
+          if [[ $LATEST_TAG == *"-alpha"* ]] || [[ $LATEST_TAG == *"-beta"* ]] || [[ $LATEST_TAG == *"-rc"* ]]; then
+            # 如果是预发布版本，则与上一个标签比较（无论正式版还是预发布版）
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 $LATEST_TAG^ 2>/dev/null || echo "")
+            echo "检测为预发布版本，上一个标签: $PREVIOUS_TAG"
+          else
+            # 如果是正式版本，则只与上一个正式版本比较
+            # 获取所有正式版本列表（包括当前版本）
+            ALL_RELEASE_TAGS=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "-" 2>/dev/null || echo "")
+            echo "检测为正式版本"
+            echo "找到的所有正式版本列表:"
+            echo "$ALL_RELEASE_TAGS"
+            
+            # 获取第一个（最新的）正式版本
+            FIRST_TAG=$(echo "$ALL_RELEASE_TAGS" | head -n 1)
+            echo "最新正式版本: $FIRST_TAG"
+            
+            # 如果最新正式版本与当前版本相同，则获取第二个作为上一个正式版本
+            if [[ "$FIRST_TAG" == "$LATEST_TAG" ]]; then
+              PREVIOUS_TAG=$(echo "$ALL_RELEASE_TAGS" | head -n 2 | tail -n 1)
+              echo "当前版本是最新正式版本，上一个正式版本: $PREVIOUS_TAG"
+            else
+              # 否则第一个就是上一个正式版本
+              PREVIOUS_TAG=$FIRST_TAG
+              echo "上一个正式版本: $PREVIOUS_TAG"
+            fi
+            
+            # 如果当前版本是第一个正式版本，则 PREVIOUS_TAG 会等于当前版本
+            if [[ "$PREVIOUS_TAG" == "$LATEST_TAG" ]]; then
+              echo "当前版本是第一个正式版本"
+              PREVIOUS_TAG=""
+            fi
+          fi
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # 如果没有找到合适的上一个标签，显示所有提交
+            echo "未找到合适的比较标签，显示所有提交"
+            CHANGELOG=$(git log --oneline --pretty=format:"- %s (%h)" HEAD)
+          else
+            # 显示两个标签之间的提交
+            echo "显示从 $PREVIOUS_TAG 到 $LATEST_TAG 的提交"
+            CHANGELOG=$(git log --oneline --pretty=format:"- %s (%h)" $PREVIOUS_TAG..$LATEST_TAG)
+          fi
+
+          echo "变更日志内容:"
+          echo "$CHANGELOG"
+
+          # 多行输出需要特殊处理
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "changelog<<$EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: Get current timestamp
+        id: timestamp
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S")
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ steps.get_version.outputs.version }}
+          body: |
+            # 版本 ${{ steps.get_version.outputs.version }} 发布说明
+
+            ## 变更日志
+            ${{ steps.generate_changelog.outputs.changelog }}
+
+            *自动生成于 ${{ steps.timestamp.outputs.timestamp }} UTC*
+          draft: true
+          prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-assets:
+    name: Build and Upload Release Assets
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: amd64
+          - os: ubuntu-latest
+            platform: linux
+            arch: arm64
+          - os: windows-latest
+            platform: windows
+            arch: amd64
+          - os: macos-13
+            platform: darwin
+            arch: amd64
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+
+      - name: Set environment variables
+        run: |
+          echo "GOOS=${{ matrix.platform }}" >> $GITHUB_ENV
+          echo "GOARCH=${{ matrix.arch }}" >> $GITHUB_ENV
+          echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Install dependencies (Linux arm64)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Build binary
+        run: |
+          EXTENSION=""
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            EXTENSION=".exe"
+          fi
+
+          BINARY_NAME="pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}${EXTENSION}"
+          go build -ldflags="-s -w" -o "$BINARY_NAME" .
+        shell: bash
+
+      - name: Create archive files (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $binaryName = "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}.exe"
+          Compress-Archive -Path $binaryName -DestinationPath "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}.zip"
+        shell: powershell
+
+      - name: Create archive files (non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: |
+          BINARY_NAME="pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}"
+          tar -czf "$BINARY_NAME.tar.gz" "$BINARY_NAME"
+        shell: bash
+
+      - name: Create checksum file (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          certutil -hashfile "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}.zip" SHA256 > "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}-checksum.txt"
+        shell: cmd
+
+      - name: Create checksum file (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sha256sum "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}.tar.gz" > "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}-checksum.txt"
+        shell: bash
+
+      - name: Create checksum file (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          shasum -a 256 "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}.tar.gz" > "pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}-checksum.txt"
+        shell: bash
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}.zip
+            pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}.tar.gz
+            pinai-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.ref_name }}-checksum.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-docker-images:
+    name: Build and Push Docker Images
+    needs: create-release
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+          echo "REPO_LC=${REPO_LC,,}" >> ${GITHUB_ENV}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ env.REPO_LC }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ghcr.io/${{ env.REPO_LC }}
+          outputs: type=image,name=ghcr.io/${{ env.REPO_LC }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            VERSION=${{ github.ref_name }}
+
+      - name: Export digest
+        run: |
+          mkdir -p ${{ runner.temp }}/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+
+  merge-docker-manifest:
+    name: Merge Docker Manifest
+    needs: 
+      - build-docker-images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Convert repository name to lowercase
+        run: |
+          echo "REPO_LC=${REPO_LC,,}" >> ${GITHUB_ENV}
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ env.REPO_LC }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf 'ghcr.io/${{ env.REPO_LC }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ env.REPO_LC }}:${{ steps.meta.outputs.version }}
