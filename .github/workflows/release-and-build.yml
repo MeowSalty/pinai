@@ -109,7 +109,6 @@ jobs:
             ${{ steps.generate_changelog.outputs.changelog }}
 
             *自动生成于 ${{ steps.timestamp.outputs.timestamp }} UTC*
-          draft: true
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -297,7 +296,7 @@ jobs:
 
   merge-docker-manifest:
     name: Merge Docker Manifest
-    needs: 
+    needs:
       - build-docker-images
     runs-on: ubuntu-latest
     permissions:
