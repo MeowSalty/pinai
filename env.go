@@ -14,6 +14,7 @@ var (
 	envDBUser    = ""
 	envDBPass    = ""
 	envDBName    = ""
+	envAPIToken  = ""
 )
 
 // LoadEnvConfig 从环境变量加载配置
@@ -60,5 +61,10 @@ func loadEnv() {
 
 	if os.Getenv("DB_NAME") != "" {
 		envDBName = os.Getenv("DB_NAME")
+	}
+
+	// 从环境变量加载 OpenAI Token 配置
+	if os.Getenv("API_TOKEN") != "" {
+		envAPIToken = os.Getenv("API_TOKEN")
 	}
 }

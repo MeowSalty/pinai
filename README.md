@@ -62,6 +62,7 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
 | `-db-user`    | `DB_USER`    | 数据库用户名                         |          |
 | `-db-pass`    | `DB_PASS`    | 数据库密码                           |          |
 | `-db-name`    | `DB_NAME`    | 数据库名称                           |          |
+| `-api-token`  | `API_TOKEN`  | API Token，用于身份验证              |          |
 
 > 注意：命令行参数优先级高于环境变量。
 

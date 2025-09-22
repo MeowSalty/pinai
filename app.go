@@ -31,6 +31,8 @@ var (
 	dbUser *string
 	dbPass *string
 	dbName *string
+
+	apiToken *string
 )
 
 func loadFlag() {
@@ -48,6 +50,9 @@ func loadFlag() {
 	dbUser = flag.String("db-user", envDBUser, "数据库用户名")
 	dbPass = flag.String("db-pass", envDBPass, "数据库密码")
 	dbName = flag.String("db-name", envDBName, "数据库名称")
+
+	// API Token 参数
+	apiToken = flag.String("api-token", envAPIToken, "API Token，如果为空则不启用身份验证")
 
 	flag.Parse()
 }
@@ -111,7 +116,10 @@ func main() {
 	}
 
 	// 设置路由
-	if err := router.SetupRoutes(fiberApp, svcs, *enableWeb, *webDir); err != nil {
+	if *apiToken == "" {
+		appLogger.Warn("未启用 API Token，将不进行身份验证")
+	}
+	if err := router.SetupRoutes(fiberApp, svcs, *enableWeb, *webDir, *apiToken); err != nil {
 		appLogger.Error("路由设置失败", "error", err)
 		os.Exit(1)
 	}

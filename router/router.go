@@ -1,6 +1,8 @@
 package router
 
 import (
+	"strings"
+
 	"github.com/MeowSalty/pinai/handlers/health"
 	"github.com/MeowSalty/pinai/handlers/openai"
 	"github.com/MeowSalty/pinai/handlers/provider"
@@ -11,8 +13,12 @@ import (
 )
 
 // SetupRoutes 配置 API 路由
-func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir string) error {
+func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir string, apiToken string) error {
 	web.Use(cors.New())
+	// 如果设置了 token，为 OpenAI 端点添加身份验证
+	if apiToken != "" {
+		web.Use(createOpenAIAuthMiddleware(apiToken))
+	}
 	webAPI := web.Group("/api")
 	openaiAPI := web.Group("/openai/v1")
 
@@ -38,4 +44,36 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir
 	}
 
 	return nil
+}
+
+// createOpenAIAuthMiddleware 创建 OpenAI API 身份验证中间件
+func createOpenAIAuthMiddleware(validToken string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// 获取 Authorization 头
+		authHeader := c.Get("Authorization")
+		if authHeader == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "缺少 Authorization 头",
+			})
+		}
+
+		// 验证 Bearer token 格式
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Authorization 头格式无效，应为：Bearer <token>",
+			})
+		}
+
+		// 验证 token
+		token := parts[1]
+		if token != validToken {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "无效的 API token",
+			})
+		}
+
+		// token 验证通过，继续处理请求
+		return c.Next()
+	}
 }
