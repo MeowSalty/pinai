@@ -22,12 +22,11 @@ PinAI 是一个基于 Go 语言开发的轻量级大语言模型路由网关，�
 ### 使用 Docker（推荐）
 
 ```bash
-# 拉取并运行最新版本
+# 拉取并运行最新版本（自行设置 token）
 docker run -d \
   -p 3000:3000 \
-  -e PORT=:3000 \
-  -e DB_TYPE=sqlite \
   -e ENABLE_WEB=true \
+  -e API_TOKEN=<token> \
   ghcr.io/meowsalty/pinai:latest
 ```
 
@@ -39,7 +38,7 @@ git clone https://github.com/MeowSalty/pinai.git
 cd pinai
 
 # 运行项目
-go run app.go -enable-web=true
+go run app.go -api-token=<token> -enable-web=true
 ```
 
 服务默认在 `http://localhost:3000` 上运行。
@@ -55,7 +54,7 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
 | `-port`       | `PORT`       | 监听端口                             | `:3000`  |
 | `-prod`       | `PROD`       | 在生产环境中启用 prefork 模式        | `false`  |
 | `-enable-web` | `ENABLE_WEB` | 启用前端支持                         | `false`  |
-| `-web-dir`    | `WEB_DIR`    | 前端文件目录                         | `./web`  |
+| `-web-dir`    | `WEB_DIR`    | 前端文件目录                         | `web`    |
 | `-db-type`    | `DB_TYPE`    | 数据库类型 (sqlite, mysql, postgres) | `sqlite` |
 | `-db-host`    | `DB_HOST`    | 数据库主机地址                       |          |
 | `-db-port`    | `DB_PORT`    | 数据库端口                           |          |
