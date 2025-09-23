@@ -30,6 +30,8 @@ docker run -d \
   ghcr.io/meowsalty/pinai:latest
 ```
 
+如果需要持久化数据，请将 PinAI 的数据目录 `/app/data` 映射到宿主机的目录
+
 ### 本地运行
 
 ```bash
