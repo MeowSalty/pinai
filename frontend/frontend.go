@@ -41,6 +41,7 @@ const (
 
 // InitializeWeb 初始化前端支持
 func InitializeWeb(logger *slog.Logger, webDir *string) error {
+	*webDir = "data/" + *webDir
 	logger.Info("初始化前端支持", "webDir", *webDir)
 
 	// 创建前端目录

@@ -57,7 +57,7 @@ func Connect(dbType, host, port, user, password, dbname string, logger *slog.Log
 	case "sqlite":
 		fallthrough
 	default:
-		db, err = gorm.Open(sqlite.Open("pinai.db"), gormConfig)
+		db, err = gorm.Open(sqlite.Open("data/pinai.db"), gormConfig)
 	}
 
 	if err != nil {
