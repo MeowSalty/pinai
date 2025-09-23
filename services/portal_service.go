@@ -273,10 +273,13 @@ func (r *DatabaseRepository) SaveRequestStat(ctx context.Context, stat *coreType
 			APIKeyID:   stat.ChannelInfo.APIKeyID,
 			ModelID:    stat.ChannelInfo.ModelID,
 		},
-		Duration:      stat.Duration,
-		FirstByteTime: stat.FirstByteTime,
-		Success:       stat.Success,
-		ErrorMsg:      stat.ErrorMsg,
+		Duration: stat.Duration.Microseconds(),
+		Success:  stat.Success,
+		ErrorMsg: stat.ErrorMsg,
+	}
+	if stat.FirstByteTime != nil {
+		firstByteTime := stat.FirstByteTime.Microseconds()
+		dbStat.FirstByteTime = &firstByteTime
 	}
 
 	// 保存到数据库

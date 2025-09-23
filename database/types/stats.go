@@ -15,8 +15,8 @@ type RequestStat struct {
 	ChannelInfo ChannelInfo `gorm:"serializer:json" json:"channel_info"` // 通道信息
 
 	// 耗时信息
-	Duration      time.Duration  `json:"duration"`                  // 总用时
-	FirstByteTime *time.Duration `json:"first_byte_time,omitempty"` // 首字用时（仅流式）
+	Duration      int64  `json:"duration"`                  // 总用时 (微秒)
+	FirstByteTime *int64 `json:"first_byte_time,omitempty"` // 首字用时（微秒，仅流式）
 
 	// 结果状态
 	Success  bool    `gorm:"index" json:"success"` // 是否成功
