@@ -65,8 +65,13 @@ func ListModels(c *fiber.Ctx) error {
 	}
 
 	for _, model := range models {
+		modelID := model.Name
+		if model.Alias != "" {
+			modelID = model.Alias
+		}
+
 		modelList.Data = append(modelList.Data, types.Model{
-			ID:     model.Name,
+			ID:     modelID,
 			Object: "model",
 		})
 	}
