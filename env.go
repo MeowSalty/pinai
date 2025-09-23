@@ -7,7 +7,7 @@ var (
 	envPort      = ":3000"
 	envProd      = false
 	envEnableWeb = false
-	envWebDir    = "./web"
+	envWebDir    = "web"
 	envDBType    = "sqlite"
 	envDBHost    = ""
 	envDBPort    = ""
