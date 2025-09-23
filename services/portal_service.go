@@ -98,23 +98,15 @@ type DatabaseRepository struct{}
 func (r *DatabaseRepository) FindModelsByName(ctx context.Context, name string) ([]*coreTypes.Model, error) {
 	q := query.Q
 
-	// 使用 GORM 查询模型（先按名称查找，再按别名查找）
+	// 使用 GORM 查询模型（按名称或别名查找）
 	dbModels, err := q.WithContext(ctx).Model.Where(
 		q.Model.Name.Eq(name),
+	).Or(
+		q.Model.Alias_.Eq(name),
 	).Find()
 
 	if err != nil {
 		return nil, fmt.Errorf("查询模型失败：%w", err)
-	}
-
-	// 如果按名称没找到，再按别名查找
-	if len(dbModels) == 0 {
-		dbModels, err = q.WithContext(ctx).Model.Where(
-			q.Model.Alias_.Eq(name),
-		).Find()
-		if err != nil {
-			return nil, fmt.Errorf("按别名查询模型失败：%w", err)
-		}
 	}
 
 	// 转换为 core.Model 类型
