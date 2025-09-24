@@ -135,6 +135,9 @@ func (s *statsService) ListRequestStats(ctx context.Context, opts ListRequestSta
 	// 计算偏移量
 	offset := (opts.Page - 1) * opts.PageSize
 
+	// 添加排序条件，按时间倒序排列以确保最新数据在前
+	queryBuilder = queryBuilder.Order(r.Timestamp.Desc())
+
 	// 执行分页查询
 	result, count, err := queryBuilder.FindByPage(offset, opts.PageSize)
 	if err != nil {
