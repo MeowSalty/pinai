@@ -4,17 +4,18 @@ import "os"
 
 var (
 	// 定义默认值变量
-	envPort      = ":3000"
-	envProd      = false
-	envEnableWeb = false
-	envWebDir    = "web"
-	envDBType    = "sqlite"
-	envDBHost    = ""
-	envDBPort    = ""
-	envDBUser    = ""
-	envDBPass    = ""
-	envDBName    = ""
-	envAPIToken  = ""
+	envPort                 = ":3000"
+	envProd                 = false
+	envEnableWeb            = false
+	envWebDir               = "web"
+	envEnableFrontendUpdate = true
+	envDBType               = "sqlite"
+	envDBHost               = ""
+	envDBPort               = ""
+	envDBUser               = ""
+	envDBPass               = ""
+	envDBName               = ""
+	envAPIToken             = ""
 )
 
 // LoadEnvConfig 从环境变量加载配置
@@ -66,5 +67,10 @@ func loadEnv() {
 	// 从环境变量加载 OpenAI Token 配置
 	if os.Getenv("API_TOKEN") != "" {
 		envAPIToken = os.Getenv("API_TOKEN")
+	}
+
+	// 从环境变量加载前端更新检查配置
+	if os.Getenv("ENABLE_FRONTEND_UPDATE") != "" {
+		envEnableFrontendUpdate = os.Getenv("ENABLE_FRONTEND_UPDATE") == "true"
 	}
 }

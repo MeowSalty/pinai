@@ -51,19 +51,20 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
 
 ### 配置参数说明
 
-| 命令行参数    | 环境变量     | 说明                                 | 默认值   |
-| ------------- | ------------ | ------------------------------------ | -------- |
-| `-port`       | `PORT`       | 监听端口                             | `:3000`  |
-| `-prod`       | `PROD`       | 在生产环境中启用 prefork 模式        | `false`  |
-| `-enable-web` | `ENABLE_WEB` | 启用前端支持                         | `false`  |
-| `-web-dir`    | `WEB_DIR`    | 前端文件目录                         | `web`    |
-| `-db-type`    | `DB_TYPE`    | 数据库类型 (sqlite, mysql, postgres) | `sqlite` |
-| `-db-host`    | `DB_HOST`    | 数据库主机地址                       |          |
-| `-db-port`    | `DB_PORT`    | 数据库端口                           |          |
-| `-db-user`    | `DB_USER`    | 数据库用户名                         |          |
-| `-db-pass`    | `DB_PASS`    | 数据库密码                           |          |
-| `-db-name`    | `DB_NAME`    | 数据库名称                           |          |
-| `-api-token`  | `API_TOKEN`  | API Token，用于身份验证              |          |
+| 命令行参数                | 环境变量                 | 说明                                 | 默认值   |
+| ------------------------- | ------------------------ | ------------------------------------ | -------- |
+| `-port`                   | `PORT`                   | 监听端口                             | `:3000`  |
+| `-prod`                   | `PROD`                   | 在生产环境中启用 prefork 模式        | `false`  |
+| `-enable-web`             | `ENABLE_WEB`             | 启用前端支持                         | `false`  |
+| `-web-dir`                | `WEB_DIR`                | 前端文件目录                         | `web`    |
+| `-enable-frontend-update` | `ENABLE_FRONTEND_UPDATE` | 启用前端更新检查                     | `true`   |
+| `-db-type`                | `DB_TYPE`                | 数据库类型 (sqlite, mysql, postgres) | `sqlite` |
+| `-db-host`                | `DB_HOST`                | 数据库主机地址                       |          |
+| `-db-port`                | `DB_PORT`                | 数据库端口                           |          |
+| `-db-user`                | `DB_USER`                | 数据库用户名                         |          |
+| `-db-pass`                | `DB_PASS`                | 数据库密码                           |          |
+| `-db-name`                | `DB_NAME`                | 数据库名称                           |          |
+| `-api-token`              | `API_TOKEN`              | API Token，用于身份验证              |          |
 
 > 注意：命令行参数优先级高于环境变量。
 

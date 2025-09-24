@@ -22,8 +22,9 @@ var (
 	port *string
 	prod *bool
 
-	enableWeb *bool
-	webDir    *string
+	enableWeb            *bool
+	webDir               *string
+	enableFrontendUpdate *bool
 
 	dbType *string
 	dbHost *string
@@ -42,6 +43,7 @@ func loadFlag() {
 	// 前端相关参数
 	enableWeb = flag.Bool("enable-web", envEnableWeb, "启用前端支持")
 	webDir = flag.String("web-dir", envWebDir, "前端文件目录")
+	enableFrontendUpdate = flag.Bool("enable-frontend-update", envEnableFrontendUpdate, "启用前端更新检查")
 
 	// 数据库相关参数
 	dbType = flag.String("db-type", envDBType, "数据库类型 (sqlite, mysql, postgres)")
@@ -79,7 +81,7 @@ func main() {
 
 	// 如果启用了前端支持，则初始化前端
 	if *enableWeb {
-		if err := frontend.InitializeWeb(frontendLogger, webDir); err != nil {
+		if err := frontend.InitializeWeb(frontendLogger, webDir, *enableFrontendUpdate); err != nil {
 			appLogger.Error("初始化前端失败，本次运行将禁用前端支持", "error", err)
 			*enableWeb = false
 		}

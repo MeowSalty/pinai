@@ -40,9 +40,9 @@ const (
 )
 
 // InitializeWeb 初始化前端支持
-func InitializeWeb(logger *slog.Logger, webDir *string) error {
+func InitializeWeb(logger *slog.Logger, webDir *string, checkUpdate bool) error {
 	*webDir = "data/" + *webDir
-	logger.Info("初始化前端支持", "webDir", *webDir)
+	logger.Info("初始化前端支持", "webDir", *webDir, "checkUpdate", checkUpdate)
 
 	// 创建前端目录
 	if err := os.MkdirAll(*webDir, 0755); err != nil {
@@ -61,9 +61,14 @@ func InitializeWeb(logger *slog.Logger, webDir *string) error {
 		return DownloadLatestFrontendRelease(logger, webDir)
 	}
 
-	// 目录不为空，检查是否存在新版本
-	logger.Info("前端目录已包含文件，检查更新")
-	return CheckAndUpdateFrontend(logger, webDir)
+	// 目录不为空，如果启用了更新检查，则检查是否存在新版本
+	if checkUpdate {
+		logger.Info("前端目录已包含文件，检查更新")
+		return CheckAndUpdateFrontend(logger, webDir)
+	}
+
+	logger.Info("前端目录已包含文件，更新检查已禁用")
+	return nil
 }
 
 // CheckAndUpdateFrontend 检查并更新前端文件
