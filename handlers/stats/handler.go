@@ -126,11 +126,8 @@ func (h *StatsHandler) ListRequestStats(c *fiber.Ctx) error {
 
 	// 构造响应
 	response := map[string]interface{}{
-		"data":        result,
-		"count":       count,
-		"page":        opts.Page,
-		"page_size":   opts.PageSize,
-		"total_pages": (count + int64(opts.PageSize) - 1) / int64(opts.PageSize),
+		"data":  result,
+		"count": count,
 	}
 
 	return c.JSON(response)
