@@ -18,7 +18,6 @@ import (
 var (
 	Q           = new(Query)
 	APIKey      *aPIKey
-	ChannelInfo *channelInfo
 	Health      *health
 	Model       *model
 	Platform    *platform
@@ -28,7 +27,6 @@ var (
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
 	APIKey = &Q.APIKey
-	ChannelInfo = &Q.ChannelInfo
 	Health = &Q.Health
 	Model = &Q.Model
 	Platform = &Q.Platform
@@ -39,7 +37,6 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
 		db:          db,
 		APIKey:      newAPIKey(db, opts...),
-		ChannelInfo: newChannelInfo(db, opts...),
 		Health:      newHealth(db, opts...),
 		Model:       newModel(db, opts...),
 		Platform:    newPlatform(db, opts...),
@@ -51,7 +48,6 @@ type Query struct {
 	db *gorm.DB
 
 	APIKey      aPIKey
-	ChannelInfo channelInfo
 	Health      health
 	Model       model
 	Platform    platform
@@ -64,7 +60,6 @@ func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
 		db:          db,
 		APIKey:      q.APIKey.clone(db),
-		ChannelInfo: q.ChannelInfo.clone(db),
 		Health:      q.Health.clone(db),
 		Model:       q.Model.clone(db),
 		Platform:    q.Platform.clone(db),
@@ -84,7 +79,6 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
 		db:          db,
 		APIKey:      q.APIKey.replaceDB(db),
-		ChannelInfo: q.ChannelInfo.replaceDB(db),
 		Health:      q.Health.replaceDB(db),
 		Model:       q.Model.replaceDB(db),
 		Platform:    q.Platform.replaceDB(db),
@@ -94,7 +88,6 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 
 type queryCtx struct {
 	APIKey      IAPIKeyDo
-	ChannelInfo IChannelInfoDo
 	Health      IHealthDo
 	Model       IModelDo
 	Platform    IPlatformDo
@@ -104,7 +97,6 @@ type queryCtx struct {
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
 		APIKey:      q.APIKey.WithContext(ctx),
-		ChannelInfo: q.ChannelInfo.WithContext(ctx),
 		Health:      q.Health.WithContext(ctx),
 		Model:       q.Model.WithContext(ctx),
 		Platform:    q.Platform.WithContext(ctx),

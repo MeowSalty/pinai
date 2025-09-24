@@ -12,5 +12,4 @@ var Types = []interface{}{
 
 	// Stats
 	RequestStat{},
-	ChannelInfo{},
 }
