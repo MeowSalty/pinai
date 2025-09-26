@@ -10,7 +10,7 @@ import (
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/handlers/openai/types"
 	"github.com/MeowSalty/pinai/services"
-	"github.com/MeowSalty/portal/adapter/openai"
+	"github.com/MeowSalty/portal/adapter/openai/converter"
 	openaiTypes "github.com/MeowSalty/portal/adapter/openai/types"
 	portalTypes "github.com/MeowSalty/portal/types"
 	"github.com/gofiber/fiber/v2"
@@ -93,7 +93,7 @@ func ListModels(c *fiber.Ctx) error {
 // @Router       /openai/v1/chat/completions [post]
 func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	// 解析请求
-	var req openaiTypes.ChatCompletionRequest
+	var req openaiTypes.Request
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fmt.Sprintf("无效的请求格式： %v", err),
@@ -101,12 +101,12 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	}
 
 	// 转换请求格式
-	portalReq := openai.ChatCompletionRequestToRequest(&req)
+	portalReq := converter.ConvertCoreRequest(&req)
 
 	// 调用 AI 网关服务
 	ctx := context.Background()
 
-	if req.Stream {
+	if *req.Stream {
 		// 流式响应
 		return h.handleStreamResponse(c, ctx, portalReq)
 	}
@@ -120,7 +120,7 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	}
 
 	// 转换响应格式
-	openaiResp := openai.ResponseToChatCompletionResponse(resp)
+	openaiResp := converter.ConvertResponse(resp)
 
 	return c.JSON(openaiResp)
 }
@@ -170,7 +170,7 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, ctx context.Context, 
 			}
 
 			// 转换为 OpenAI 格式
-			openaiResp := openai.ResponseToChatCompletionResponse(resp)
+			openaiResp := converter.ConvertResponse(resp)
 
 			// 发送事件
 			data, _ := json.Marshal(openaiResp)
@@ -196,7 +196,7 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, ctx context.Context, 
 			}
 
 			// 转换并发送最终消息
-			finalResp := openai.ResponseToChatCompletionResponse(lastResp)
+			finalResp := converter.ConvertResponse(lastResp)
 			finalData, _ := json.Marshal(finalResp)
 			fmt.Fprintf(w, "data: %s\n\n", finalData)
 		}
