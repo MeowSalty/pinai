@@ -120,6 +120,10 @@ go build -o pinai app.go
 2. 添加适当的测试
 3. 更新相关文档
 
+> [!NOTE]
+>
+> 如果需要添加支持的平台格式，请移步 [Portal](https://github.com/MeowSalty/portal)
+
 ## 🙏 鸣谢
 
 感谢所有为项目做出贡献的开发者们！
