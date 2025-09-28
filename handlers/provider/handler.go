@@ -468,10 +468,6 @@ func (h *Handler) GetKeysByProvider(c *fiber.Ctx) error {
 		})
 	}
 
-	// 出于安全考虑，不返回密钥值
-	for _, key := range keys {
-		key.Value = ""
-	}
 	return c.JSON(keys)
 }
 
