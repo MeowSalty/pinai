@@ -16,6 +16,9 @@ type StatsHandlerInterface interface {
 
 	// ListRequestStats 获取请求状态列表
 	ListRequestStats(c *fiber.Ctx) error
+
+	// GetRealtime 获取实时数据
+	GetRealtime(c *fiber.Ctx) error
 }
 
 // StatsHandler 统计处理器结构体
@@ -38,16 +41,39 @@ func NewStatsHandler(statsService services.StatsServiceInterface) StatsHandlerIn
 
 // GetOverview 获取全局概览数据
 //
+// 查询参数：
+//   - duration: 时间范围 (可选，支持 24h, 7d 等格式，默认为 24h)
+//
 // 返回值：
 //   - 成功：全局概览数据
 //   - 失败：错误信息
 func (h *StatsHandler) GetOverview(c *fiber.Ctx) error {
-	overview, err := h.StatsService.GetOverview(c.Context())
+	durationStr := c.Query("duration", "24h")
+	duration, err := time.ParseDuration(durationStr)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 7d 等格式")
+	}
+
+	overview, err := h.StatsService.GetOverview(c.Context(), duration)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, "获取统计概览数据失败："+err.Error())
 	}
 
 	return c.JSON(overview)
+}
+
+// GetRealtime 获取实时数据
+//
+// 返回值：
+//   - 成功：实时数据
+//   - 失败：错误信息
+func (h *StatsHandler) GetRealtime(c *fiber.Ctx) error {
+	realtime, err := h.StatsService.GetRealtime(c.Context())
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "获取实时数据失败："+err.Error())
+	}
+
+	return c.JSON(realtime)
 }
 
 // ListRequestStats 获取请求状态列表
