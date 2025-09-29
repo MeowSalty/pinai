@@ -15,7 +15,11 @@ type StatsOverviewResponse struct {
 	TotalRequests    int64   `json:"total_requests"` // 总请求量
 	SuccessRate      float64 `json:"success_rate"`   // 成功率
 	AvgFirstByteTime float64 `json:"avg_first_byte"` // 平均首字时间 (微秒)
-	RPM              float64 `json:"rpm"`            // 每分钟请求数
+}
+
+// StatsRealtimeResponse 定义了实时数据的响应结构
+type StatsRealtimeResponse struct {
+	RPM float64 `json:"rpm"` // 每分钟请求数
 }
 
 // ListRequestStatsOptions 定义了获取请求状态列表的筛选选项
@@ -41,7 +45,10 @@ type ListRequestStatsOptions struct {
 // StatsServiceInterface 定义统计服务接口
 type StatsServiceInterface interface {
 	// GetOverview 获取全局概览数据
-	GetOverview(ctx context.Context) (*StatsOverviewResponse, error)
+	GetOverview(ctx context.Context, duration time.Duration) (*StatsOverviewResponse, error)
+
+	// GetRealtime 获取实时数据
+	GetRealtime(ctx context.Context) (*StatsRealtimeResponse, error)
 
 	// ListRequestStats 获取请求状态列表
 	ListRequestStats(ctx context.Context, opts ListRequestStatsOptions) ([]*types.RequestStat, int64, error)
@@ -56,18 +63,30 @@ func NewStatsService() StatsServiceInterface {
 }
 
 // GetOverview 实现获取全局概览数据的业务逻辑
-func (s *statsService) GetOverview(ctx context.Context) (*StatsOverviewResponse, error) {
+func (s *statsService) GetOverview(ctx context.Context, duration time.Duration) (*StatsOverviewResponse, error) {
 	q := query.Q
 	r := q.RequestStat
 
+	// 设置默认时间范围为 24 小时
+	if duration == 0 {
+		duration = 24 * time.Hour
+	}
+
+	startTime := time.Now().Add(-duration)
+
 	// 获取总请求数
-	totalRequests, err := r.WithContext(ctx).Count()
+	totalRequests, err := r.WithContext(ctx).
+		Where(r.Timestamp.Gte(startTime)).
+		Count()
 	if err != nil {
 		return nil, fmt.Errorf("获取总请求数失败：%w", err)
 	}
 
 	// 获取成功请求数
-	successRequests, err := r.WithContext(ctx).Where(r.Success.Is(true)).Count()
+	successRequests, err := r.WithContext(ctx).
+		Where(r.Success.Is(true)).
+		Where(r.Timestamp.Gte(startTime)).
+		Count()
 	if err != nil {
 		return nil, fmt.Errorf("获取成功请求数失败：%w", err)
 	}
@@ -84,6 +103,18 @@ func (s *statsService) GetOverview(ctx context.Context) (*StatsOverviewResponse,
 		return nil, fmt.Errorf("计算平均首字时间失败：%w", err)
 	}
 
+	return &StatsOverviewResponse{
+		TotalRequests:    totalRequests,
+		SuccessRate:      successRate,
+		AvgFirstByteTime: avgFirstByteTime,
+	}, nil
+}
+
+// GetRealtime 实现获取实时数据的业务逻辑
+func (s *statsService) GetRealtime(ctx context.Context) (*StatsRealtimeResponse, error) {
+	q := query.Q
+	r := q.RequestStat
+
 	// 计算过去 1 分钟的请求数 (RPM)
 	oneMinuteAgo := time.Now().Add(-time.Minute)
 	recentRequests, err := r.WithContext(ctx).
@@ -93,11 +124,8 @@ func (s *statsService) GetOverview(ctx context.Context) (*StatsOverviewResponse,
 		return nil, fmt.Errorf("计算 RPM 失败：%w", err)
 	}
 
-	return &StatsOverviewResponse{
-		TotalRequests:    totalRequests,
-		SuccessRate:      successRate,
-		AvgFirstByteTime: avgFirstByteTime,
-		RPM:              float64(recentRequests),
+	return &StatsRealtimeResponse{
+		RPM: float64(recentRequests),
 	}, nil
 }
 
