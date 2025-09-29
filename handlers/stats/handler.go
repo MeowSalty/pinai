@@ -51,7 +51,7 @@ func (h *StatsHandler) GetOverview(c *fiber.Ctx) error {
 	durationStr := c.Query("duration", "24h")
 	duration, err := time.ParseDuration(durationStr)
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 7d 等格式")
+		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 5m 等格式")
 	}
 
 	overview, err := h.StatsService.GetOverview(c.Context(), duration)
