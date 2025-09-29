@@ -103,16 +103,13 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	// 转换请求格式
 	portalReq := converter.ConvertCoreRequest(&req)
 
-	// 调用 AI 网关服务
-	ctx := context.Background()
-
 	if *req.Stream {
 		// 流式响应
-		return h.handleStreamResponse(c, ctx, portalReq)
+		return h.handleStreamResponse(c, portalReq)
 	}
 
 	// 非流式响应
-	resp, err := h.aigatewayService.ChatCompletion(ctx, portalReq)
+	resp, err := h.aigatewayService.ChatCompletion(c.Context(), portalReq)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("处理请求时出错：%v", err),
@@ -126,16 +123,20 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 }
 
 // handleStreamResponse 处理流式响应
-func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, ctx context.Context, req *portalTypes.Request) error {
+func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Request) error {
 	// 设置流式响应头
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
 	c.Set("Transfer-Encoding", "chunked")
 
+	// 创建可取消的上下文
+	ctx, cancel := context.WithCancel(c.Context())
+
 	// 获取流式响应通道
 	responseChan, err := h.aigatewayService.ChatCompletionStream(ctx, req)
 	if err != nil {
+		cancel()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("启动流式传输时出错：%v", err),
 		})
@@ -164,7 +165,10 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, ctx context.Context, 
 				}
 
 				// 发送错误事件
-				fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes))
+				if _, err := fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes)); err != nil {
+					slog.Error("无法发送错误事件，写入流失败", "error", err)
+					break
+				}
 				w.Flush()
 				break
 			}
@@ -176,6 +180,7 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, ctx context.Context, 
 			data, _ := json.Marshal(openaiResp)
 			_, err := fmt.Fprintf(w, "data: %s\n\n", data)
 			if err != nil {
+				cancel()
 				slog.Error("写入流式响应失败", "error", err)
 				break
 			}
@@ -204,6 +209,7 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, ctx context.Context, 
 		// 发送流结束标记
 		_, err = fmt.Fprintf(w, "data: [DONE]\n\n")
 		if err != nil {
+			cancel()
 			slog.Error("写入流结束标记失败", "error", err)
 		}
 
