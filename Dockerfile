@@ -29,4 +29,4 @@ RUN apk add --no-cache ca-certificates \
 # 暴露端口
 EXPOSE 3000
 
-CMD ["/app/pinai"]
+ENTRYPOINT ["/app/pinai"]
