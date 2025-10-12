@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/valyala/fasthttp"
@@ -64,7 +65,11 @@ func InitializeWeb(logger *slog.Logger, webDir *string, checkUpdate bool) error 
 	// 目录不为空，如果启用了更新检查，则检查是否存在新版本
 	if checkUpdate {
 		logger.Info("前端目录已包含文件，检查更新")
-		return CheckAndUpdateFrontend(logger, webDir)
+		err = CheckAndUpdateFrontend(logger, webDir)
+		if err != nil {
+			logger.Warn("检查前端更新失败", slog.String("error", err.Error()))
+		}
+		return nil
 	}
 
 	logger.Info("前端目录已包含文件，更新检查已禁用")
@@ -122,7 +127,7 @@ func getLatestRelease(logger *slog.Logger) (*GitHubRelease, error) {
 
 	// 获取最新发布信息
 	logger.Info("获取最新发布信息", "url", releaseURL)
-	agent := fiber.Get(releaseURL)
+	agent := fiber.Get(releaseURL).Timeout(5 * time.Second)
 	statusCode, body, errs := agent.Bytes()
 	if len(errs) > 0 {
 		// 构建错误信息，包含错误数量和每个错误的详细信息
