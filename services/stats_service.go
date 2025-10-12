@@ -22,8 +22,8 @@ type StatsRealtimeResponse struct {
 	RPM float64 `json:"rpm"` // 每分钟请求数
 }
 
-// ListRequestStatsOptions 定义了获取请求状态列表的筛选选项
-type ListRequestStatsOptions struct {
+// ListRequestLogsOptions 定义了获取请求状态列表的筛选选项
+type ListRequestLogsOptions struct {
 	// 时间范围筛选
 	StartTime *time.Time `json:"start_time,omitempty"`
 	EndTime   *time.Time `json:"end_time,omitempty"`
@@ -50,8 +50,8 @@ type StatsServiceInterface interface {
 	// GetRealtime 获取实时数据
 	GetRealtime(ctx context.Context) (*StatsRealtimeResponse, error)
 
-	// ListRequestStats 获取请求状态列表
-	ListRequestStats(ctx context.Context, opts ListRequestStatsOptions) ([]*types.RequestStat, int64, error)
+	// ListRequestLogs 获取请求状态列表
+	ListRequestLogs(ctx context.Context, opts ListRequestLogsOptions) ([]*types.RequestLog, int64, error)
 }
 
 // statsService 是 StatsServiceInterface 接口的具体实现
@@ -65,7 +65,7 @@ func NewStatsService() StatsServiceInterface {
 // GetOverview 实现获取全局概览数据的业务逻辑
 func (s *statsService) GetOverview(ctx context.Context, duration time.Duration) (*StatsOverviewResponse, error) {
 	q := query.Q
-	r := q.RequestStat
+	r := q.RequestLog
 
 	// 设置默认时间范围为 24 小时
 	if duration == 0 {
@@ -113,7 +113,7 @@ func (s *statsService) GetOverview(ctx context.Context, duration time.Duration) 
 // GetRealtime 实现获取实时数据的业务逻辑
 func (s *statsService) GetRealtime(ctx context.Context) (*StatsRealtimeResponse, error) {
 	q := query.Q
-	r := q.RequestStat
+	r := q.RequestLog
 
 	// 计算过去 1 分钟的请求数 (RPM)
 	oneMinuteAgo := time.Now().Add(-time.Minute)
@@ -129,10 +129,10 @@ func (s *statsService) GetRealtime(ctx context.Context) (*StatsRealtimeResponse,
 	}, nil
 }
 
-// ListRequestStats 实现获取请求状态列表的业务逻辑
-func (s *statsService) ListRequestStats(ctx context.Context, opts ListRequestStatsOptions) ([]*types.RequestStat, int64, error) {
+// ListRequestLogs 实现获取请求状态列表的业务逻辑
+func (s *statsService) ListRequestLogs(ctx context.Context, opts ListRequestLogsOptions) ([]*types.RequestLog, int64, error) {
 	q := query.Q
-	r := q.RequestStat
+	r := q.RequestLog
 
 	// 构建查询条件
 	queryBuilder := r.WithContext(ctx)
@@ -179,7 +179,7 @@ func (s *statsService) ListRequestStats(ctx context.Context, opts ListRequestSta
 // lowerPercentile 和 upperPercentile 分别指定要过滤的下限和上限百分位（0.0-1.0）
 func (s *statsService) calculateAvgFirstByteTimeWithPercentile(ctx context.Context, lowerPercentile, upperPercentile float64) (float64, error) {
 	q := query.Q
-	r := q.RequestStat
+	r := q.RequestLog
 
 	// 获取过去 24 小时内有效的首字时间数据
 	var firstByteTimes []*time.Duration
