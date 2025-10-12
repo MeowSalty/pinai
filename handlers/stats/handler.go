@@ -14,8 +14,8 @@ type StatsHandlerInterface interface {
 	// GetOverview 获取全局概览数据
 	GetOverview(c *fiber.Ctx) error
 
-	// ListRequestStats 获取请求状态列表
-	ListRequestStats(c *fiber.Ctx) error
+	// ListRequestLogs 获取请求状态列表
+	ListRequestLogs(c *fiber.Ctx) error
 
 	// GetRealtime 获取实时数据
 	GetRealtime(c *fiber.Ctx) error
@@ -76,7 +76,7 @@ func (h *StatsHandler) GetRealtime(c *fiber.Ctx) error {
 	return c.JSON(realtime)
 }
 
-// ListRequestStats 获取请求状态列表
+// ListRequestLogs 获取请求状态列表
 //
 // 查询参数：
 //   - start_time: 开始时间 (可选，支持 RFC3339 格式或 Unix 时间戳毫秒格式)
@@ -90,9 +90,9 @@ func (h *StatsHandler) GetRealtime(c *fiber.Ctx) error {
 // 返回值：
 //   - 成功：请求状态列表和分页信息
 //   - 失败：错误信息
-func (h *StatsHandler) ListRequestStats(c *fiber.Ctx) error {
+func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 	// 解析查询参数
-	var opts services.ListRequestStatsOptions
+	var opts services.ListRequestLogsOptions
 
 	// 解析时间范围参数
 	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
@@ -145,7 +145,7 @@ func (h *StatsHandler) ListRequestStats(c *fiber.Ctx) error {
 	opts.PageSize = pageSize
 
 	// 调用服务获取数据
-	result, count, err := h.StatsService.ListRequestStats(c.Context(), opts)
+	result, count, err := h.StatsService.ListRequestLogs(c.Context(), opts)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, "获取请求状态列表失败："+err.Error())
 	}
