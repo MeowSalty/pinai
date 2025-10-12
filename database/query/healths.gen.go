@@ -31,8 +31,6 @@ func newHealth(db *gorm.DB, opts ...gen.DOOption) health {
 	_health.ID = field.NewUint(tableName, "id")
 	_health.ResourceType = field.NewInt8(tableName, "resource_type")
 	_health.ResourceID = field.NewUint(tableName, "resource_id")
-	_health.RelatedPlatformID = field.NewUint(tableName, "related_platform_id")
-	_health.RelatedAPIKeyID = field.NewUint(tableName, "related_api_key_id")
 	_health.Status = field.NewInt8(tableName, "status")
 	_health.RetryCount = field.NewInt(tableName, "retry_count")
 	_health.NextAvailableAt = field.NewTime(tableName, "next_available_at")
@@ -54,24 +52,22 @@ func newHealth(db *gorm.DB, opts ...gen.DOOption) health {
 type health struct {
 	healthDo
 
-	ALL               field.Asterisk
-	ID                field.Uint
-	ResourceType      field.Int8
-	ResourceID        field.Uint
-	RelatedPlatformID field.Uint
-	RelatedAPIKeyID   field.Uint
-	Status            field.Int8
-	RetryCount        field.Int
-	NextAvailableAt   field.Time
-	BackoffDuration   field.Int64
-	LastError         field.String
-	LastErrorCode     field.Int
-	LastCheckAt       field.Time
-	LastSuccessAt     field.Time
-	SuccessCount      field.Int
-	ErrorCount        field.Int
-	CreatedAt         field.Time
-	UpdatedAt         field.Time
+	ALL             field.Asterisk
+	ID              field.Uint
+	ResourceType    field.Int8
+	ResourceID      field.Uint
+	Status          field.Int8
+	RetryCount      field.Int
+	NextAvailableAt field.Time
+	BackoffDuration field.Int64
+	LastError       field.String
+	LastErrorCode   field.Int
+	LastCheckAt     field.Time
+	LastSuccessAt   field.Time
+	SuccessCount    field.Int
+	ErrorCount      field.Int
+	CreatedAt       field.Time
+	UpdatedAt       field.Time
 
 	fieldMap map[string]field.Expr
 }
@@ -91,8 +87,6 @@ func (h *health) updateTableName(table string) *health {
 	h.ID = field.NewUint(table, "id")
 	h.ResourceType = field.NewInt8(table, "resource_type")
 	h.ResourceID = field.NewUint(table, "resource_id")
-	h.RelatedPlatformID = field.NewUint(table, "related_platform_id")
-	h.RelatedAPIKeyID = field.NewUint(table, "related_api_key_id")
 	h.Status = field.NewInt8(table, "status")
 	h.RetryCount = field.NewInt(table, "retry_count")
 	h.NextAvailableAt = field.NewTime(table, "next_available_at")
@@ -121,12 +115,10 @@ func (h *health) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (h *health) fillFieldMap() {
-	h.fieldMap = make(map[string]field.Expr, 17)
+	h.fieldMap = make(map[string]field.Expr, 15)
 	h.fieldMap["id"] = h.ID
 	h.fieldMap["resource_type"] = h.ResourceType
 	h.fieldMap["resource_id"] = h.ResourceID
-	h.fieldMap["related_platform_id"] = h.RelatedPlatformID
-	h.fieldMap["related_api_key_id"] = h.RelatedAPIKeyID
 	h.fieldMap["status"] = h.Status
 	h.fieldMap["retry_count"] = h.RetryCount
 	h.fieldMap["next_available_at"] = h.NextAvailableAt

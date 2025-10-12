@@ -4,8 +4,8 @@ import (
 	"time"
 )
 
-// RequestStat 表示单个请求的统计信息
-type RequestStat struct {
+// RequestLog 表示单个请求的统计信息
+type RequestLog struct {
 	ID string `gorm:"primaryKey" json:"id"` // 唯一标识符
 
 	// 请求基本信息

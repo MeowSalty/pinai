@@ -8,10 +8,10 @@ import (
 type HealthStatus int8
 
 const (
-	HealthStatusUnknown HealthStatus = iota // 未知
-	HealthStatusAvailable                   // 可用
-	HealthStatusWarning                     // 警告（使用退避策略）
-	HealthStatusUnavailable                 // 不可用
+	HealthStatusUnknown     HealthStatus = iota // 未知
+	HealthStatusAvailable                       // 可用
+	HealthStatusWarning                         // 警告（使用退避策略）
+	HealthStatusUnavailable                     // 不可用
 )
 
 // ResourceType 资源类型枚举
@@ -29,10 +29,6 @@ type Health struct {
 
 	ResourceType ResourceType `gorm:"type:tinyint;not null;index:idx_resource"` // 资源类型
 	ResourceID   uint         `gorm:"not null;index:idx_resource"`              // 资源 ID
-
-	// 关联资源 ID（作用域隔离）
-	RelatedPlatformID *uint `gorm:"index"` // 关联的平台 ID（可选）
-	RelatedAPIKeyID   *uint `gorm:"index"` // 关联的密钥 ID（可选）
 
 	Status HealthStatus `gorm:"type:tinyint;not null;index"` // 健康状态
 

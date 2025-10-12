@@ -16,12 +16,12 @@ import (
 )
 
 var (
-	Q           = new(Query)
-	APIKey      *aPIKey
-	Health      *health
-	Model       *model
-	Platform    *platform
-	RequestStat *requestStat
+	Q          = new(Query)
+	APIKey     *aPIKey
+	Health     *health
+	Model      *model
+	Platform   *platform
+	RequestLog *requestLog
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
@@ -30,40 +30,40 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	Health = &Q.Health
 	Model = &Q.Model
 	Platform = &Q.Platform
-	RequestStat = &Q.RequestStat
+	RequestLog = &Q.RequestLog
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:          db,
-		APIKey:      newAPIKey(db, opts...),
-		Health:      newHealth(db, opts...),
-		Model:       newModel(db, opts...),
-		Platform:    newPlatform(db, opts...),
-		RequestStat: newRequestStat(db, opts...),
+		db:         db,
+		APIKey:     newAPIKey(db, opts...),
+		Health:     newHealth(db, opts...),
+		Model:      newModel(db, opts...),
+		Platform:   newPlatform(db, opts...),
+		RequestLog: newRequestLog(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	APIKey      aPIKey
-	Health      health
-	Model       model
-	Platform    platform
-	RequestStat requestStat
+	APIKey     aPIKey
+	Health     health
+	Model      model
+	Platform   platform
+	RequestLog requestLog
 }
 
 func (q *Query) Available() bool { return q.db != nil }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:          db,
-		APIKey:      q.APIKey.clone(db),
-		Health:      q.Health.clone(db),
-		Model:       q.Model.clone(db),
-		Platform:    q.Platform.clone(db),
-		RequestStat: q.RequestStat.clone(db),
+		db:         db,
+		APIKey:     q.APIKey.clone(db),
+		Health:     q.Health.clone(db),
+		Model:      q.Model.clone(db),
+		Platform:   q.Platform.clone(db),
+		RequestLog: q.RequestLog.clone(db),
 	}
 }
 
@@ -77,30 +77,30 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:          db,
-		APIKey:      q.APIKey.replaceDB(db),
-		Health:      q.Health.replaceDB(db),
-		Model:       q.Model.replaceDB(db),
-		Platform:    q.Platform.replaceDB(db),
-		RequestStat: q.RequestStat.replaceDB(db),
+		db:         db,
+		APIKey:     q.APIKey.replaceDB(db),
+		Health:     q.Health.replaceDB(db),
+		Model:      q.Model.replaceDB(db),
+		Platform:   q.Platform.replaceDB(db),
+		RequestLog: q.RequestLog.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	APIKey      IAPIKeyDo
-	Health      IHealthDo
-	Model       IModelDo
-	Platform    IPlatformDo
-	RequestStat IRequestStatDo
+	APIKey     IAPIKeyDo
+	Health     IHealthDo
+	Model      IModelDo
+	Platform   IPlatformDo
+	RequestLog IRequestLogDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		APIKey:      q.APIKey.WithContext(ctx),
-		Health:      q.Health.WithContext(ctx),
-		Model:       q.Model.WithContext(ctx),
-		Platform:    q.Platform.WithContext(ctx),
-		RequestStat: q.RequestStat.WithContext(ctx),
+		APIKey:     q.APIKey.WithContext(ctx),
+		Health:     q.Health.WithContext(ctx),
+		Model:      q.Model.WithContext(ctx),
+		Platform:   q.Platform.WithContext(ctx),
+		RequestLog: q.RequestLog.WithContext(ctx),
 	}
 }
 

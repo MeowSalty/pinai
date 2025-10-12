@@ -11,5 +11,5 @@ var Types = []interface{}{
 	Model{},
 
 	// Stats
-	RequestStat{},
+	RequestLog{},
 }
