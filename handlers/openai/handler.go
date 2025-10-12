@@ -10,8 +10,8 @@ import (
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/handlers/openai/types"
 	"github.com/MeowSalty/pinai/services"
-	"github.com/MeowSalty/portal/adapter/openai/converter"
-	openaiTypes "github.com/MeowSalty/portal/adapter/openai/types"
+	"github.com/MeowSalty/portal/request/adapter/openai/converter"
+	openaiTypes "github.com/MeowSalty/portal/request/adapter/openai/types"
 	portalTypes "github.com/MeowSalty/portal/types"
 	"github.com/gofiber/fiber/v2"
 )
@@ -143,7 +143,7 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 	}
 
 	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
-		var lastResp *portalTypes.Response
+		// var lastResp *portalTypes.Response
 		isErr := false
 		for resp := range responseChan {
 			// 检查是否有错误字段
@@ -187,23 +187,10 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 
 			// 刷新缓冲区
 			w.Flush()
-			lastResp = resp
+			// lastResp = resp
 		}
 		if isErr {
 			return
-		}
-		// 发送结束标记和最终统计信息
-		if lastResp != nil {
-			// 添加结束原因
-			if len(lastResp.Choices) > 0 {
-				finishReason := "stop"
-				lastResp.Choices[0].FinishReason = &finishReason
-			}
-
-			// 转换并发送最终消息
-			finalResp := converter.ConvertResponse(lastResp)
-			finalData, _ := json.Marshal(finalResp)
-			fmt.Fprintf(w, "data: %s\n\n", finalData)
 		}
 
 		// 发送流结束标记
