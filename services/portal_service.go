@@ -9,6 +9,9 @@ import (
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/portal"
+	"github.com/MeowSalty/portal/request"
+	"github.com/MeowSalty/portal/routing"
+	"github.com/MeowSalty/portal/routing/health"
 	coreTypes "github.com/MeowSalty/portal/types"
 )
 
@@ -28,7 +31,7 @@ type PortalService interface {
 
 // portalService AI 网关服务实现
 type portalService struct {
-	portal *portal.GatewayManager
+	portal *portal.Portal
 }
 
 // NewPortalService 创建新的 AI 网关服务实例
@@ -47,11 +50,13 @@ func NewPortalService(ctx context.Context, logger *slog.Logger) (PortalService, 
 	repo := &DatabaseRepository{}
 
 	// 创建网关管理器
-	gatewayManager, err := portal.New(
-		ctx,
-		portal.WithRepository(repo),
-		portal.WithLogger(logger),
-	)
+	gatewayManager, err := portal.New(portal.Config{
+		PlatformRepo: repo,
+		ModelRepo:    repo,
+		KeyRepo:      repo,
+		HealthRepo:   repo,
+		LogRepo:      repo,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
 	}
@@ -86,16 +91,36 @@ func (s *portalService) ChatCompletionStream(ctx context.Context, req *coreTypes
 //
 // 停止健康管理器和取消所有相关的上下文
 func (s *portalService) Close(timeout time.Duration) error {
-	return s.portal.Shutdown(timeout)
+	return s.portal.Close(timeout)
 }
 
 // DatabaseRepository 数据仓库实现
 //
-// 提供 aigateway 所需的数据访问接口
+// 提供 portal 所需的数据访问接口
 type DatabaseRepository struct{}
 
-// FindModelsByName 根据名称查找模型
-func (r *DatabaseRepository) FindModelsByName(ctx context.Context, name string) ([]*coreTypes.Model, error) {
+// GetModelByID 根据 ID 获取模型信息
+func (r *DatabaseRepository) GetModelByID(ctx context.Context, id uint) (routing.Model, error) {
+	q := query.Q
+
+	dbModel, err := q.WithContext(ctx).Model.Where(q.Model.ID.Eq(id)).First()
+	if err != nil {
+		return routing.Model{}, fmt.Errorf("获取模型失败：%w", err)
+	}
+
+	// 转换为 core.Model 类型
+	model := routing.Model{
+		ID:         dbModel.ID,
+		PlatformID: dbModel.PlatformID,
+		Name:       dbModel.Name,
+		Alias:      dbModel.Alias,
+	}
+
+	return model, nil
+}
+
+// FindModelsByNameOrAlias 根据名称或别名查找模型
+func (r *DatabaseRepository) FindModelsByNameOrAlias(ctx context.Context, name string) ([]routing.Model, error) {
 	q := query.Q
 
 	// 使用 GORM 查询模型（按名称或别名查找）
@@ -110,9 +135,9 @@ func (r *DatabaseRepository) FindModelsByName(ctx context.Context, name string) 
 	}
 
 	// 转换为 core.Model 类型
-	models := make([]*coreTypes.Model, len(dbModels))
+	models := make([]routing.Model, len(dbModels))
 	for i, dbModel := range dbModels {
-		models[i] = &coreTypes.Model{
+		models[i] = routing.Model{
 			ID:         dbModel.ID,
 			PlatformID: dbModel.PlatformID,
 			Name:       dbModel.Name,
@@ -124,7 +149,7 @@ func (r *DatabaseRepository) FindModelsByName(ctx context.Context, name string) 
 }
 
 // GetPlatformByID 根据 ID 获取平台信息
-func (r *DatabaseRepository) GetPlatformByID(ctx context.Context, id uint) (*coreTypes.Platform, error) {
+func (r *DatabaseRepository) GetPlatformByID(ctx context.Context, id uint) (*routing.Platform, error) {
 	q := query.Q
 
 	dbPlatform, err := q.WithContext(ctx).Platform.Where(q.Platform.ID.Eq(id)).First()
@@ -133,12 +158,12 @@ func (r *DatabaseRepository) GetPlatformByID(ctx context.Context, id uint) (*cor
 	}
 
 	// 转换为 core.Platform 类型
-	platform := &coreTypes.Platform{
+	platform := &routing.Platform{
 		ID:      dbPlatform.ID,
 		Name:    dbPlatform.Name,
 		Format:  dbPlatform.Format,
 		BaseURL: dbPlatform.BaseURL,
-		RateLimit: coreTypes.RateLimitConfig{
+		RateLimit: routing.RateLimitConfig{
 			RPM: dbPlatform.RateLimit.RPM,
 			TPM: dbPlatform.RateLimit.TPM,
 		},
@@ -147,8 +172,8 @@ func (r *DatabaseRepository) GetPlatformByID(ctx context.Context, id uint) (*cor
 	return platform, nil
 }
 
-// GetAllAPIKeys 获取平台的所有 API 密钥
-func (r *DatabaseRepository) GetAllAPIKeys(ctx context.Context, platformID uint) ([]*coreTypes.APIKey, error) {
+// GetAllAPIKeysByPlatformID 根据平台 ID 获取所有 API 密钥
+func (r *DatabaseRepository) GetAllAPIKeysByPlatformID(ctx context.Context, platformID uint) ([]*routing.APIKey, error) {
 	q := query.Q
 
 	dbKeys, err := q.WithContext(ctx).APIKey.Where(q.APIKey.PlatformID.Eq(platformID)).Find()
@@ -157,9 +182,9 @@ func (r *DatabaseRepository) GetAllAPIKeys(ctx context.Context, platformID uint)
 	}
 
 	// 转换为 core.APIKey 类型
-	keys := make([]*coreTypes.APIKey, len(dbKeys))
+	keys := make([]*routing.APIKey, len(dbKeys))
 	for i, dbKey := range dbKeys {
-		keys[i] = &coreTypes.APIKey{
+		keys[i] = &routing.APIKey{
 			ID:    dbKey.ID,
 			Value: dbKey.Value,
 		}
@@ -168,8 +193,8 @@ func (r *DatabaseRepository) GetAllAPIKeys(ctx context.Context, platformID uint)
 	return keys, nil
 }
 
-// GetAllHealthStatus 获取所有健康状态
-func (r *DatabaseRepository) GetAllHealthStatus(ctx context.Context) ([]*coreTypes.Health, error) {
+// GetAllHealth 获取所有健康状态
+func (r *DatabaseRepository) GetAllHealth(ctx context.Context) ([]*health.Health, error) {
 	q := query.Q
 
 	dbHealths, err := q.WithContext(ctx).Health.Find()
@@ -178,34 +203,32 @@ func (r *DatabaseRepository) GetAllHealthStatus(ctx context.Context) ([]*coreTyp
 	}
 
 	// 转换为 core.Health 类型
-	healths := make([]*coreTypes.Health, len(dbHealths))
+	healths := make([]*health.Health, len(dbHealths))
 	for i, dbHealth := range dbHealths {
-		healths[i] = &coreTypes.Health{
-			ID:                dbHealth.ID,
-			ResourceType:      coreTypes.ResourceType(dbHealth.ResourceType),
-			ResourceID:        dbHealth.ResourceID,
-			RelatedPlatformID: dbHealth.RelatedPlatformID,
-			RelatedAPIKeyID:   dbHealth.RelatedAPIKeyID,
-			Status:            coreTypes.HealthStatus(dbHealth.Status),
-			RetryCount:        dbHealth.RetryCount,
-			NextAvailableAt:   dbHealth.NextAvailableAt,
-			BackoffDuration:   dbHealth.BackoffDuration,
-			LastError:         dbHealth.LastError,
-			LastErrorCode:     dbHealth.LastErrorCode,
-			LastCheckAt:       dbHealth.LastCheckAt,
-			LastSuccessAt:     dbHealth.LastSuccessAt,
-			SuccessCount:      dbHealth.SuccessCount,
-			ErrorCount:        dbHealth.ErrorCount,
-			CreatedAt:         dbHealth.CreatedAt,
-			UpdatedAt:         dbHealth.UpdatedAt,
+		healths[i] = &health.Health{
+			ID:              dbHealth.ID,
+			ResourceType:    health.ResourceType(dbHealth.ResourceType),
+			ResourceID:      dbHealth.ResourceID,
+			Status:          health.HealthStatus(dbHealth.Status),
+			RetryCount:      dbHealth.RetryCount,
+			NextAvailableAt: dbHealth.NextAvailableAt,
+			BackoffDuration: dbHealth.BackoffDuration,
+			LastError:       dbHealth.LastError,
+			LastErrorCode:   dbHealth.LastErrorCode,
+			LastCheckAt:     dbHealth.LastCheckAt,
+			LastSuccessAt:   dbHealth.LastSuccessAt,
+			SuccessCount:    dbHealth.SuccessCount,
+			ErrorCount:      dbHealth.ErrorCount,
+			CreatedAt:       dbHealth.CreatedAt,
+			UpdatedAt:       dbHealth.UpdatedAt,
 		}
 	}
 
 	return healths, nil
 }
 
-// BatchUpdateHealthStatus 批量更新健康状态
-func (r *DatabaseRepository) BatchUpdateHealthStatus(ctx context.Context, statuses []*coreTypes.Health) error {
+// BatchUpdateHealth 批量更新健康状态
+func (r *DatabaseRepository) BatchUpdateHealth(ctx context.Context, statuses []health.Health) error {
 	q := query.Q
 
 	// 开启事务
@@ -219,21 +242,19 @@ func (r *DatabaseRepository) BatchUpdateHealthStatus(ctx context.Context, status
 	for _, status := range statuses {
 		// 转换为数据库类型并更新或创建
 		dbHealth := &types.Health{
-			ID:                status.ID,
-			ResourceType:      types.ResourceType(status.ResourceType),
-			ResourceID:        status.ResourceID,
-			RelatedPlatformID: status.RelatedPlatformID,
-			RelatedAPIKeyID:   status.RelatedAPIKeyID,
-			Status:            types.HealthStatus(status.Status),
-			RetryCount:        status.RetryCount,
-			NextAvailableAt:   status.NextAvailableAt,
-			BackoffDuration:   status.BackoffDuration,
-			LastError:         status.LastError,
-			LastErrorCode:     status.LastErrorCode,
-			LastCheckAt:       status.LastCheckAt,
-			LastSuccessAt:     status.LastSuccessAt,
-			SuccessCount:      status.SuccessCount,
-			ErrorCount:        status.ErrorCount,
+			ID:              status.ID,
+			ResourceType:    types.ResourceType(status.ResourceType),
+			ResourceID:      status.ResourceID,
+			Status:          types.HealthStatus(status.Status),
+			RetryCount:      status.RetryCount,
+			NextAvailableAt: status.NextAvailableAt,
+			BackoffDuration: status.BackoffDuration,
+			LastError:       status.LastError,
+			LastErrorCode:   status.LastErrorCode,
+			LastCheckAt:     status.LastCheckAt,
+			LastSuccessAt:   status.LastSuccessAt,
+			SuccessCount:    status.SuccessCount,
+			ErrorCount:      status.ErrorCount,
 		}
 
 		// 使用 Upsert 操作
@@ -251,41 +272,41 @@ func (r *DatabaseRepository) BatchUpdateHealthStatus(ctx context.Context, status
 	return nil
 }
 
-// SaveRequestStat 保存请求统计
+// CreateRequestLog 创建请求日志
 //
-// 保存请求统计信息到数据库
+// 保存请求日志到数据库
 //
 // 参数：
 //   - ctx: 上下文
-//   - stat: 请求统计信息
+//   - log: 请求日志
 //
 // 返回值：
 //   - error: 错误信息
-func (r *DatabaseRepository) SaveRequestStat(ctx context.Context, stat *coreTypes.RequestStat) error {
-	// 将 coreTypes.RequestStat 转换为数据库类型
-	dbStat := &types.RequestStat{
-		ID:          stat.ID,
-		Timestamp:   stat.Timestamp,
-		RequestType: stat.RequestType,
-		ModelName:   stat.ModelName,
+func (r *DatabaseRepository) CreateRequestLog(ctx context.Context, log *request.RequestLog) error {
+	// 将 request.RequestLog 转换为数据库类型
+	dbLog := &types.RequestLog{
+		ID:          log.ID,
+		Timestamp:   log.Timestamp,
+		RequestType: log.RequestType,
+		ModelName:   log.ModelName,
 		ChannelInfo: types.ChannelInfo{
-			PlatformID: stat.ChannelInfo.PlatformID,
-			APIKeyID:   stat.ChannelInfo.APIKeyID,
-			ModelID:    stat.ChannelInfo.ModelID,
+			PlatformID: log.ChannelInfo.PlatformID,
+			APIKeyID:   log.ChannelInfo.APIKeyID,
+			ModelID:    log.ChannelInfo.ModelID,
 		},
-		Duration: stat.Duration.Microseconds(),
-		Success:  stat.Success,
-		ErrorMsg: stat.ErrorMsg,
+		Duration: log.Duration.Microseconds(),
+		Success:  log.Success,
+		ErrorMsg: log.ErrorMsg,
 	}
-	if stat.FirstByteTime != nil {
-		firstByteTime := stat.FirstByteTime.Microseconds()
-		dbStat.FirstByteTime = &firstByteTime
+	if log.FirstByteTime != nil {
+		firstByteTime := log.FirstByteTime.Microseconds()
+		dbLog.FirstByteTime = &firstByteTime
 	}
 
 	// 保存到数据库
-	err := query.Q.WithContext(ctx).RequestStat.Create(dbStat)
+	err := query.Q.WithContext(ctx).RequestLog.Create(dbLog)
 	if err != nil {
-		return fmt.Errorf("保存请求统计信息失败：%w", err)
+		return fmt.Errorf("保存请求日志失败：%w", err)
 	}
 
 	return nil
