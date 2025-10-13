@@ -32,6 +32,7 @@ func newRequestLog(db *gorm.DB, opts ...gen.DOOption) requestLog {
 	_requestLog.Timestamp = field.NewTime(tableName, "timestamp")
 	_requestLog.RequestType = field.NewString(tableName, "request_type")
 	_requestLog.ModelName = field.NewString(tableName, "model_name")
+	_requestLog.OriginalModelName = field.NewString(tableName, "original_model_name")
 	_requestLog.ChannelInfo = field.NewField(tableName, "channel_info")
 	_requestLog.Duration = field.NewInt64(tableName, "duration")
 	_requestLog.FirstByteTime = field.NewInt64(tableName, "first_byte_time")
@@ -48,18 +49,19 @@ func newRequestLog(db *gorm.DB, opts ...gen.DOOption) requestLog {
 type requestLog struct {
 	requestLogDo
 
-	ALL           field.Asterisk
-	ID            field.String
-	Timestamp     field.Time
-	RequestType   field.String
-	ModelName     field.String
-	ChannelInfo   field.Field
-	Duration      field.Int64
-	FirstByteTime field.Int64
-	Success       field.Bool
-	ErrorMsg      field.String
-	CreatedAt     field.Time
-	UpdatedAt     field.Time
+	ALL               field.Asterisk
+	ID                field.String
+	Timestamp         field.Time
+	RequestType       field.String
+	ModelName         field.String
+	OriginalModelName field.String
+	ChannelInfo       field.Field
+	Duration          field.Int64
+	FirstByteTime     field.Int64
+	Success           field.Bool
+	ErrorMsg          field.String
+	CreatedAt         field.Time
+	UpdatedAt         field.Time
 
 	fieldMap map[string]field.Expr
 }
@@ -80,6 +82,7 @@ func (r *requestLog) updateTableName(table string) *requestLog {
 	r.Timestamp = field.NewTime(table, "timestamp")
 	r.RequestType = field.NewString(table, "request_type")
 	r.ModelName = field.NewString(table, "model_name")
+	r.OriginalModelName = field.NewString(table, "original_model_name")
 	r.ChannelInfo = field.NewField(table, "channel_info")
 	r.Duration = field.NewInt64(table, "duration")
 	r.FirstByteTime = field.NewInt64(table, "first_byte_time")
@@ -103,11 +106,12 @@ func (r *requestLog) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (r *requestLog) fillFieldMap() {
-	r.fieldMap = make(map[string]field.Expr, 11)
+	r.fieldMap = make(map[string]field.Expr, 12)
 	r.fieldMap["id"] = r.ID
 	r.fieldMap["timestamp"] = r.Timestamp
 	r.fieldMap["request_type"] = r.RequestType
 	r.fieldMap["model_name"] = r.ModelName
+	r.fieldMap["original_model_name"] = r.OriginalModelName
 	r.fieldMap["channel_info"] = r.ChannelInfo
 	r.fieldMap["duration"] = r.Duration
 	r.fieldMap["first_byte_time"] = r.FirstByteTime
