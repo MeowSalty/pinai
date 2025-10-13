@@ -22,24 +22,44 @@ type StatsRealtimeResponse struct {
 	RPM float64 `json:"rpm"` // 每分钟请求数
 }
 
+// ModelRankItem 定义了模型排名项
+type ModelRankItem struct {
+	ModelName    string  `json:"model_name"`    // 模型名称
+	RequestCount int64   `json:"request_count"` // 请求数量
+	SuccessRate  float64 `json:"success_rate"`  // 成功率
+	Percentage   float64 `json:"percentage"`    // 占比
+}
+
+// PlatformRankItem 定义了平台排名项
+type PlatformRankItem struct {
+	PlatformName string  `json:"platform_name"` // 平台名称
+	RequestCount int64   `json:"request_count"` // 请求数量
+	SuccessRate  float64 `json:"success_rate"`  // 成功率
+	Percentage   float64 `json:"percentage"`    // 占比
+}
+
+// ModelRankResponse 定义了模型排名响应结构
+type ModelRankResponse struct {
+	TotalRequests int64           `json:"total_requests"` // 总请求量
+	Models        []ModelRankItem `json:"models"`         // 模型排名列表
+}
+
+// PlatformRankResponse 定义了平台排名响应结构
+type PlatformRankResponse struct {
+	TotalRequests int64              `json:"total_requests"` // 总请求量
+	Platforms     []PlatformRankItem `json:"platforms"`      // 平台排名列表
+}
+
 // ListRequestLogsOptions 定义了获取请求状态列表的筛选选项
 type ListRequestLogsOptions struct {
 	// 时间范围筛选
-	StartTime *time.Time `json:"start_time,omitempty"`
-	EndTime   *time.Time `json:"end_time,omitempty"`
-
-	// 结果状态筛选
-	Success *bool `json:"success,omitempty"`
-
-	// 请求类型筛选
-	RequestType *string `json:"request_type,omitempty"`
-
-	// 模型名称筛选
-	ModelName *string `json:"model_name,omitempty"`
-
-	// 分页参数
-	Page     int `json:"page"`
-	PageSize int `json:"page_size"`
+	StartTime   *time.Time `json:"start_time,omitempty"`
+	EndTime     *time.Time `json:"end_time,omitempty"`
+	Success     *bool      `json:"success,omitempty"`
+	RequestType *string    `json:"request_type,omitempty"`
+	ModelName   *string    `json:"model_name,omitempty"`
+	Page        int        `json:"page"`
+	PageSize    int        `json:"page_size"`
 }
 
 // StatsServiceInterface 定义统计服务接口
@@ -52,6 +72,12 @@ type StatsServiceInterface interface {
 
 	// ListRequestLogs 获取请求状态列表
 	ListRequestLogs(ctx context.Context, opts ListRequestLogsOptions) ([]*types.RequestLog, int64, error)
+
+	// GetModelRank 获取模型排名前 10
+	GetModelRank(ctx context.Context, duration time.Duration) (*ModelRankResponse, error)
+
+	// GetPlatformRank 获取平台排名前 10
+	GetPlatformRank(ctx context.Context, duration time.Duration) (*PlatformRankResponse, error)
 }
 
 // statsService 是 StatsServiceInterface 接口的具体实现
@@ -236,4 +262,194 @@ func (s *statsService) calculateAvgFirstByteTimeWithPercentile(ctx context.Conte
 	}
 
 	return float64(sum) / float64(len(filteredDurations)), nil
+}
+
+// GetModelRank 获取模型排名前 10
+func (s *statsService) GetModelRank(ctx context.Context, duration time.Duration) (*ModelRankResponse, error) {
+	q := query.Q
+	r := q.RequestLog
+
+	// 设置默认时间范围为 24 小时
+	if duration == 0 {
+		duration = 24 * time.Hour
+	}
+
+	startTime := time.Now().Add(-duration)
+
+	// 获取总请求数
+	totalRequests, err := r.WithContext(ctx).
+		Where(r.Timestamp.Gte(startTime)).
+		Count()
+	if err != nil {
+		return nil, fmt.Errorf("获取总请求数失败：%w", err)
+	}
+
+	// 获取所有模型名称
+	var modelNames []string
+	err = r.WithContext(ctx).
+		Where(r.Timestamp.Gte(startTime)).
+		Distinct(r.OriginalModelName).
+		Pluck(r.OriginalModelName, &modelNames)
+	if err != nil {
+		return nil, fmt.Errorf("获取模型名称列表失败：%w", err)
+	}
+
+	// 计算每个模型的统计数据
+	modelRankItems := make([]ModelRankItem, 0, len(modelNames))
+	for _, modelName := range modelNames {
+		// 获取该模型的总请求数
+		modelTotal, err := r.WithContext(ctx).
+			Where(r.Timestamp.Gte(startTime)).
+			Where(r.OriginalModelName.Eq(modelName)).
+			Count()
+		if err != nil {
+			return nil, fmt.Errorf("获取模型 %s 请求数失败：%w", modelName, err)
+		}
+
+		// 获取该模型的成功请求数
+		modelSuccess, err := r.WithContext(ctx).
+			Where(r.Timestamp.Gte(startTime)).
+			Where(r.OriginalModelName.Eq(modelName)).
+			Where(r.Success.Is(true)).
+			Count()
+		if err != nil {
+			return nil, fmt.Errorf("获取模型 %s 成功请求数失败：%w", modelName, err)
+		}
+
+		var successRate float64
+		if modelTotal > 0 {
+			successRate = float64(modelSuccess) / float64(modelTotal)
+		}
+
+		var percentage float64
+		if totalRequests > 0 {
+			percentage = float64(modelTotal) / float64(totalRequests)
+		}
+
+		modelRankItems = append(modelRankItems, ModelRankItem{
+			ModelName:    modelName,
+			RequestCount: modelTotal,
+			SuccessRate:  successRate,
+			Percentage:   percentage,
+		})
+	}
+
+	// 按请求数量降序排序
+	sort.Slice(modelRankItems, func(i, j int) bool {
+		return modelRankItems[i].RequestCount > modelRankItems[j].RequestCount
+	})
+
+	// 只取前 10 个
+	if len(modelRankItems) > 10 {
+		modelRankItems = modelRankItems[:10]
+	}
+
+	return &ModelRankResponse{
+		TotalRequests: totalRequests,
+		Models:        modelRankItems,
+	}, nil
+}
+
+// GetPlatformRank 获取平台排名前 10
+func (s *statsService) GetPlatformRank(ctx context.Context, duration time.Duration) (*PlatformRankResponse, error) {
+	q := query.Q
+	r := q.RequestLog
+	p := q.Platform
+
+	// 设置默认时间范围为 24 小时
+	if duration == 0 {
+		duration = 24 * time.Hour
+	}
+
+	startTime := time.Now().Add(-duration)
+
+	// 获取总请求数
+	totalRequests, err := r.WithContext(ctx).
+		Where(r.Timestamp.Gte(startTime)).
+		Count()
+	if err != nil {
+		return nil, fmt.Errorf("获取总请求数失败：%w", err)
+	}
+
+	// 获取所有记录并手动统计
+	logs, err := r.WithContext(ctx).
+		Where(r.Timestamp.Gte(startTime)).
+		Find()
+	if err != nil {
+		return nil, fmt.Errorf("获取请求日志失败：%w", err)
+	}
+
+	// 手动统计每个平台的数据
+	platformStats := make(map[uint]*struct {
+		total   int64
+		success int64
+	})
+
+	for _, log := range logs {
+		platformID := log.ChannelInfo.PlatformID
+		if _, exists := platformStats[platformID]; !exists {
+			platformStats[platformID] = &struct {
+				total   int64
+				success int64
+			}{}
+		}
+		platformStats[platformID].total++
+		if log.Success {
+			platformStats[platformID].success++
+		}
+	}
+
+	// 获取平台名称映射
+	platformIDs := make([]uint, 0, len(platformStats))
+	for platformID := range platformStats {
+		platformIDs = append(platformIDs, platformID)
+	}
+
+	platforms, err := p.WithContext(ctx).
+		Where(p.ID.In(platformIDs...)).
+		Find()
+	if err != nil {
+		return nil, fmt.Errorf("获取平台信息失败：%w", err)
+	}
+
+	platformNames := make(map[uint]string)
+	for _, platform := range platforms {
+		platformNames[platform.ID] = platform.Name
+	}
+
+	// 构建排名列表
+	platformRankItems := make([]PlatformRankItem, 0, len(platformStats))
+	for platformID, stats := range platformStats {
+		var successRate float64
+		if stats.total > 0 {
+			successRate = float64(stats.success) / float64(stats.total)
+		}
+
+		var percentage float64
+		if totalRequests > 0 {
+			percentage = float64(stats.total) / float64(totalRequests)
+		}
+
+		platformRankItems = append(platformRankItems, PlatformRankItem{
+			PlatformName: platformNames[platformID],
+			RequestCount: stats.total,
+			SuccessRate:  successRate,
+			Percentage:   percentage,
+		})
+	}
+
+	// 按请求数量降序排序
+	sort.Slice(platformRankItems, func(i, j int) bool {
+		return platformRankItems[i].RequestCount > platformRankItems[j].RequestCount
+	})
+
+	// 只取前 10 个
+	if len(platformRankItems) > 10 {
+		platformRankItems = platformRankItems[:10]
+	}
+
+	return &PlatformRankResponse{
+		TotalRequests: totalRequests,
+		Platforms:     platformRankItems,
+	}, nil
 }
