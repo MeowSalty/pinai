@@ -285,10 +285,11 @@ func (r *DatabaseRepository) BatchUpdateHealth(ctx context.Context, statuses []h
 func (r *DatabaseRepository) CreateRequestLog(ctx context.Context, log *request.RequestLog) error {
 	// 将 request.RequestLog 转换为数据库类型
 	dbLog := &types.RequestLog{
-		ID:          log.ID,
-		Timestamp:   log.Timestamp,
-		RequestType: log.RequestType,
-		ModelName:   log.ModelName,
+		ID:                log.ID,
+		Timestamp:         log.Timestamp,
+		RequestType:       log.RequestType,
+		ModelName:         log.ModelName,
+		OriginalModelName: log.OriginalModelName,
 		ChannelInfo: types.ChannelInfo{
 			PlatformID: log.ChannelInfo.PlatformID,
 			APIKeyID:   log.ChannelInfo.APIKeyID,
