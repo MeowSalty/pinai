@@ -14,4 +14,6 @@ func SetupStatsRoutes(router fiber.Router, statsService services.StatsServiceInt
 	statsGroup.Get("/overview", handler.GetOverview)
 	statsGroup.Get("/requests", handler.ListRequestLogs)
 	statsGroup.Get("/realtime", handler.GetRealtime)
+	statsGroup.Get("/models/rank", handler.GetModelRank)
+	statsGroup.Get("/platforms/rank", handler.GetPlatformRank)
 }

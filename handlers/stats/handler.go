@@ -19,6 +19,12 @@ type StatsHandlerInterface interface {
 
 	// GetRealtime 获取实时数据
 	GetRealtime(c *fiber.Ctx) error
+
+	// GetModelRank 获取模型排名前 10
+	GetModelRank(c *fiber.Ctx) error
+
+	// GetPlatformRank 获取平台排名前 10
+	GetPlatformRank(c *fiber.Ctx) error
 }
 
 // StatsHandler 统计处理器结构体
@@ -157,6 +163,52 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(response)
+}
+
+// GetModelRank 获取模型排名前 10
+//
+// 查询参数：
+//   - duration: 时间范围 (可选，支持 24h, 7d 等格式，默认为 24h)
+//
+// 返回值：
+//   - 成功：模型排名数据
+//   - 失败：错误信息
+func (h *StatsHandler) GetModelRank(c *fiber.Ctx) error {
+	durationStr := c.Query("duration", "24h")
+	duration, err := time.ParseDuration(durationStr)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 7d 等格式")
+	}
+
+	modelRank, err := h.StatsService.GetModelRank(c.Context(), duration)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "获取模型排名失败："+err.Error())
+	}
+
+	return c.JSON(modelRank)
+}
+
+// GetPlatformRank 获取平台排名前 10
+//
+// 查询参数：
+//   - duration: 时间范围 (可选，支持 24h, 7d 等格式，默认为 24h)
+//
+// 返回值：
+//   - 成功：平台排名数据
+//   - 失败：错误信息
+func (h *StatsHandler) GetPlatformRank(c *fiber.Ctx) error {
+	durationStr := c.Query("duration", "24h")
+	duration, err := time.ParseDuration(durationStr)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 7d 等格式")
+	}
+
+	platformRank, err := h.StatsService.GetPlatformRank(c.Context(), duration)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "获取平台排名失败："+err.Error())
+	}
+
+	return c.JSON(platformRank)
 }
 
 // parseTime 解析时间字符串，支持 RFC3339 格式和 Unix 时间戳 (毫秒)
