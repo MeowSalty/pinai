@@ -27,7 +27,8 @@ PinAI 是一个基于 Go 语言开发的轻量级大语言模型路由网关，�
 docker run -d \
   -p 3000:3000 \
   -e ENABLE_WEB=true \
-  -e API_TOKEN=<token> \
+  -e API_TOKEN=<业务token> \
+  -e ADMIN_TOKEN=<管理token> \
   ghcr.io/meowsalty/pinai:latest
 ```
 
@@ -41,7 +42,7 @@ git clone https://github.com/MeowSalty/pinai.git
 cd pinai
 
 # 运行项目
-go run app.go -api-token=<token> -enable-web=true
+go run app.go -api-token=<业务token> -admin-token=<管理token> -enable-web=true
 ```
 
 服务默认在 `http://localhost:3000` 上运行。
@@ -67,24 +68,29 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
 | `-db-name`                | `DB_NAME`                | 数据库名称                                                     |           |
 | `-db-ssl-mode`            | `DB_SSL_MODE`            | PostgreSQL SSL 模式 (disable, require, verify-ca, verify-full) | `disable` |
 | `-db-tls-config`          | `DB_TLS_CONFIG`          | MySQL TLS 配置 (true, false, skip-verify, preferred)           | `false`   |
-| `-api-token`              | `API_TOKEN`              | API Token，用于身份验证                                        |           |
+| `-api-token`              | `API_TOKEN`              | API Token，用于业务接口身份验证                                |           |
+| `-admin-token`            | `ADMIN_TOKEN`            | 管理 API Token，用于管理接口身份验证（可选）                   |           |
 
-> 注意：命令行参数优先级高于环境变量。
+> [!NOTE]
 >
-> **数据库 TLS 配置说明**：
->
-> - PostgreSQL 使用 `-db-ssl-mode` 参数：
->
->   - `disable`: 禁用 SSL
->   - `require`: 要求 SSL（不验证证书）
->   - `verify-ca`: 验证证书颁发机构
->   - `verify-full`: 完全验证证书（主机名和颁发机构）
->
-> - MySQL 使用 `-db-tls-config` 参数：
->   - `true`: 启用 SSL
->   - `false`: 禁用 SSL
->   - `skip-verify`: 启用 SSL 但跳过证书验证
->   - `preferred`: 优先使用 SSL，如果服务器不支持则回退到非加密连接
+> - 命令行参数优先级高于环境变量。
+> - 如果只设置了 `API_TOKEN` 而没有设置 `ADMIN_TOKEN`，则管理接口和业务接口将使用相同的令牌，程序启动时会输出警告。
+> - 业务接口指 `/openai/v1/*` 路径下的接口，管理接口指 `/api/*` 路径下的接口。
+
+#### 数据库 TLS 配置说明
+
+- PostgreSQL 使用 `-db-ssl-mode` 参数：
+
+  - `disable`: 禁用 SSL
+  - `require`: 要求 SSL（不验证证书）
+  - `verify-ca`: 验证证书颁发机构
+  - `verify-full`: 完全验证证书（主机名和颁发机构）
+
+- MySQL 使用 `-db-tls-config` 参数：
+  - `true`: 启用 SSL
+  - `false`: 禁用 SSL
+  - `skip-verify`: 启用 SSL 但跳过证书验证
+  - `preferred`: 优先使用 SSL，如果服务器不支持则回退到非加密连接
 
 ## 📚 API 接口
 
