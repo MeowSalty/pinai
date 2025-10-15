@@ -35,7 +35,8 @@ var (
 	dbSSLMode   *string
 	dbTLSConfig *string
 
-	apiToken *string
+	apiToken   *string
+	adminToken *string
 )
 
 func loadFlag() {
@@ -59,6 +60,7 @@ func loadFlag() {
 
 	// API Token 参数
 	apiToken = flag.String("api-token", envAPIToken, "API Token，如果为空则不启用身份验证")
+	adminToken = flag.String("admin-token", envAdminToken, "管理 API Token，如果为空则使用 API Token")
 
 	flag.Parse()
 }
@@ -121,11 +123,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 设置路由
+	// 如果没有设置管理令牌，则使用 API Token，并输出警告
+	effectiveAdminToken := *adminToken
+	if effectiveAdminToken == "" {
+		effectiveAdminToken = *apiToken
+		if *apiToken != "" {
+			appLogger.Warn("未设置独立的管理 API Token，管理接口将与业务接口使用相同的令牌")
+		}
+	}
 	if *apiToken == "" {
 		appLogger.Warn("未启用 API Token，将不进行身份验证")
 	}
-	if err := router.SetupRoutes(fiberApp, svcs, *enableWeb, *webDir, *apiToken); err != nil {
+
+	// 设置路由
+	if err := router.SetupRoutes(fiberApp, svcs, *enableWeb, *webDir, *apiToken, effectiveAdminToken); err != nil {
 		appLogger.Error("路由设置失败", "error", err)
 		os.Exit(1)
 	}

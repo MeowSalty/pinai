@@ -13,15 +13,19 @@ import (
 )
 
 // SetupRoutes 配置 API 路由
-func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir string, apiToken string) error {
+func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir string, apiToken string, adminToken string) error {
 	web.Use(cors.New())
 	webAPI := web.Group("/api")
 	openaiAPI := web.Group("/openai/v1")
 
-	// 如果设置了 token，为 API 端点添加身份验证
+	// 如果设置了 token，为业务 API 端点添加身份验证
 	if apiToken != "" {
-		webAPI.Use(createOpenAIAuthMiddleware(apiToken))
 		openaiAPI.Use(createOpenAIAuthMiddleware(apiToken))
+	}
+
+	// 如果设置了管理 token，为管理 API 端点添加身份验证
+	if adminToken != "" {
+		webAPI.Use(createOpenAIAuthMiddleware(adminToken))
 	}
 
 	webAPI.Get("/ping", func(c *fiber.Ctx) error {
