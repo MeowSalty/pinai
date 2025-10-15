@@ -26,12 +26,14 @@ var (
 	webDir               *string
 	enableFrontendUpdate *bool
 
-	dbType *string
-	dbHost *string
-	dbPort *string
-	dbUser *string
-	dbPass *string
-	dbName *string
+	dbType      *string
+	dbHost      *string
+	dbPort      *string
+	dbUser      *string
+	dbPass      *string
+	dbName      *string
+	dbSSLMode   *string
+	dbTLSConfig *string
 
 	apiToken *string
 )
@@ -52,6 +54,8 @@ func loadFlag() {
 	dbUser = flag.String("db-user", envDBUser, "数据库用户名")
 	dbPass = flag.String("db-pass", envDBPass, "数据库密码")
 	dbName = flag.String("db-name", envDBName, "数据库名称")
+	dbSSLMode = flag.String("db-ssl-mode", envDBSSLMode, "PostgreSQL SSL 模式 (disable, require, verify-ca, verify-full)")
+	dbTLSConfig = flag.String("db-tls-config", envDBTLSConfig, "MySQL TLS 配置 (true, false, skip-verify, preferred)")
 
 	// API Token 参数
 	apiToken = flag.String("api-token", envAPIToken, "API Token，如果为空则不启用身份验证")
@@ -88,7 +92,7 @@ func main() {
 	}
 
 	// 连接数据库
-	db, err := database.Connect(*dbType, *dbHost, *dbPort, *dbUser, *dbPass, *dbName, gormLogger)
+	db, err := database.Connect(*dbType, *dbHost, *dbPort, *dbUser, *dbPass, *dbName, *dbSSLMode, *dbTLSConfig, gormLogger)
 	if err != nil {
 		appLogger.Error("数据库连接失败", "error", err)
 		os.Exit(1)

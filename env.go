@@ -15,6 +15,8 @@ var (
 	envDBUser               = ""
 	envDBPass               = ""
 	envDBName               = ""
+	envDBSSLMode            = "" // PostgreSQL SSL 模式
+	envDBTLSConfig          = "" // MySQL TLS 配置
 	envAPIToken             = ""
 )
 
@@ -62,6 +64,15 @@ func loadEnv() {
 
 	if os.Getenv("DB_NAME") != "" {
 		envDBName = os.Getenv("DB_NAME")
+	}
+
+	// 从环境变量加载数据库 TLS 配置
+	if os.Getenv("DB_SSL_MODE") != "" {
+		envDBSSLMode = os.Getenv("DB_SSL_MODE")
+	}
+
+	if os.Getenv("DB_TLS_CONFIG") != "" {
+		envDBTLSConfig = os.Getenv("DB_TLS_CONFIG")
 	}
 
 	// 从环境变量加载 OpenAI Token 配置

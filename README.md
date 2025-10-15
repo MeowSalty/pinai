@@ -15,6 +15,7 @@ PinAI 是一个基于 Go 语言开发的轻量级大语言模型路由网关，�
 - **多模型支持**：支持多种大语言模型的统一访问和管理
 - **流式响应**：完整支持流式响应，提供实时交互体验
 - **多数据库支持**：支持 SQLite（默认）、MySQL 和 PostgreSQL 数据库
+- **数据库 TLS 支持**：支持 MySQL 和 PostgreSQL 数据库的 TLS 加密连接
 - **易于部署**：提供 Docker 镜像，支持容器化部署
 
 ## 🚀 快速开始
@@ -51,22 +52,39 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
 
 ### 配置参数说明
 
-| 命令行参数                | 环境变量                 | 说明                                 | 默认值   |
-| ------------------------- | ------------------------ | ------------------------------------ | -------- |
-| `-port`                   | `PORT`                   | 监听端口                             | `:3000`  |
-| `-prod`                   | `PROD`                   | 在生产环境中启用 prefork 模式        | `false`  |
-| `-enable-web`             | `ENABLE_WEB`             | 启用前端支持                         | `false`  |
-| `-web-dir`                | `WEB_DIR`                | 前端文件目录                         | `web`    |
-| `-enable-frontend-update` | `ENABLE_FRONTEND_UPDATE` | 启用前端更新检查                     | `true`   |
-| `-db-type`                | `DB_TYPE`                | 数据库类型 (sqlite, mysql, postgres) | `sqlite` |
-| `-db-host`                | `DB_HOST`                | 数据库主机地址                       |          |
-| `-db-port`                | `DB_PORT`                | 数据库端口                           |          |
-| `-db-user`                | `DB_USER`                | 数据库用户名                         |          |
-| `-db-pass`                | `DB_PASS`                | 数据库密码                           |          |
-| `-db-name`                | `DB_NAME`                | 数据库名称                           |          |
-| `-api-token`              | `API_TOKEN`              | API Token，用于身份验证              |          |
+| 命令行参数                | 环境变量                 | 说明                                                           | 默认值    |
+| ------------------------- | ------------------------ | -------------------------------------------------------------- | --------- |
+| `-port`                   | `PORT`                   | 监听端口                                                       | `:3000`   |
+| `-prod`                   | `PROD`                   | 在生产环境中启用 prefork 模式                                  | `false`   |
+| `-enable-web`             | `ENABLE_WEB`             | 启用前端支持                                                   | `false`   |
+| `-web-dir`                | `WEB_DIR`                | 前端文件目录                                                   | `web`     |
+| `-enable-frontend-update` | `ENABLE_FRONTEND_UPDATE` | 启用前端更新检查                                               | `true`    |
+| `-db-type`                | `DB_TYPE`                | 数据库类型 (sqlite, mysql, postgres)                           | `sqlite`  |
+| `-db-host`                | `DB_HOST`                | 数据库主机地址                                                 |           |
+| `-db-port`                | `DB_PORT`                | 数据库端口                                                     |           |
+| `-db-user`                | `DB_USER`                | 数据库用户名                                                   |           |
+| `-db-pass`                | `DB_PASS`                | 数据库密码                                                     |           |
+| `-db-name`                | `DB_NAME`                | 数据库名称                                                     |           |
+| `-db-ssl-mode`            | `DB_SSL_MODE`            | PostgreSQL SSL 模式 (disable, require, verify-ca, verify-full) | `disable` |
+| `-db-tls-config`          | `DB_TLS_CONFIG`          | MySQL TLS 配置 (true, false, skip-verify, preferred)           | `false`   |
+| `-api-token`              | `API_TOKEN`              | API Token，用于身份验证                                        |           |
 
 > 注意：命令行参数优先级高于环境变量。
+>
+> **数据库 TLS 配置说明**：
+>
+> - PostgreSQL 使用 `-db-ssl-mode` 参数：
+>
+>   - `disable`: 禁用 SSL
+>   - `require`: 要求 SSL（不验证证书）
+>   - `verify-ca`: 验证证书颁发机构
+>   - `verify-full`: 完全验证证书（主机名和颁发机构）
+>
+> - MySQL 使用 `-db-tls-config` 参数：
+>   - `true`: 启用 SSL
+>   - `false`: 禁用 SSL
+>   - `skip-verify`: 启用 SSL 但跳过证书验证
+>   - `preferred`: 优先使用 SSL，如果服务器不支持则回退到非加密连接
 
 ## 📚 API 接口
 

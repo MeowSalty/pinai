@@ -26,12 +26,14 @@ import (
 //   - user: 数据库用户名
 //   - password: 数据库密码
 //   - dbname: 数据库名称
+//   - sslMode: PostgreSQL SSL 模式 (disable, require, verify-ca, verify-full)
+//   - tlsConfig: MySQL TLS 配置 (true, false, skip-verify, preferred)
 //   - logger: 用于数据库操作的日志记录器
 //
 // 返回值：
 //   - *sql.DB: 数据库连接对象
 //   - error: 连接过程中可能发生的错误
-func Connect(dbType, host, port, user, password, dbname string, logger *slog.Logger) (*sql.DB, error) {
+func Connect(dbType, host, port, user, password, dbname, sslMode, tlsConfig string, logger *slog.Logger) (*sql.DB, error) {
 	var db *gorm.DB
 	var err error
 
@@ -47,12 +49,20 @@ func Connect(dbType, host, port, user, password, dbname string, logger *slog.Log
 			return nil, errors.New("使用 MySQL 数据库需要提供主机、端口、用户名、密码和数据库名")
 		}
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, dbname)
+		// 添加 TLS 配置
+		if tlsConfig != "" {
+			dsn += fmt.Sprintf("&tls=%s", tlsConfig)
+		}
 		db, err = gorm.Open(mysql.Open(dsn), gormConfig)
 	case "postgres":
 		if host == "" || port == "" || user == "" || password == "" || dbname == "" {
 			return nil, errors.New("使用 PostgreSQL 数据库需要提供主机、端口、用户名、密码和数据库名")
 		}
 		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s", host, user, password, dbname, port)
+		// 添加 SSL 模式配置
+		if sslMode != "" {
+			dsn += fmt.Sprintf(" sslmode=%s", sslMode)
+		}
 		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
 	case "sqlite":
 		fallthrough
