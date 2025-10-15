@@ -2,10 +2,13 @@ package types
 
 import (
 	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 // HealthStatus 健康状态枚举
-type HealthStatus int8
+type HealthStatus DBIntType
 
 const (
 	HealthStatusUnknown     HealthStatus = iota // 未知
@@ -15,7 +18,7 @@ const (
 )
 
 // ResourceType 资源类型枚举
-type ResourceType int8
+type ResourceType DBIntType
 
 const (
 	ResourceTypePlatform ResourceType = iota + 1 // 平台级
@@ -23,14 +26,27 @@ const (
 	ResourceTypeModel                            // 模型级
 )
 
+// DBIntType 自定义整数类型，用于根据数据库类型动态设置字段类型
+type DBIntType int8
+
+// GormDBDataType 实现 gorm.DBDataTypeInterface 接口，根据数据库类型返回相应的字段类型
+func (DBIntType) GormDBDataType(db *gorm.DB, field *schema.Field) string {
+	switch db.Dialector.Name() {
+	case "postgres":
+		return "smallint" // PostgreSQL 使用 smallint
+	default:
+		return "tinyint" // 其他数据库使用 tinyint
+	}
+}
+
 // Health 健康状态表 (health_status)
 type Health struct {
 	ID uint `gorm:"primaryKey"`
 
-	ResourceType ResourceType `gorm:"type:tinyint;not null;index:idx_resource"` // 资源类型
-	ResourceID   uint         `gorm:"not null;index:idx_resource"`              // 资源 ID
+	ResourceType ResourceType `gorm:"not null;index:idx_resource"` // 资源类型
+	ResourceID   uint         `gorm:"not null;index:idx_resource"` // 资源 ID
 
-	Status HealthStatus `gorm:"type:tinyint;not null;index"` // 健康状态
+	Status HealthStatus `gorm:"not null;index"` // 健康状态
 
 	// 指数退避相关
 	RetryCount      int        `gorm:"default:0"` // 重试次数
