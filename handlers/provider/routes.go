@@ -8,25 +8,27 @@ import (
 
 // SetupProviderRoutes 配置 LLM 供应方管理相关的 API 路由
 func SetupProviderRoutes(router fiber.Router, llmService provider.Service) {
-	// 创建 Provider Handler 实例
+	// 创建单一的 Provider Handler 实例
 	handler := NewHandler(llmService)
 
 	// 供应方 (Providers) 相关路由
 	router.Post("/providers", handler.CreateProvider)
-	router.Get("/providers", handler.GetProviders)
-	router.Get("/providers/:id", handler.GetProvider)
-	router.Put("/providers/:id", handler.UpdateProvider)
-	router.Delete("/providers/:id", handler.DeleteProvider)
+	router.Delete("/provider/:id", handler.DeleteProvider)
 
-	// 模型 (Models) 相关路由 (嵌套在供应方下)
-	router.Post("/providers/:providerId/models", handler.AddModelToProvider)
-	router.Get("/providers/:providerId/models", handler.GetModelsByProvider)
-	router.Put("/providers/:providerId/models/:modelId", handler.UpdateModel)
-	router.Delete("/providers/:providerId/models/:modelId", handler.DeleteModel)
+	// 平台 (Platforms) 相关路由
+	router.Get("/platforms", handler.GetPlatforms)
+	router.Get("/platform/:id", handler.GetPlatform)
+	router.Put("/platform/:id", handler.UpdatePlatform)
 
-	// 密钥 (Keys) 相关路由 (嵌套在供应方下)
-	router.Post("/providers/:providerId/keys", handler.AddKeyToProvider)
-	router.Get("/providers/:providerId/keys", handler.GetKeysByProvider)
-	router.Put("/providers/:providerId/keys/:keyId", handler.UpdateKey)
-	router.Delete("/providers/:providerId/keys/:keyId", handler.DeleteKey)
+	// 模型 (Models) 相关路由 (嵌套在平台下)
+	router.Post("/platform/:platformId/models", handler.AddModelToPlatform)
+	router.Get("/platform/:platformId/models", handler.GetModelsByPlatform)
+	router.Put("/platform/:platformId/models/:modelId", handler.UpdateModel)
+	router.Delete("/platform/:platformId/models/:modelId", handler.DeleteModel)
+
+	// 密钥 (Keys) 相关路由 (嵌套在平台下)
+	router.Post("/platform/:platformId/keys", handler.AddKeyToPlatform)
+	router.Get("/platform/:platformId/keys", handler.GetKeysByPlatform)
+	router.Put("/platform/:platformId/keys/:keyId", handler.UpdateKey)
+	router.Delete("/platform/:platformId/keys/:keyId", handler.DeleteKey)
 }
