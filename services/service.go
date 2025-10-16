@@ -3,13 +3,15 @@ package services
 import (
 	"context"
 	"log/slog"
+
+	"github.com/MeowSalty/pinai/services/provider"
 )
 
 // Services 持有所有服务实例的结构体
 type Services struct {
 	HealthService    HealthServiceInterface
 	AIGatewayService PortalService
-	ProviderService  ProviderService
+	ProviderService  provider.Service
 	StatsService     StatsServiceInterface
 }
 
@@ -37,7 +39,7 @@ func NewServices(ctx context.Context, logger *slog.Logger) (*Services, error) {
 	}
 
 	// 初始化供应商服务
-	providerService := NewProviderService()
+	providerService := provider.New()
 
 	// 初始化统计服务
 	statsService := NewStatsService()
