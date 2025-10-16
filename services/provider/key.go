@@ -9,8 +9,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// AddKeyToProvider 实现为指定供应方添加新密钥
-func (s *service) AddKeyToProvider(ctx context.Context, providerId uint, key types.APIKey) (*types.APIKey, error) {
+// AddKeyToPlatform 实现为指定供应方添加新密钥
+func (s *service) AddKeyToPlatform(ctx context.Context, providerId uint, key types.APIKey) (*types.APIKey, error) {
 	// 检查平台是否存在
 	_, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(providerId)).First()
 	if err != nil {
@@ -32,8 +32,8 @@ func (s *service) AddKeyToProvider(ctx context.Context, providerId uint, key typ
 	return &key, nil
 }
 
-// GetKeysByProvider 实现获取指定供应方的所有密钥列表
-func (s *service) GetKeysByProvider(ctx context.Context, providerId uint) ([]*types.APIKey, error) {
+// GetKeysByPlatform 实现获取指定供应方的所有密钥列表
+func (s *service) GetKeysByPlatform(ctx context.Context, providerId uint) ([]*types.APIKey, error) {
 	// 检查平台是否存在
 	_, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(providerId)).First()
 	if err != nil {
@@ -52,25 +52,7 @@ func (s *service) GetKeysByProvider(ctx context.Context, providerId uint) ([]*ty
 }
 
 // UpdateKey 实现更新指定密钥
-func (s *service) UpdateKey(ctx context.Context, providerId uint, keyId uint, key types.APIKey) (*types.APIKey, error) {
-	// 检查平台是否存在
-	_, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(providerId)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到 ID 为 %d 的供应方", providerId)
-		}
-		return nil, fmt.Errorf("查询平台时发生错误：%w", err)
-	}
-
-	// 检查密钥是否属于该平台
-	_, err = query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.ID.Eq(keyId), query.Q.APIKey.PlatformID.Eq(providerId)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("在供应方 %d 中未找到 ID 为 %d 的密钥", providerId, keyId)
-		}
-		return nil, fmt.Errorf("查询密钥时发生错误：%w", err)
-	}
-
+func (s *service) UpdateKey(ctx context.Context, keyId uint, key types.APIKey) (*types.APIKey, error) {
 	// 只更新非零值字段
 	result, err := query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.ID.Eq(keyId)).Updates(key)
 	if err != nil {
@@ -90,25 +72,7 @@ func (s *service) UpdateKey(ctx context.Context, providerId uint, keyId uint, ke
 }
 
 // DeleteKey 实现删除指定密钥
-func (s *service) DeleteKey(ctx context.Context, providerId uint, keyId uint) error {
-	// 检查平台是否存在
-	_, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(providerId)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("未找到 ID 为 %d 的平台", providerId)
-		}
-		return fmt.Errorf("查询平台时发生错误：%w", err)
-	}
-
-	// 检查密钥是否属于该平台
-	_, err = query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.ID.Eq(keyId), query.Q.APIKey.PlatformID.Eq(providerId)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("在平台 ID 为 %d 中未找到 ID 为 %d 的 API 密钥", providerId, keyId)
-		}
-		return fmt.Errorf("查询密钥时发生错误：%w", err)
-	}
-
+func (s *service) DeleteKey(ctx context.Context, keyId uint) error {
 	// 删除密钥
 	result, err := query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.ID.Eq(keyId)).Delete()
 	if err != nil {

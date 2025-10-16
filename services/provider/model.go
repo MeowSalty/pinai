@@ -9,8 +9,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// AddModelToProvider 实现为指定供应方添加新模型
-func (s *service) AddModelToProvider(ctx context.Context, providerId uint, model types.Model) (*types.Model, error) {
+// AddModelToPlatform 实现为指定平台添加新模型
+func (s *service) AddModelToPlatform(ctx context.Context, providerId uint, model types.Model) (*types.Model, error) {
 	// 检查平台是否存在
 	_, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(providerId)).First()
 	if err != nil {
@@ -32,8 +32,8 @@ func (s *service) AddModelToProvider(ctx context.Context, providerId uint, model
 	return &model, nil
 }
 
-// GetModelsByProvider 实现获取指定供应方的所有模型列表
-func (s *service) GetModelsByProvider(ctx context.Context, providerId uint) ([]*types.Model, error) {
+// GetModelsByProvider 实现获取指定平台的所有模型列表
+func (s *service) GetModelsByPlatform(ctx context.Context, providerId uint) ([]*types.Model, error) {
 	// 检查平台是否存在
 	_, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(providerId)).First()
 	if err != nil {
@@ -52,25 +52,7 @@ func (s *service) GetModelsByProvider(ctx context.Context, providerId uint) ([]*
 }
 
 // UpdateModel 实现更新指定模型信息
-func (s *service) UpdateModel(ctx context.Context, providerId uint, modelId uint, model types.Model) (*types.Model, error) {
-	// 检查平台是否存在
-	_, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(providerId)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到 ID 为 %d 的平台", providerId)
-		}
-		return nil, fmt.Errorf("查询平台时发生错误：%w", err)
-	}
-
-	// 检查模型是否属于该平台
-	_, err = query.Q.Model.WithContext(ctx).Where(query.Q.Model.ID.Eq(modelId), query.Q.Model.PlatformID.Eq(providerId)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("在平台 ID 为 %d 中未找到 ID 为 %d 的模型", providerId, modelId)
-		}
-		return nil, fmt.Errorf("查询模型时发生错误：%w", err)
-	}
-
+func (s *service) UpdateModel(ctx context.Context, modelId uint, model types.Model) (*types.Model, error) {
 	// 只更新非零值字段
 	result, err := query.Q.Model.WithContext(ctx).Where(query.Q.Model.ID.Eq(modelId)).Updates(model)
 	if err != nil {
@@ -89,25 +71,7 @@ func (s *service) UpdateModel(ctx context.Context, providerId uint, modelId uint
 }
 
 // DeleteModel 实现删除指定模型
-func (s *service) DeleteModel(ctx context.Context, providerId uint, modelId uint) error {
-	// 检查平台是否存在
-	_, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(providerId)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("未找到 ID 为 %d 的平台", providerId)
-		}
-		return fmt.Errorf("查询平台时发生错误：%w", err)
-	}
-
-	// 检查模型是否属于该平台
-	_, err = query.Q.Model.WithContext(ctx).Where(query.Q.Model.ID.Eq(modelId), query.Q.Model.PlatformID.Eq(providerId)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("在平台 ID 为 %d 中未找到 ID 为 %d 的模型", providerId, modelId)
-		}
-		return fmt.Errorf("查询模型时发生错误：%w", err)
-	}
-
+func (s *service) DeleteModel(ctx context.Context, modelId uint) error {
 	// 删除模型
 	result, err := query.Q.Model.WithContext(ctx).Where(query.Q.Model.ID.Eq(modelId)).Delete()
 	if err != nil {
