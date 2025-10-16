@@ -77,7 +77,7 @@ func (s *providerService) CreateProvider(ctx context.Context, req ProviderCreate
 	if tx.Error != nil {
 		return nil, fmt.Errorf("开启事务失败：%w", tx.Error)
 	}
-	
+
 	// 使用 defer 确保事务被正确处理
 	defer func() {
 		if r := recover(); r != nil {
@@ -87,6 +87,7 @@ func (s *providerService) CreateProvider(ctx context.Context, req ProviderCreate
 
 	// 1. 创建平台
 	platform := req.Platform
+	platform.ID = 0
 	if err := tx.Platform.WithContext(ctx).Create(&platform); err != nil {
 		tx.Rollback()
 		return nil, fmt.Errorf("创建平台失败：%w", err)
@@ -94,6 +95,7 @@ func (s *providerService) CreateProvider(ctx context.Context, req ProviderCreate
 
 	// 2. 创建密钥
 	apiKey := req.APIKey
+	apiKey.ID = 0
 	apiKey.PlatformID = platform.ID
 	if err := tx.APIKey.WithContext(ctx).Create(&apiKey); err != nil {
 		tx.Rollback()
@@ -104,6 +106,7 @@ func (s *providerService) CreateProvider(ctx context.Context, req ProviderCreate
 	modelsToCreate := make([]*types.Model, len(req.Models))
 	for i := range req.Models {
 		req.Models[i].PlatformID = platform.ID
+		req.Models[i].ID = 0
 		modelsToCreate[i] = &req.Models[i]
 	}
 	if len(modelsToCreate) > 0 {
@@ -165,7 +168,7 @@ func (s *providerService) DeleteProvider(ctx context.Context, id uint) error {
 	if tx.Error != nil {
 		return fmt.Errorf("开启事务失败：%w", tx.Error)
 	}
-	
+
 	// 使用 defer 确保事务被正确处理
 	defer func() {
 		if r := recover(); r != nil {
@@ -219,6 +222,7 @@ func (s *providerService) AddModelToProvider(ctx context.Context, providerId uin
 	model.PlatformID = providerId
 
 	// 创建模型
+	model.ID = 0
 	if err := query.Q.Model.WithContext(ctx).Create(&model); err != nil {
 		return nil, fmt.Errorf("创建模型失败：%w", err)
 	}
@@ -329,6 +333,7 @@ func (s *providerService) AddKeyToProvider(ctx context.Context, providerId uint,
 	key.PlatformID = providerId
 
 	// 创建密钥
+	key.ID = 0
 	if err := query.Q.APIKey.WithContext(ctx).Create(&key); err != nil {
 		return nil, fmt.Errorf("创建 API 密钥失败：%w", err)
 	}
