@@ -67,7 +67,7 @@ func (h *Handler) CreateProvider(c *fiber.Ctx) error {
 // @Router       /api/providers [get]
 func (h *Handler) GetProviders(c *fiber.Ctx) error {
 	ctx := context.Background()
-	platforms, err := h.service.GetProviders(ctx)
+	platforms, err := h.service.GetPlatforms(ctx)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("获取供应方列表失败: %v", err),
@@ -97,7 +97,7 @@ func (h *Handler) GetProvider(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	platform, err := h.service.GetProvider(ctx, uint(id))
+	platform, err := h.service.GetPlatform(ctx, uint(id))
 	if err != nil {
 		// 检查错误类型，如果未找到则返回 404
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", id) {
@@ -142,7 +142,7 @@ func (h *Handler) UpdateProvider(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	updatedPlatform, err := h.service.UpdateProvider(ctx, uint(id), platform)
+	updatedPlatform, err := h.service.UpdatePlatform(ctx, uint(id), platform)
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", id) {
@@ -225,7 +225,7 @@ func (h *Handler) AddModelToProvider(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	createdModel, err := h.service.AddModelToProvider(ctx, uint(providerId), model)
+	createdModel, err := h.service.AddModelToPlatform(ctx, uint(providerId), model)
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", providerId) {
@@ -261,7 +261,7 @@ func (h *Handler) GetModelsByProvider(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	models, err := h.service.GetModelsByProvider(ctx, uint(providerId))
+	models, err := h.service.GetModelsByPlatform(ctx, uint(providerId))
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", providerId) {
@@ -283,7 +283,6 @@ func (h *Handler) GetModelsByProvider(c *fiber.Ctx) error {
 // @Tags         models
 // @Accept       json
 // @Produce      json
-// @Param        providerId  path      int                             true  "供应方 ID"
 // @Param        modelId     path      int                             true  "模型 ID"
 // @Param        request     body      types.Model                     true  "更新模型的请求体"
 // @Success      200         {object}  types.Model                       "更新后的模型信息"
@@ -292,13 +291,6 @@ func (h *Handler) GetModelsByProvider(c *fiber.Ctx) error {
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/providers/{providerId}/models/{modelId} [put]
 func (h *Handler) UpdateModel(c *fiber.Ctx) error {
-	providerId, err := strconv.ParseUint(c.Params("providerId"), 10, 64)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "无效的供应方 ID",
-		})
-	}
-
 	modelId, err := strconv.ParseUint(c.Params("modelId"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -314,15 +306,9 @@ func (h *Handler) UpdateModel(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	updatedModel, err := h.service.UpdateModel(ctx, uint(providerId), uint(modelId), model)
+	updatedModel, err := h.service.UpdateModel(ctx, uint(modelId), model)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", providerId) ||
-			err.Error() == fmt.Sprintf("在供应方 %d 中未找到 ID 为 %d 的模型", providerId, modelId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "供应方或模型未找到",
-			})
-		}
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的模型", modelId) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "模型未找到",
@@ -341,7 +327,6 @@ func (h *Handler) UpdateModel(c *fiber.Ctx) error {
 // @Description  删除指定模型
 // @Tags         models
 // @Produce      json
-// @Param        providerId  path      int  true  "供应方 ID"
 // @Param        modelId     path      int  true  "模型 ID"
 // @Success      200         {object}  map[string]interface{}            "删除成功消息"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
@@ -349,13 +334,6 @@ func (h *Handler) UpdateModel(c *fiber.Ctx) error {
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/providers/{providerId}/models/{modelId} [delete]
 func (h *Handler) DeleteModel(c *fiber.Ctx) error {
-	providerId, err := strconv.ParseUint(c.Params("providerId"), 10, 64)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "无效的供应方 ID",
-		})
-	}
-
 	modelId, err := strconv.ParseUint(c.Params("modelId"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -364,15 +342,9 @@ func (h *Handler) DeleteModel(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	err = h.service.DeleteModel(ctx, uint(providerId), uint(modelId))
+	err = h.service.DeleteModel(ctx, uint(modelId))
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", providerId) ||
-			err.Error() == fmt.Sprintf("在供应方 %d 中未找到 ID 为 %d 的模型", providerId, modelId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "供应方或模型未找到",
-			})
-		}
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的模型", modelId) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "模型未找到",
@@ -417,7 +389,7 @@ func (h *Handler) AddKeyToProvider(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	createdKey, err := h.service.AddKeyToProvider(ctx, uint(providerId), key)
+	createdKey, err := h.service.AddKeyToPlatform(ctx, uint(providerId), key)
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", providerId) {
@@ -455,7 +427,7 @@ func (h *Handler) GetKeysByProvider(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	keys, err := h.service.GetKeysByProvider(ctx, uint(providerId))
+	keys, err := h.service.GetKeysByPlatform(ctx, uint(providerId))
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", providerId) {
@@ -484,13 +456,6 @@ func (h *Handler) GetKeysByProvider(c *fiber.Ctx) error {
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/providers/{providerId}/keys/{keyId} [delete]
 func (h *Handler) DeleteKey(c *fiber.Ctx) error {
-	providerId, err := strconv.ParseUint(c.Params("providerId"), 10, 64)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "无效的供应方 ID",
-		})
-	}
-
 	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -499,15 +464,8 @@ func (h *Handler) DeleteKey(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	err = h.service.DeleteKey(ctx, uint(providerId), uint(keyId))
+	err = h.service.DeleteKey(ctx, uint(keyId))
 	if err != nil {
-		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", providerId) ||
-			err.Error() == fmt.Sprintf("在供应方 %d 中未找到 ID 为 %d 的密钥", providerId, keyId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "供应方或密钥未找到",
-			})
-		}
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "密钥未找到",
@@ -529,7 +487,6 @@ func (h *Handler) DeleteKey(c *fiber.Ctx) error {
 // @Tags         keys
 // @Accept       json
 // @Produce      json
-// @Param        providerId  path      int                             true  "供应方 ID"
 // @Param        keyId       path      int                             true  "密钥 ID"
 // @Param        request     body      types.APIKey                    true  "更新密钥的请求体"
 // @Success      200         {object}  types.APIKey                      "更新后的密钥信息 (不包含 value)"
@@ -538,13 +495,6 @@ func (h *Handler) DeleteKey(c *fiber.Ctx) error {
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/providers/{providerId}/keys/{keyId} [put]
 func (h *Handler) UpdateKey(c *fiber.Ctx) error {
-	providerId, err := strconv.ParseUint(c.Params("providerId"), 10, 64)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "无效的供应方 ID",
-		})
-	}
-
 	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -560,15 +510,9 @@ func (h *Handler) UpdateKey(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	updatedKey, err := h.service.UpdateKey(ctx, uint(providerId), uint(keyId), key)
+	updatedKey, err := h.service.UpdateKey(ctx, uint(keyId), key)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的供应方", providerId) ||
-			err.Error() == fmt.Sprintf("在供应方 %d 中未找到 ID 为 %d 的密钥", providerId, keyId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "供应方或密钥未找到",
-			})
-		}
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "密钥未找到",
