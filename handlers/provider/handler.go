@@ -6,24 +6,24 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
-	"github.com/MeowSalty/pinai/services"
+	"github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 // Handler 结构体封装了 LLM 服务
 type Handler struct {
-	service services.ProviderService
+	service provider.Service
 }
 
 // NewHandler 创建一个新的 Handler 实例
 //
 // 参数：
-//   - service: ProviderService 服务接口实例
+//   - service: provider.Service 服务接口实例
 //
 // 返回值：
 //   - *Handler: Handler 实例指针
-func NewHandler(service services.ProviderService) *Handler {
+func NewHandler(service provider.Service) *Handler {
 	return &Handler{service: service}
 }
 
@@ -33,13 +33,13 @@ func NewHandler(service services.ProviderService) *Handler {
 // @Tags         providers
 // @Accept       json
 // @Produce      json
-// @Param        request  body      services.ProviderCreateRequest  true  "创建供应方的请求体"
+// @Param        request  body      provider.CreateRequest  true  "创建供应方的请求体"
 // @Success      201      {object}  types.Platform                    "创建成功的供应方信息"
 // @Failure      400      {object}  map[string]interface{}            "请求参数错误"
 // @Failure      500      {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/providers [post]
 func (h *Handler) CreateProvider(c *fiber.Ctx) error {
-	var req services.ProviderCreateRequest
+	var req provider.CreateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
