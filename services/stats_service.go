@@ -386,7 +386,7 @@ func (s *statsService) GetPlatformRank(ctx context.Context, duration time.Durati
 	})
 
 	for _, log := range logs {
-		platformID := log.ChannelInfo.PlatformID
+		platformID := log.PlatformID
 		if _, exists := platformStats[platformID]; !exists {
 			platformStats[platformID] = &struct {
 				total   int64

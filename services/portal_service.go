@@ -290,14 +290,15 @@ func (r *DatabaseRepository) CreateRequestLog(ctx context.Context, log *request.
 		RequestType:       log.RequestType,
 		ModelName:         log.ModelName,
 		OriginalModelName: log.OriginalModelName,
-		ChannelInfo: types.ChannelInfo{
-			PlatformID: log.ChannelInfo.PlatformID,
-			APIKeyID:   log.ChannelInfo.APIKeyID,
-			ModelID:    log.ChannelInfo.ModelID,
-		},
-		Duration: log.Duration.Microseconds(),
-		Success:  log.Success,
-		ErrorMsg: log.ErrorMsg,
+		PlatformID:        log.PlatformID,
+		APIKeyID:          log.APIKeyID,
+		ModelID:           log.ModelID,
+		Duration:          log.Duration.Microseconds(),
+		Success:           log.Success,
+		ErrorMsg:          log.ErrorMsg,
+		PromptTokens:      log.PromptTokens,
+		CompletionTokens:  log.CompletionTokens,
+		TotalTokens:       log.TotalTokens,
 	}
 	if log.FirstByteTime != nil {
 		firstByteTime := log.FirstByteTime.Microseconds()

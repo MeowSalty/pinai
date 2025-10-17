@@ -33,11 +33,16 @@ func newRequestLog(db *gorm.DB, opts ...gen.DOOption) requestLog {
 	_requestLog.RequestType = field.NewString(tableName, "request_type")
 	_requestLog.ModelName = field.NewString(tableName, "model_name")
 	_requestLog.OriginalModelName = field.NewString(tableName, "original_model_name")
-	_requestLog.ChannelInfo = field.NewField(tableName, "channel_info")
+	_requestLog.PlatformID = field.NewUint(tableName, "platform_id")
+	_requestLog.APIKeyID = field.NewUint(tableName, "api_key_id")
+	_requestLog.ModelID = field.NewUint(tableName, "model_id")
 	_requestLog.Duration = field.NewInt64(tableName, "duration")
 	_requestLog.FirstByteTime = field.NewInt64(tableName, "first_byte_time")
 	_requestLog.Success = field.NewBool(tableName, "success")
 	_requestLog.ErrorMsg = field.NewString(tableName, "error_msg")
+	_requestLog.PromptTokens = field.NewInt(tableName, "prompt_tokens")
+	_requestLog.CompletionTokens = field.NewInt(tableName, "completion_tokens")
+	_requestLog.TotalTokens = field.NewInt(tableName, "total_tokens")
 	_requestLog.CreatedAt = field.NewTime(tableName, "created_at")
 	_requestLog.UpdatedAt = field.NewTime(tableName, "updated_at")
 
@@ -55,11 +60,16 @@ type requestLog struct {
 	RequestType       field.String
 	ModelName         field.String
 	OriginalModelName field.String
-	ChannelInfo       field.Field
+	PlatformID        field.Uint
+	APIKeyID          field.Uint
+	ModelID           field.Uint
 	Duration          field.Int64
 	FirstByteTime     field.Int64
 	Success           field.Bool
 	ErrorMsg          field.String
+	PromptTokens      field.Int
+	CompletionTokens  field.Int
+	TotalTokens       field.Int
 	CreatedAt         field.Time
 	UpdatedAt         field.Time
 
@@ -83,11 +93,16 @@ func (r *requestLog) updateTableName(table string) *requestLog {
 	r.RequestType = field.NewString(table, "request_type")
 	r.ModelName = field.NewString(table, "model_name")
 	r.OriginalModelName = field.NewString(table, "original_model_name")
-	r.ChannelInfo = field.NewField(table, "channel_info")
+	r.PlatformID = field.NewUint(table, "platform_id")
+	r.APIKeyID = field.NewUint(table, "api_key_id")
+	r.ModelID = field.NewUint(table, "model_id")
 	r.Duration = field.NewInt64(table, "duration")
 	r.FirstByteTime = field.NewInt64(table, "first_byte_time")
 	r.Success = field.NewBool(table, "success")
 	r.ErrorMsg = field.NewString(table, "error_msg")
+	r.PromptTokens = field.NewInt(table, "prompt_tokens")
+	r.CompletionTokens = field.NewInt(table, "completion_tokens")
+	r.TotalTokens = field.NewInt(table, "total_tokens")
 	r.CreatedAt = field.NewTime(table, "created_at")
 	r.UpdatedAt = field.NewTime(table, "updated_at")
 
@@ -106,17 +121,22 @@ func (r *requestLog) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (r *requestLog) fillFieldMap() {
-	r.fieldMap = make(map[string]field.Expr, 12)
+	r.fieldMap = make(map[string]field.Expr, 17)
 	r.fieldMap["id"] = r.ID
 	r.fieldMap["timestamp"] = r.Timestamp
 	r.fieldMap["request_type"] = r.RequestType
 	r.fieldMap["model_name"] = r.ModelName
 	r.fieldMap["original_model_name"] = r.OriginalModelName
-	r.fieldMap["channel_info"] = r.ChannelInfo
+	r.fieldMap["platform_id"] = r.PlatformID
+	r.fieldMap["api_key_id"] = r.APIKeyID
+	r.fieldMap["model_id"] = r.ModelID
 	r.fieldMap["duration"] = r.Duration
 	r.fieldMap["first_byte_time"] = r.FirstByteTime
 	r.fieldMap["success"] = r.Success
 	r.fieldMap["error_msg"] = r.ErrorMsg
+	r.fieldMap["prompt_tokens"] = r.PromptTokens
+	r.fieldMap["completion_tokens"] = r.CompletionTokens
+	r.fieldMap["total_tokens"] = r.TotalTokens
 	r.fieldMap["created_at"] = r.CreatedAt
 	r.fieldMap["updated_at"] = r.UpdatedAt
 }
