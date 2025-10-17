@@ -28,7 +28,7 @@ func newRequestLog(db *gorm.DB, opts ...gen.DOOption) requestLog {
 
 	tableName := _requestLog.requestLogDo.TableName()
 	_requestLog.ALL = field.NewAsterisk(tableName)
-	_requestLog.ID = field.NewString(tableName, "id")
+	_requestLog.ID = field.NewUint(tableName, "id")
 	_requestLog.Timestamp = field.NewTime(tableName, "timestamp")
 	_requestLog.RequestType = field.NewString(tableName, "request_type")
 	_requestLog.ModelName = field.NewString(tableName, "model_name")
@@ -43,8 +43,6 @@ func newRequestLog(db *gorm.DB, opts ...gen.DOOption) requestLog {
 	_requestLog.PromptTokens = field.NewInt(tableName, "prompt_tokens")
 	_requestLog.CompletionTokens = field.NewInt(tableName, "completion_tokens")
 	_requestLog.TotalTokens = field.NewInt(tableName, "total_tokens")
-	_requestLog.CreatedAt = field.NewTime(tableName, "created_at")
-	_requestLog.UpdatedAt = field.NewTime(tableName, "updated_at")
 
 	_requestLog.fillFieldMap()
 
@@ -55,7 +53,7 @@ type requestLog struct {
 	requestLogDo
 
 	ALL               field.Asterisk
-	ID                field.String
+	ID                field.Uint
 	Timestamp         field.Time
 	RequestType       field.String
 	ModelName         field.String
@@ -70,8 +68,6 @@ type requestLog struct {
 	PromptTokens      field.Int
 	CompletionTokens  field.Int
 	TotalTokens       field.Int
-	CreatedAt         field.Time
-	UpdatedAt         field.Time
 
 	fieldMap map[string]field.Expr
 }
@@ -88,7 +84,7 @@ func (r requestLog) As(alias string) *requestLog {
 
 func (r *requestLog) updateTableName(table string) *requestLog {
 	r.ALL = field.NewAsterisk(table)
-	r.ID = field.NewString(table, "id")
+	r.ID = field.NewUint(table, "id")
 	r.Timestamp = field.NewTime(table, "timestamp")
 	r.RequestType = field.NewString(table, "request_type")
 	r.ModelName = field.NewString(table, "model_name")
@@ -103,8 +99,6 @@ func (r *requestLog) updateTableName(table string) *requestLog {
 	r.PromptTokens = field.NewInt(table, "prompt_tokens")
 	r.CompletionTokens = field.NewInt(table, "completion_tokens")
 	r.TotalTokens = field.NewInt(table, "total_tokens")
-	r.CreatedAt = field.NewTime(table, "created_at")
-	r.UpdatedAt = field.NewTime(table, "updated_at")
 
 	r.fillFieldMap()
 
@@ -121,7 +115,7 @@ func (r *requestLog) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (r *requestLog) fillFieldMap() {
-	r.fieldMap = make(map[string]field.Expr, 17)
+	r.fieldMap = make(map[string]field.Expr, 15)
 	r.fieldMap["id"] = r.ID
 	r.fieldMap["timestamp"] = r.Timestamp
 	r.fieldMap["request_type"] = r.RequestType
@@ -137,8 +131,6 @@ func (r *requestLog) fillFieldMap() {
 	r.fieldMap["prompt_tokens"] = r.PromptTokens
 	r.fieldMap["completion_tokens"] = r.CompletionTokens
 	r.fieldMap["total_tokens"] = r.TotalTokens
-	r.fieldMap["created_at"] = r.CreatedAt
-	r.fieldMap["updated_at"] = r.UpdatedAt
 }
 
 func (r requestLog) clone(db *gorm.DB) requestLog {
