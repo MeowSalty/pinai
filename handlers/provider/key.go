@@ -16,15 +16,15 @@ import (
 // @Tags         keys
 // @Accept       json
 // @Produce      json
-// @Param        providerId  path      int                             true  "平台 ID"
+// @Param        platformId  path      int                             true  "平台 ID"
 // @Param        request     body      types.APIKey                    true  "创建密钥的请求体"
 // @Success      201         {object}  types.APIKey                      "创建成功的密钥信息 (不包含 value)"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/providers/{providerId}/keys [post]
+// @Router       /api/platform/{platformId}/keys [post]
 func (h *Handler) AddKeyToPlatform(c *fiber.Ctx) error {
-	providerId, err := strconv.ParseUint(c.Params("providerId"), 10, 64)
+	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "无效的平台 ID",
@@ -39,10 +39,10 @@ func (h *Handler) AddKeyToPlatform(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	createdKey, err := h.service.AddKeyToPlatform(ctx, uint(providerId), key)
+	createdKey, err := h.service.AddKeyToPlatform(ctx, uint(platformId), key)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", providerId) {
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "平台未找到",
 			})
@@ -62,14 +62,14 @@ func (h *Handler) AddKeyToPlatform(c *fiber.Ctx) error {
 // @Description  获取指定平台的所有密钥列表 (不包含密钥值)
 // @Tags         keys
 // @Produce      json
-// @Param        providerId  path      int  true  "平台 ID"
+// @Param        platformId  path      int  true  "平台 ID"
 // @Success      200         {array}   types.APIKey                      "密钥列表 (不包含 value)"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/providers/{providerId}/keys [get]
+// @Router       /api/platform/{platformId}/keys [get]
 func (h *Handler) GetKeysByPlatform(c *fiber.Ctx) error {
-	providerId, err := strconv.ParseUint(c.Params("providerId"), 10, 64)
+	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "无效的平台 ID",
@@ -77,10 +77,10 @@ func (h *Handler) GetKeysByPlatform(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	keys, err := h.service.GetKeysByPlatform(ctx, uint(providerId))
+	keys, err := h.service.GetKeysByPlatform(ctx, uint(platformId))
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", providerId) {
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "平台未找到",
 			})
@@ -98,13 +98,13 @@ func (h *Handler) GetKeysByPlatform(c *fiber.Ctx) error {
 // @Description  删除指定密钥
 // @Tags         keys
 // @Produce      json
-// @Param        providerId  path      int  true  "平台 ID"
+// @Param        platformId  path      int  true  "平台 ID"
 // @Param        keyId       path      int  true  "密钥 ID"
 // @Success      200         {object}  map[string]interface{}            "删除成功消息"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台或密钥未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/providers/{providerId}/keys/{keyId} [delete]
+// @Router       /api/platform/{platformId}/keys/{keyId} [delete]
 func (h *Handler) DeleteKey(c *fiber.Ctx) error {
 	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
 	if err != nil {
@@ -137,13 +137,14 @@ func (h *Handler) DeleteKey(c *fiber.Ctx) error {
 // @Tags         keys
 // @Accept       json
 // @Produce      json
+// @Param        platformId  path      int                             true  "平台 ID"
 // @Param        keyId       path      int                             true  "密钥 ID"
 // @Param        request     body      types.APIKey                    true  "更新密钥的请求体"
 // @Success      200         {object}  types.APIKey                      "更新后的密钥信息 (不包含 value)"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台或密钥未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/providers/{providerId}/keys/{keyId} [put]
+// @Router       /api/platform/{platformId}/keys/{keyId} [put]
 func (h *Handler) UpdateKey(c *fiber.Ctx) error {
 	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
 	if err != nil {
