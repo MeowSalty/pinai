@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/services/provider"
+	"github.com/MeowSalty/pinai/services/stats"
 )
 
 // Services 持有所有服务实例的结构体
@@ -12,7 +13,7 @@ type Services struct {
 	HealthService    HealthServiceInterface
 	AIGatewayService PortalService
 	ProviderService  provider.Service
-	StatsService     StatsServiceInterface
+	StatsService     stats.Service
 }
 
 // NewServices 初始化所有服务并返回 Services 实例
@@ -42,7 +43,7 @@ func NewServices(ctx context.Context, logger *slog.Logger) (*Services, error) {
 	providerService := provider.New()
 
 	// 初始化统计服务
-	statsService := NewStatsService()
+	statsService := stats.New()
 
 	return &Services{
 		HealthService:    healthService,

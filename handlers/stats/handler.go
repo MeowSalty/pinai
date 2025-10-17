@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/MeowSalty/pinai/services"
+	"github.com/MeowSalty/pinai/services/stats"
 )
 
 // StatsHandlerInterface 定义统计处理器接口
@@ -29,7 +29,7 @@ type StatsHandlerInterface interface {
 
 // StatsHandler 统计处理器结构体
 type StatsHandler struct {
-	StatsService services.StatsServiceInterface
+	StatsService stats.Service
 }
 
 // NewStatsHandler 创建统计处理器实例
@@ -39,7 +39,7 @@ type StatsHandler struct {
 //
 // 返回值：
 //   - StatsHandlerInterface: 统计处理器接口实例
-func NewStatsHandler(statsService services.StatsServiceInterface) StatsHandlerInterface {
+func NewStatsHandler(statsService stats.Service) StatsHandlerInterface {
 	return &StatsHandler{
 		StatsService: statsService,
 	}
@@ -98,7 +98,7 @@ func (h *StatsHandler) GetRealtime(c *fiber.Ctx) error {
 //   - 失败：错误信息
 func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 	// 解析查询参数
-	var opts services.ListRequestLogsOptions
+	var opts stats.ListRequestLogsOptions
 
 	// 解析时间范围参数
 	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
