@@ -22,7 +22,7 @@ import (
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platform/{platformId}/keys [post]
+// @Router       /api/platforms/{platformId}/keys [post]
 func (h *Handler) AddKeyToPlatform(c *fiber.Ctx) error {
 	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
 	if err != nil {
@@ -67,7 +67,7 @@ func (h *Handler) AddKeyToPlatform(c *fiber.Ctx) error {
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platform/{platformId}/keys [get]
+// @Router       /api/platforms/{platformId}/keys [get]
 func (h *Handler) GetKeysByPlatform(c *fiber.Ctx) error {
 	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
 	if err != nil {
@@ -104,7 +104,7 @@ func (h *Handler) GetKeysByPlatform(c *fiber.Ctx) error {
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台或密钥未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platform/{platformId}/keys/{keyId} [delete]
+// @Router       /api/platforms/{platformId}/keys/{keyId} [delete]
 func (h *Handler) DeleteKey(c *fiber.Ctx) error {
 	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
 	if err != nil {
@@ -144,7 +144,7 @@ func (h *Handler) DeleteKey(c *fiber.Ctx) error {
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台或密钥未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platform/{platformId}/keys/{keyId} [put]
+// @Router       /api/platforms/{platformId}/keys/{keyId} [put]
 func (h *Handler) UpdateKey(c *fiber.Ctx) error {
 	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
 	if err != nil {

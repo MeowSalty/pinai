@@ -62,7 +62,7 @@ func (h *Handler) GetPlatforms(c *fiber.Ctx) error {
 
 // GetPlatform godoc
 // @Summary      获取指定平台详情
-// @Description  获取指定平台 (平台) 详情
+// @Description  获取指定平台详情
 // @Tags         platforms
 // @Produce      json
 // @Param        id   path      int  true  "平台 ID"
@@ -98,7 +98,7 @@ func (h *Handler) GetPlatform(c *fiber.Ctx) error {
 
 // UpdatePlatform godoc
 // @Summary      更新指定平台信息
-// @Description  更新指定平台 (平台) 信息
+// @Description  更新指定平台信息
 // @Tags         platforms
 // @Accept       json
 // @Produce      json

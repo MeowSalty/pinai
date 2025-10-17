@@ -22,7 +22,7 @@ import (
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platform/{platformId}/models [post]
+// @Router       /api/platforms/{platformId}/models [post]
 func (h *Handler) AddModelToPlatform(c *fiber.Ctx) error {
 	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
 	if err != nil {
@@ -65,7 +65,7 @@ func (h *Handler) AddModelToPlatform(c *fiber.Ctx) error {
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platform/{platformId}/models [get]
+// @Router       /api/platforms/{platformId}/models [get]
 func (h *Handler) GetModelsByPlatform(c *fiber.Ctx) error {
 	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
 	if err != nil {
@@ -104,7 +104,7 @@ func (h *Handler) GetModelsByPlatform(c *fiber.Ctx) error {
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台或模型未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platform/{platformId}/models/{modelId} [put]
+// @Router       /api/platforms/{platformId}/models/{modelId} [put]
 func (h *Handler) UpdateModel(c *fiber.Ctx) error {
 	modelId, err := strconv.ParseUint(c.Params("modelId"), 10, 64)
 	if err != nil {
@@ -148,7 +148,7 @@ func (h *Handler) UpdateModel(c *fiber.Ctx) error {
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台或模型未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platform/{platformId}/models/{modelId} [delete]
+// @Router       /api/platforms/{platformId}/models/{modelId} [delete]
 func (h *Handler) DeleteModel(c *fiber.Ctx) error {
 	modelId, err := strconv.ParseUint(c.Params("modelId"), 10, 64)
 	if err != nil {

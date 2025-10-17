@@ -13,23 +13,23 @@ func SetupProviderRoutes(router fiber.Router, llmService provider.Service) {
 
 	// 供应方 (Providers) 相关路由
 	router.Post("/providers", handler.CreateProvider)
-	router.Delete("/provider/:id", handler.DeleteProvider)
+	router.Delete("/providers/:id", handler.DeleteProvider)
 
 	// 平台 (Platforms) 相关路由
 	router.Post("/platforms", handler.CreatePlatform)
 	router.Get("/platforms", handler.GetPlatforms)
-	router.Get("/platform/:id", handler.GetPlatform)
-	router.Put("/platform/:id", handler.UpdatePlatform)
+	router.Get("/platforms/:id", handler.GetPlatform)
+	router.Put("/platforms/:id", handler.UpdatePlatform)
 
 	// 模型 (Models) 相关路由 (嵌套在平台下)
-	router.Post("/platform/:platformId/models", handler.AddModelToPlatform)
-	router.Get("/platform/:platformId/models", handler.GetModelsByPlatform)
-	router.Put("/platform/:platformId/models/:modelId", handler.UpdateModel)
-	router.Delete("/platform/:platformId/models/:modelId", handler.DeleteModel)
+	router.Post("/platforms/:platformId/models", handler.AddModelToPlatform)
+	router.Get("/platforms/:platformId/models", handler.GetModelsByPlatform)
+	router.Put("/platforms/:platformId/models/:modelId", handler.UpdateModel)
+	router.Delete("/platforms/:platformId/models/:modelId", handler.DeleteModel)
 
 	// 密钥 (Keys) 相关路由 (嵌套在平台下)
-	router.Post("/platform/:platformId/keys", handler.AddKeyToPlatform)
-	router.Get("/platform/:platformId/keys", handler.GetKeysByPlatform)
-	router.Put("/platform/:platformId/keys/:keyId", handler.UpdateKey)
-	router.Delete("/platform/:platformId/keys/:keyId", handler.DeleteKey)
+	router.Post("/platforms/:platformId/keys", handler.AddKeyToPlatform)
+	router.Get("/platforms/:platformId/keys", handler.GetKeysByPlatform)
+	router.Put("/platforms/:platformId/keys/:keyId", handler.UpdateKey)
+	router.Delete("/platforms/:platformId/keys/:keyId", handler.DeleteKey)
 }
