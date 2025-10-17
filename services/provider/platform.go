@@ -8,6 +8,15 @@ import (
 	"github.com/MeowSalty/pinai/database/types"
 )
 
+// CreatePlatform 实现创建平台
+func (s *service) CreatePlatform(ctx context.Context, platform types.Platform) (*types.Platform, error) {
+	platform.ID = 0
+	if err := query.Q.Platform.WithContext(ctx).Create(&platform); err != nil {
+		return nil, fmt.Errorf("创建平台失败：%w", err)
+	}
+	return &platform, nil
+}
+
 // GetPlatforms 实现获取平台列表
 func (s *service) GetPlatforms(ctx context.Context) ([]*types.Platform, error) {
 	platforms, err := query.Q.Platform.WithContext(ctx).Find()

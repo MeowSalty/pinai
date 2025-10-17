@@ -16,6 +16,9 @@ type Service interface {
 	// CreateProvider 创建一个新的供应方，包括平台、模型和密钥
 	CreateProvider(ctx context.Context, req CreateRequest) (*types.Platform, error)
 
+	// CreatePlatform 创建一个新的平台
+	CreatePlatform(ctx context.Context, platform types.Platform) (*types.Platform, error)
+
 	// GetPlatforms 获取所有平台列表
 	GetPlatforms(ctx context.Context) ([]*types.Platform, error)
 

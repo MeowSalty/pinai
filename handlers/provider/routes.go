@@ -16,6 +16,7 @@ func SetupProviderRoutes(router fiber.Router, llmService provider.Service) {
 	router.Delete("/provider/:id", handler.DeleteProvider)
 
 	// 平台 (Platforms) 相关路由
+	router.Post("/platforms", handler.CreatePlatform)
 	router.Get("/platforms", handler.GetPlatforms)
 	router.Get("/platform/:id", handler.GetPlatform)
 	router.Put("/platform/:id", handler.UpdatePlatform)
