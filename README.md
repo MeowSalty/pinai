@@ -60,6 +60,7 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
 | `-enable-web`             | `ENABLE_WEB`             | 启用前端支持                                                   | `false`   |
 | `-web-dir`                | `WEB_DIR`                | 前端文件目录                                                   | `web`     |
 | `-enable-frontend-update` | `ENABLE_FRONTEND_UPDATE` | 启用前端更新检查                                               | `true`    |
+| `-github-proxy`           | `GITHUB_PROXY`           | GitHub 代理地址，用于加速 GitHub 访问                          |           |
 | `-db-type`                | `DB_TYPE`                | 数据库类型 (sqlite, mysql, postgres)                           | `sqlite`  |
 | `-db-host`                | `DB_HOST`                | 数据库主机地址                                                 |           |
 | `-db-port`                | `DB_PORT`                | 数据库端口                                                     |           |
@@ -91,6 +92,37 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
   - `false`: 禁用 SSL
   - `skip-verify`: 启用 SSL 但跳过证书验证
   - `preferred`: 优先使用 SSL，如果服务器不支持则回退到非加密连接
+
+#### GitHub 代理配置说明
+
+如果您在访问 GitHub 时遇到网络问题，可以使用 GitHub 代理来加速前端文件的下载和更新。配置方法：
+
+```bash
+# 命令行方式
+./pinai -enable-web=true -github-proxy=[GitHub 加速地址]
+
+# 环境变量方式
+export GITHUB_PROXY=[GitHub 加速地址]
+./pinai -enable-web=true
+
+# Docker 方式
+docker run -d \
+  -p 3000:3000 \
+  -e ENABLE_WEB=true \
+  -e GITHUB_PROXY=[GitHub 加速地址] \
+  ghcr.io/meowsalty/pinai:latest
+```
+
+代理工作原理：
+
+- 原始地址：`https://api.github.com/repos/...`
+- 使用代理后：`[GitHub 加速地址]/https://api.github.com/repos/...`
+
+> [!NOTE]
+>
+> - 代理服务仅用于加速 GitHub 访问，不会影响其他功能
+> - 请选择可信的代理服务，避免使用不明来源的代理
+> - 如果不设置此参数，将直接访问 GitHub
 
 ## 📚 API 接口
 

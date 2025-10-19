@@ -37,6 +37,8 @@ var (
 
 	apiToken   *string
 	adminToken *string
+
+	githubProxy *string
 )
 
 func loadFlag() {
@@ -61,6 +63,9 @@ func loadFlag() {
 	// API Token 参数
 	apiToken = flag.String("api-token", envAPIToken, "API Token，如果为空则不启用身份验证")
 	adminToken = flag.String("admin-token", envAdminToken, "管理 API Token，如果为空则使用 API Token")
+
+	// GitHub 代理参数
+	githubProxy = flag.String("github-proxy", envGitHubProxy, "GitHub 代理地址，用于加速 GitHub 访问")
 
 	flag.Parse()
 }
@@ -87,7 +92,7 @@ func main() {
 
 	// 如果启用了前端支持，则初始化前端
 	if *enableWeb {
-		if err := frontend.InitializeWeb(frontendLogger, webDir, *enableFrontendUpdate); err != nil {
+		if err := frontend.InitializeWeb(frontendLogger, webDir, *enableFrontendUpdate, *githubProxy); err != nil {
 			appLogger.Error("初始化前端失败，本次运行将禁用前端支持", "error", err)
 			*enableWeb = false
 		}

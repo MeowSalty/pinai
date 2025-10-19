@@ -40,8 +40,14 @@ const (
 	GitHubAPIURL = "https://api.github.com/repos/MeowSalty/pinai-frontend/releases/latest"
 )
 
+var (
+	// githubProxy GitHub 代理地址
+	githubProxy string
+)
+
 // InitializeWeb 初始化前端支持
-func InitializeWeb(logger *slog.Logger, webDir *string, checkUpdate bool) error {
+func InitializeWeb(logger *slog.Logger, webDir *string, checkUpdate bool, proxy string) error {
+	githubProxy = proxy
 	*webDir = "data/" + *webDir
 	logger.Info("初始化前端支持", "webDir", *webDir, "checkUpdate", checkUpdate)
 
@@ -124,6 +130,12 @@ func getCurrentVersion(webDir *string) (string, error) {
 func getLatestRelease(logger *slog.Logger) (*GitHubRelease, error) {
 	// GitHub API URL
 	releaseURL := GitHubAPIURL
+
+	// 如果配置了 GitHub 代理，则使用代理地址
+	if githubProxy != "" {
+		releaseURL = githubProxy + "/" + GitHubAPIURL
+		logger.Info("使用 GitHub 代理", "proxy", githubProxy, "url", releaseURL)
+	}
 
 	// 获取最新发布信息
 	logger.Info("获取最新发布信息", "url", releaseURL)

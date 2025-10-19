@@ -19,6 +19,7 @@ var (
 	envDBTLSConfig          = "" // MySQL TLS 配置
 	envAPIToken             = ""
 	envAdminToken           = "" // 管理 API Token
+	envGitHubProxy          = "" // GitHub 代理地址
 )
 
 // LoadEnvConfig 从环境变量加载配置
@@ -89,5 +90,10 @@ func loadEnv() {
 	// 从环境变量加载前端更新检查配置
 	if os.Getenv("ENABLE_FRONTEND_UPDATE") != "" {
 		envEnableFrontendUpdate = os.Getenv("ENABLE_FRONTEND_UPDATE") == "true"
+	}
+
+	// 从环境变量加载 GitHub 代理配置
+	if os.Getenv("GITHUB_PROXY") != "" {
+		envGitHubProxy = os.Getenv("GITHUB_PROXY")
 	}
 }
