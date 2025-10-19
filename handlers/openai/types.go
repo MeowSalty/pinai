@@ -1,4 +1,4 @@
-package types
+package openai
 
 // Model 结构体定义了 OpenAI 兼容的模型信息
 type Model struct {

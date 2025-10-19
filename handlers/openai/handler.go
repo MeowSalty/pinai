@@ -8,7 +8,6 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/database/query"
-	"github.com/MeowSalty/pinai/handlers/openai/types"
 	"github.com/MeowSalty/pinai/services"
 	"github.com/MeowSalty/portal/request/adapter/openai/converter"
 	openaiTypes "github.com/MeowSalty/portal/request/adapter/openai/types"
@@ -45,7 +44,7 @@ func New(aigatewayService services.PortalService) *OpenAIHandler {
 // @Tags         OpenAI
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  types.ModelList
+// @Success      200  {object}  ModelList
 // @Failure      500  {object}  fiber.Map
 // @Router       /openai/v1/models [get]
 func ListModels(c *fiber.Ctx) error {
@@ -59,9 +58,9 @@ func ListModels(c *fiber.Ctx) error {
 		})
 	}
 
-	modelList := types.ModelList{
+	modelList := ModelList{
 		Object: "list",
-		Data:   make([]types.Model, 0, len(models)),
+		Data:   make([]Model, 0, len(models)),
 	}
 
 	for _, model := range models {
@@ -70,7 +69,7 @@ func ListModels(c *fiber.Ctx) error {
 			modelID = model.Alias
 		}
 
-		modelList.Data = append(modelList.Data, types.Model{
+		modelList.Data = append(modelList.Data, Model{
 			ID:     modelID,
 			Object: "model",
 		})
