@@ -3,6 +3,7 @@ package router
 import (
 	"strings"
 
+	"github.com/MeowSalty/pinai/handlers/anthropic"
 	"github.com/MeowSalty/pinai/handlers/health"
 	"github.com/MeowSalty/pinai/handlers/openai"
 	"github.com/MeowSalty/pinai/handlers/provider"
@@ -17,10 +18,12 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir
 	web.Use(cors.New())
 	webAPI := web.Group("/api")
 	openaiAPI := web.Group("/openai/v1")
+	anthropicAPI := web.Group("/anthropic/v1")
 
 	// 如果设置了 token，为业务 API 端点添加身份验证
 	if apiToken != "" {
 		openaiAPI.Use(createOpenAIAuthMiddleware(apiToken))
+		anthropicAPI.Use(createAnthropicAuthMiddleware(apiToken))
 	}
 
 	// 如果设置了管理 token，为管理 API 端点添加身份验证
@@ -36,6 +39,7 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir
 
 	health.SetupHealthRoutes(webAPI, svcs.HealthService)
 	openai.SetupOpenAIRoutes(openaiAPI, svcs.AIGatewayService)
+	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.AIGatewayService)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
 
@@ -80,6 +84,37 @@ func createOpenAIAuthMiddleware(validToken string) fiber.Handler {
 		}
 
 		// token 验证通过，继续处理请求
+		return c.Next()
+	}
+}
+
+// createAnthropicAuthMiddleware 创建 Anthropic API 身份验证中间件
+func createAnthropicAuthMiddleware(validToken string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// 获取 x-api-key 头
+		apiKey := c.Get("x-api-key")
+		if apiKey == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"type": "error",
+				"error": fiber.Map{
+					"type":    "authentication_error",
+					"message": "缺少 x-api-key 头",
+				},
+			})
+		}
+
+		// 验证 API key
+		if apiKey != validToken {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"type": "error",
+				"error": fiber.Map{
+					"type":    "authentication_error",
+					"message": "无效的 API key",
+				},
+			})
+		}
+
+		// API key 验证通过，继续处理请求
 		return c.Next()
 	}
 }
