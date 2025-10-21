@@ -100,7 +100,6 @@ func (h *AnthropicHandler) Messages(c *fiber.Ctx) error {
 	}
 
 	// 转换请求格式
-
 	portalReq := req.ConvertCoreRequest()
 
 	if *req.Stream {
