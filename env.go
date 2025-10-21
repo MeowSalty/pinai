@@ -20,6 +20,7 @@ var (
 	envAPIToken             = ""
 	envAdminToken           = "" // 管理 API Token
 	envGitHubProxy          = "" // GitHub 代理地址
+	envModelMapping         = "" // 模型映射规则，格式：key1:value1,key2:value2
 )
 
 // LoadEnvConfig 从环境变量加载配置
@@ -95,5 +96,10 @@ func loadEnv() {
 	// 从环境变量加载 GitHub 代理配置
 	if os.Getenv("GITHUB_PROXY") != "" {
 		envGitHubProxy = os.Getenv("GITHUB_PROXY")
+	}
+
+	// 从环境变量加载模型映射规则配置
+	if os.Getenv("MODEL_MAPPING") != "" {
+		envModelMapping = os.Getenv("MODEL_MAPPING")
 	}
 }

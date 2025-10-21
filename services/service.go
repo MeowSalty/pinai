@@ -24,17 +24,18 @@ type Services struct {
 //
 //	ctx - 上下文，用于服务的初始化
 //	logger - 日志记录器，用于记录服务初始化和运行过程中的日志信息
+//	modelMapping - 模型映射规则字符串，格式为 "key1:value1,key2:value2"
 //
 // 返回值：
 //
 //	*Services - 包含所有服务实例的结构体
 //	error - 初始化过程中可能出现的错误
-func NewServices(ctx context.Context, logger *slog.Logger) (*Services, error) {
+func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) (*Services, error) {
 	// 初始化健康服务
 	healthService := NewHealthService()
 
 	// 初始化 AI 网关服务
-	aiGatewayService, err := NewPortalService(ctx, logger.WithGroup("portal"))
+	aiGatewayService, err := NewPortalService(ctx, logger.WithGroup("portal"), modelMapping)
 	if err != nil {
 		return nil, err
 	}

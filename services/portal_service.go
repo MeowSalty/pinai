@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/MeowSalty/pinai/database/query"
@@ -31,7 +32,50 @@ type PortalService interface {
 
 // portalService AI 网关服务实现
 type portalService struct {
-	portal *portal.Portal
+	portal           *portal.Portal
+	modelMappingRule map[string]string
+}
+
+// parseModelMapping 解析模型映射字符串
+//
+// 将字符串格式的模型映射转换为 map[string]string
+//
+// 参数：
+//   - mappingStr: 模型映射字符串，格式为 "key1:value1,key2:value2"
+//
+// 返回值：
+//   - map[string]string: 解析后的模型映射
+//   - error: 解析过程中可能出现的错误
+func parseModelMapping(mappingStr string) (map[string]string, error) {
+	if mappingStr == "" {
+		return make(map[string]string), nil
+	}
+
+	result := make(map[string]string)
+	pairs := strings.Split(mappingStr, ",")
+
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+
+		kv := strings.SplitN(pair, ":", 2)
+		if len(kv) != 2 {
+			return nil, fmt.Errorf("无效的模型映射格式: %s，期望格式为 key:value", pair)
+		}
+
+		key := strings.TrimSpace(kv[0])
+		value := strings.TrimSpace(kv[1])
+
+		if key == "" || value == "" {
+			return nil, fmt.Errorf("模型映射的键和值不能为空: %s", pair)
+		}
+
+		result[key] = value
+	}
+
+	return result, nil
 }
 
 // NewPortalService 创建新的 AI 网关服务实例
@@ -41,11 +85,12 @@ type portalService struct {
 // 参数：
 //   - ctx: 上下文，用于初始化网关管理器
 //   - logger: 日志记录器实例，用于记录处理过程中的日志信息
+//   - modelMappingStr: 模型映射规则字符串，格式为 "key1:value1,key2:value2"
 //
 // 返回值：
 //   - PortalService: 初始化后的 AI 网关服务实例
 //   - error: 初始化过程中可能出现的错误
-func NewPortalService(ctx context.Context, logger *slog.Logger) (PortalService, error) {
+func NewPortalService(ctx context.Context, logger *slog.Logger, modelMappingStr string) (PortalService, error) {
 	// 创建数据仓库实现
 	repo := &DatabaseRepository{}
 
@@ -61,14 +106,31 @@ func NewPortalService(ctx context.Context, logger *slog.Logger) (PortalService, 
 		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
 	}
 
-	return &portalService{portal: gatewayManager}, nil
+	// 解析模型映射规则
+	modelMappingRule, err := parseModelMapping(modelMappingStr)
+	if err != nil {
+		return nil, fmt.Errorf("解析模型映射规则失败：%w", err)
+	}
+
+	// 如果没有提供模型映射规则，设置为空映射（不启用模型映射）
+	if len(modelMappingRule) == 0 {
+		logger.Debug("未启用模型映射规则")
+	} else {
+		logger.Debug("使用自定义模型映射规则", "mapping", modelMappingRule)
+	}
+
+	return &portalService{portal: gatewayManager, modelMappingRule: modelMappingRule}, nil
 }
 
 // ChatCompletion 处理聊天完成请求
 //
 // 提供统一的聊天完成处理入口，包含日志记录和错误处理
 func (s *portalService) ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error) {
-	// 调用 aigateway 进行处理
+	// 应用模型映射规则
+	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
+		req.Model = mappedModel
+	}
+
 	resp, err := s.portal.ChatCompletion(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("聊天完成处理失败：%w", err)
@@ -79,6 +141,11 @@ func (s *portalService) ChatCompletion(ctx context.Context, req *coreTypes.Reque
 
 // ChatCompletionStream 处理流式聊天完成请求
 func (s *portalService) ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error) {
+	// 应用模型映射规则
+	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
+		req.Model = mappedModel
+	}
+
 	stream, err := s.portal.ChatCompletionStream(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("无法启动聊天完成流：%w", err)

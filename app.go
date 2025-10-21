@@ -39,6 +39,8 @@ var (
 	adminToken *string
 
 	githubProxy *string
+
+	modelMapping *string
 )
 
 func loadFlag() {
@@ -66,6 +68,9 @@ func loadFlag() {
 
 	// GitHub 代理参数
 	githubProxy = flag.String("github-proxy", envGitHubProxy, "GitHub 代理地址，用于加速 GitHub 访问")
+
+	// 模型映射规则参数
+	modelMapping = flag.String("model-mapping", envModelMapping, "模型映射规则，格式：key1:value1,key2:value2")
 
 	flag.Parse()
 }
@@ -116,13 +121,14 @@ func main() {
 		Filters: []slogfiber.Filter{
 			// 忽略 /completions 路径下的请求，避免干扰流式传输
 			slogfiber.IgnorePathContains("/completions"),
+			slogfiber.IgnorePathContains("/messages"),
 		},
 	}))
 	fiberApp.Use(recover.New())
 
 	// 初始化服务
 	appContext := context.Background()
-	svcs, err := services.NewServices(appContext, appLogger.WithGroup("services"))
+	svcs, err := services.NewServices(appContext, appLogger.WithGroup("services"), *modelMapping)
 	if err != nil {
 		appLogger.Error("服务初始化失败", "error", err)
 		os.Exit(1)
