@@ -7,9 +7,12 @@ type service struct{}
 
 // StatsOverviewResponse 定义了全局概览数据的响应结构
 type StatsOverviewResponse struct {
-	TotalRequests    int64   `json:"total_requests"` // 总请求量
-	SuccessRate      float64 `json:"success_rate"`   // 成功率
-	AvgFirstByteTime float64 `json:"avg_first_byte"` // 平均首字时间 (微秒)
+	TotalRequests         int64   `json:"total_requests"`          // 总请求量
+	SuccessRate           float64 `json:"success_rate"`            // 成功率
+	AvgFirstByteTime      float64 `json:"avg_first_byte"`          // 平均首字时间 (微秒)
+	TotalPromptTokens     int64   `json:"total_prompt_tokens"`     // 总输入 Token
+	TotalCompletionTokens int64   `json:"total_completion_tokens"` // 总输出 Token
+	TotalTokens           int64   `json:"total_tokens"`            // 总 Token
 }
 
 // StatsRealtimeResponse 定义了实时数据的响应结构
