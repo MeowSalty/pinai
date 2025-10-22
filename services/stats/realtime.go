@@ -2,27 +2,22 @@ package stats
 
 import (
 	"context"
-	"fmt"
-	"time"
-
-	"github.com/MeowSalty/pinai/database/query"
 )
 
 // GetRealtime 实现获取实时数据的业务逻辑
+//
+// 通过采集器获取 API 接口的实时调用数据
 func (s *service) GetRealtime(ctx context.Context) (*StatsRealtimeResponse, error) {
-	q := query.Q
-	r := q.RequestLog
+	collector := GetCollector()
 
-	// 计算过去 1 分钟的请求数 (RPM)
-	oneMinuteAgo := time.Now().Add(-time.Minute)
-	recentRequests, err := r.WithContext(ctx).
-		Where(r.Timestamp.Gte(oneMinuteAgo)).
-		Count()
-	if err != nil {
-		return nil, fmt.Errorf("计算 RPM 失败：%w", err)
-	}
+	// 获取过去 1 分钟的请求数 (RPM)
+	rpm := collector.GetRPM()
+
+	// 获取当前活动连接数
+	activeConnections := collector.GetActiveConnections()
 
 	return &StatsRealtimeResponse{
-		RPM: float64(recentRequests),
+		RPM:               rpm,
+		ActiveConnections: activeConnections,
 	}, nil
 }

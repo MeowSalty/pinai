@@ -9,6 +9,7 @@ import (
 	"github.com/MeowSalty/pinai/handlers/provider"
 	"github.com/MeowSalty/pinai/handlers/stats"
 	"github.com/MeowSalty/pinai/services"
+	statsService "github.com/MeowSalty/pinai/services/stats"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
@@ -19,6 +20,10 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir
 	webAPI := web.Group("/api")
 	openaiAPI := web.Group("/openai/v1")
 	anthropicAPI := web.Group("/anthropic/v1")
+
+	// 为业务 API 添加统计采集中间件
+	openaiAPI.Use(createStatsCollectorMiddleware())
+	anthropicAPI.Use(createStatsCollectorMiddleware())
 
 	// 如果设置了 token，为业务 API 端点添加身份验证
 	if apiToken != "" {
@@ -115,6 +120,26 @@ func createAnthropicAuthMiddleware(validToken string) fiber.Handler {
 		}
 
 		// API key 验证通过，继续处理请求
+		return c.Next()
+	}
+}
+
+// createStatsCollectorMiddleware 创建统计数据采集中间件
+//
+// 该中间件用于采集业务接口的请求数据和活动连接数
+func createStatsCollectorMiddleware() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		collector := statsService.GetCollector()
+
+		// 记录请求
+		collector.RecordRequest()
+
+		// 增加活动连接数
+		collector.IncrementConnection()
+
+		// 请求完成后减少活动连接数
+		defer collector.DecrementConnection()
+
 		return c.Next()
 	}
 }

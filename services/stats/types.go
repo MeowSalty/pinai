@@ -17,7 +17,8 @@ type StatsOverviewResponse struct {
 
 // StatsRealtimeResponse 定义了实时数据的响应结构
 type StatsRealtimeResponse struct {
-	RPM float64 `json:"rpm"` // 每分钟请求数
+	RPM               int64 `json:"rpm"`                // 每分钟请求数
+	ActiveConnections int64 `json:"active_connections"` // 当前活动连接数
 }
 
 // ModelCallRankItem 定义了模型调用排名项

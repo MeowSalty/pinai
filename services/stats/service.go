@@ -9,6 +9,8 @@ import (
 
 // New 创建一个新的统计服务实例
 func New() Service {
+	// 初始化全局采集器
+	InitCollector()
 	return &service{}
 }
 
