@@ -9,6 +9,7 @@ import (
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/services"
+	statsService "github.com/MeowSalty/pinai/services/stats"
 	"github.com/MeowSalty/portal/request/adapter/openai/converter"
 	openaiTypes "github.com/MeowSalty/portal/request/adapter/openai/types"
 	portalTypes "github.com/MeowSalty/portal/types"
@@ -141,7 +142,9 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 		})
 	}
 
-	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+	// 使用流式跟踪包装器，确保在流结束时减少连接数
+	collector := statsService.GetCollector()
+	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
 		// var lastResp *portalTypes.Response
 		isErr := false
 		for resp := range responseChan {
@@ -189,7 +192,7 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 			// lastResp = resp
 		}
 		if isErr {
-			return
+			return nil
 		}
 
 		// 发送流结束标记
@@ -200,7 +203,8 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 		}
 
 		w.Flush()
-	})
+		return nil
+	}))
 
 	return nil
 }

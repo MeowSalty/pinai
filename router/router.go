@@ -127,6 +127,10 @@ func createAnthropicAuthMiddleware(validToken string) fiber.Handler {
 // createStatsCollectorMiddleware 创建统计数据采集中间件
 //
 // 该中间件用于采集业务接口的请求数据和活动连接数
+//
+// 注意：
+//   - 对于非流式响应，在请求完成后自动减少连接数
+//   - 对于流式响应（SSE），连接数由流式处理器在流结束时减少，以确保统计准确性
 func createStatsCollectorMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		collector := statsService.GetCollector()
@@ -137,8 +141,17 @@ func createStatsCollectorMiddleware() fiber.Handler {
 		// 增加活动连接数
 		collector.IncrementConnection()
 
-		// 请求完成后减少活动连接数
-		defer collector.DecrementConnection()
+		// 对于非流式响应，请求完成后减少活动连接数
+		// 流式响应会在 SetBodyStreamWriter 的 WithStreamTracking 包装器中处理
+		defer func() {
+			// 检查是否为流式响应（通过响应头判断）
+			contentType := string(c.Response().Header.Peek("Content-Type"))
+			if contentType != "text/event-stream" {
+				// 非流式响应，在这里减少连接数
+				collector.DecrementConnection()
+			}
+			// 流式响应的连接数将在流结束时由 WithStreamTracking 减少
+		}()
 
 		return c.Next()
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/services"
+	statsService "github.com/MeowSalty/pinai/services/stats"
 	"github.com/MeowSalty/portal/request/adapter/anthropic/converter"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	portalTypes "github.com/MeowSalty/portal/types"
@@ -141,7 +142,9 @@ func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.R
 		})
 	}
 
-	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+	// 使用流式跟踪包装器，确保在流结束时减少连接数
+	collector := statsService.GetCollector()
+	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
 		isErr := false
 		converterTool := converter.NewStreamEventConverter()
 		for resp := range responseChan {
@@ -192,7 +195,7 @@ func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.R
 			w.Flush()
 		}
 		if isErr {
-			return
+			return nil
 		}
 
 		// 发送流结束标记
@@ -203,7 +206,8 @@ func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.R
 		}
 
 		w.Flush()
-	})
+		return nil
+	}))
 
 	return nil
 }
