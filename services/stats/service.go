@@ -23,9 +23,15 @@ type Service interface {
 	// ListRequestLogs 获取请求状态列表
 	ListRequestLogs(ctx context.Context, opts ListRequestLogsOptions) ([]*types.RequestLog, int64, error)
 
-	// GetModelRank 获取模型排名前 10
-	GetModelRank(ctx context.Context, duration time.Duration) (*ModelRankResponse, error)
+	// GetModelCallRank 获取模型调用排名前 5
+	GetModelCallRank(ctx context.Context, duration time.Duration) (*ModelCallRankResponse, error)
 
-	// GetPlatformRank 获取平台排名前 10
-	GetPlatformRank(ctx context.Context, duration time.Duration) (*PlatformRankResponse, error)
+	// GetPlatformCallRank 获取平台调用排名前 5
+	GetPlatformCallRank(ctx context.Context, duration time.Duration) (*PlatformCallRankResponse, error)
+
+	// GetModelUsageRank 获取模型用量排名前 5
+	GetModelUsageRank(ctx context.Context, duration time.Duration) (*ModelUsageRankResponse, error)
+
+	// GetPlatformUsageRank 获取平台用量排名前 5
+	GetPlatformUsageRank(ctx context.Context, duration time.Duration) (*PlatformUsageRankResponse, error)
 }
