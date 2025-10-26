@@ -1,7 +1,7 @@
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
-github.com/MeowSalty/portal v0.4.2 h1:BRnygDr8x/WeMGzCo8TMrq3oxSlinfh8YQqJBapaRb4=
-github.com/MeowSalty/portal v0.4.2/go.mod h1:H6C1h2TzbWEw7l9Jol1Zup9rgZ4mcdEmATStzABbOeI=
+github.com/MeowSalty/portal v0.4.3-0.20251026010016-7e9e4d3836c8 h1:WLPTxJ3nNtOlwml0zA9aM7uWYUVpjC3S16aDowfzoRk=
+github.com/MeowSalty/portal v0.4.3-0.20251026010016-7e9e4d3836c8/go.mod h1:H6C1h2TzbWEw7l9Jol1Zup9rgZ4mcdEmATStzABbOeI=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
