@@ -103,7 +103,7 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	// 转换请求格式
 	portalReq := converter.ConvertCoreRequest(&req)
 
-	if *req.Stream {
+	if portalReq.Stream != nil && *portalReq.Stream {
 		// 流式响应
 		return h.handleStreamResponse(c, portalReq)
 	}
