@@ -88,6 +88,9 @@ func loadConfig() {
 }
 
 func main() {
+	// 加载配置
+	loadConfig()
+
 	// 解析日志等级
 	var level slog.Level
 	switch strings.ToUpper(*logLevel) {
@@ -115,9 +118,6 @@ func main() {
 	frontendLogger := logger.WithGroup("frontend")
 
 	slog.SetDefault(appLogger)
-
-	// 加载配置
-	loadConfig()
 
 	// 如果启用了前端支持，则初始化前端
 	if *enableWeb {
