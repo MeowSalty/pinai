@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
+	"strings"
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/services"
@@ -145,6 +147,33 @@ func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.R
 	// 使用流式跟踪包装器，确保在流结束时减少连接数
 	collector := statsService.GetCollector()
 	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
+		// 添加 defer recover 来捕获流式处理中的 panic
+		defer func() {
+			if r := recover(); r != nil {
+				stack := debug.Stack()
+				// 将堆栈信息按行分割，以数组形式记录，提高 JSON 日志可读性
+				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+				slog.Error("流式响应处理发生 panic",
+					"panic", r,
+					"path", c.Path(),
+					"method", c.Method(),
+					"body", string(c.Body()),
+					"stack", stackLines,
+				)
+				// 尝试发送错误信息给客户端
+				errorEvent := map[string]any{
+					"error": map[string]any{
+						"type":    "internal_error",
+						"message": fmt.Sprintf("服务器内部错误: %v", r),
+					},
+				}
+				if jsonBytes, err := json.Marshal(errorEvent); err == nil {
+					fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes))
+					w.Flush()
+				}
+			}
+		}()
+
 		isErr := false
 		converterTool := converter.NewStreamEventConverter()
 		for resp := range responseChan {
