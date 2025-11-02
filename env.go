@@ -22,6 +22,7 @@ var (
 	envGitHubProxy          = ""     // GitHub 代理地址
 	envModelMapping         = ""     // 模型映射规则，格式：key1:value1,key2:value2
 	envLogLevel             = "INFO" // 日志输出等级
+	envUserAgent            = ""     // User-Agent 配置，空则透传客户端 UA，"default" 使用 fasthttp 默认值，其他字符串则复写
 )
 
 // LoadEnvConfig 从环境变量加载配置
@@ -107,5 +108,10 @@ func loadEnv() {
 	// 从环境变量加载日志等级配置
 	if os.Getenv("LOG_LEVEL") != "" {
 		envLogLevel = os.Getenv("LOG_LEVEL")
+	}
+
+	// 从环境变量加载 User-Agent 配置
+	if os.Getenv("USER_AGENT") != "" {
+		envUserAgent = os.Getenv("USER_AGENT")
 	}
 }

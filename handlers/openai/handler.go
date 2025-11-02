@@ -24,6 +24,8 @@ import (
 type OpenAIHandler struct {
 	// aigatewayService AI 网关服务实例，用于处理 AI 相关请求
 	aigatewayService services.PortalService
+	// userAgent User-Agent 配置，用于控制请求的 User-Agent 头部
+	userAgent string
 }
 
 // New 创建并初始化一个新的 OpenAI API 处理器实例
@@ -32,12 +34,14 @@ type OpenAIHandler struct {
 //
 // 参数：
 //   - aigatewayService: AI 网关服务实例，用于处理 AI 相关请求
+//   - userAgent: User-Agent 配置，空则透传客户端 UA，"default" 使用 fasthttp 默认值，其他字符串则复写
 //
 // 返回值：
 //   - *OpenAIHandler: 初始化后的 OpenAI 处理器实例
-func New(aigatewayService services.PortalService) *OpenAIHandler {
+func New(aigatewayService services.PortalService, userAgent string) *OpenAIHandler {
 	return &OpenAIHandler{
 		aigatewayService: aigatewayService,
+		userAgent:        userAgent,
 	}
 }
 
@@ -104,6 +108,26 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 
 	// 转换请求格式
 	portalReq := converter.ConvertCoreRequest(&req)
+
+	// 处理 User-Agent 头部
+	if portalReq.Headers == nil {
+		portalReq.Headers = make(map[string]string)
+	}
+
+	// 根据配置处理 User-Agent
+	switch h.userAgent {
+	case "":
+		// 空字符串：透传客户端的 User-Agent
+		if userAgent := c.Get("User-Agent"); userAgent != "" {
+			portalReq.Headers["User-Agent"] = userAgent
+		}
+	case "default":
+		// "default"：不设置 User-Agent，使用 fasthttp 默认值
+		// 不添加 User-Agent 到 Headers 中
+	default:
+		// 其他字符串：使用配置的字符串复写 User-Agent
+		portalReq.Headers["User-Agent"] = h.userAgent
+	}
 
 	if portalReq.Stream != nil && *portalReq.Stream {
 		// 流式响应

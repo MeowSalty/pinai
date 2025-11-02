@@ -45,6 +45,8 @@ var (
 	modelMapping *string
 
 	logLevel *string
+
+	userAgent *string
 )
 
 func loadFlag() {
@@ -78,6 +80,9 @@ func loadFlag() {
 
 	// 日志等级参数
 	logLevel = flag.String("log-level", envLogLevel, "日志输出等级 (DEBUG, INFO, WARN, ERROR)")
+
+	// User-Agent 参数
+	userAgent = flag.String("user-agent", envUserAgent, "User-Agent 配置，空则透传客户端 UA，\"default\" 使用 fasthttp 默认值，其他字符串则复写")
 
 	flag.Parse()
 }
@@ -185,7 +190,7 @@ func main() {
 	}
 
 	// 设置路由
-	if err := router.SetupRoutes(fiberApp, svcs, *enableWeb, *webDir, *apiToken, effectiveAdminToken); err != nil {
+	if err := router.SetupRoutes(fiberApp, svcs, *enableWeb, *webDir, *apiToken, effectiveAdminToken, *userAgent); err != nil {
 		appLogger.Error("路由设置失败", "error", err)
 		os.Exit(1)
 	}

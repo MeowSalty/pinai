@@ -15,7 +15,7 @@ import (
 )
 
 // SetupRoutes 配置 API 路由
-func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir string, apiToken string, adminToken string) error {
+func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir string, apiToken string, adminToken string, userAgent string) error {
 	web.Use(cors.New())
 	webAPI := web.Group("/api")
 	openaiAPI := web.Group("/openai/v1")
@@ -43,8 +43,8 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir
 	})
 
 	health.SetupHealthRoutes(webAPI, svcs.HealthService)
-	openai.SetupOpenAIRoutes(openaiAPI, svcs.AIGatewayService)
-	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.AIGatewayService)
+	openai.SetupOpenAIRoutes(openaiAPI, svcs.AIGatewayService, userAgent)
+	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.AIGatewayService, userAgent)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
 
