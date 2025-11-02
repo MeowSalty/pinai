@@ -54,26 +54,27 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
 
 ### 配置参数说明
 
-| 命令行参数                | 环境变量                 | 说明                                                           | 默认值    |
-| ------------------------- | ------------------------ | -------------------------------------------------------------- | --------- |
-| `-port`                   | `PORT`                   | 监听端口                                                       | `:3000`   |
-| `-prod`                   | `PROD`                   | 在生产环境中启用 prefork 模式                                  | `false`   |
-| `-enable-web`             | `ENABLE_WEB`             | 启用前端支持                                                   | `false`   |
-| `-web-dir`                | `WEB_DIR`                | 前端文件目录                                                   | `web`     |
-| `-enable-frontend-update` | `ENABLE_FRONTEND_UPDATE` | 启用前端更新检查                                               | `true`    |
-| `-github-proxy`           | `GITHUB_PROXY`           | GitHub 代理地址，用于加速 GitHub 访问                          |           |
-| `-db-type`                | `DB_TYPE`                | 数据库类型 (sqlite, mysql, postgres)                           | `sqlite`  |
-| `-db-host`                | `DB_HOST`                | 数据库主机地址                                                 |           |
-| `-db-port`                | `DB_PORT`                | 数据库端口                                                     |           |
-| `-db-user`                | `DB_USER`                | 数据库用户名                                                   |           |
-| `-db-pass`                | `DB_PASS`                | 数据库密码                                                     |           |
-| `-db-name`                | `DB_NAME`                | 数据库名称                                                     |           |
-| `-db-ssl-mode`            | `DB_SSL_MODE`            | PostgreSQL SSL 模式 (disable, require, verify-ca, verify-full) | `disable` |
-| `-db-tls-config`          | `DB_TLS_CONFIG`          | MySQL TLS 配置 (true, false, skip-verify, preferred)           | `false`   |
-| `-api-token`              | `API_TOKEN`              | API Token，用于业务接口身份验证                                |           |
-| `-admin-token`            | `ADMIN_TOKEN`            | 管理 API Token，用于管理接口身份验证（可选）                   |           |
-| `-model-mapping`          | `MODEL_MAPPING`          | 模型映射规则，格式：`key1:value1,key2:value2`                  |           |
-| `-log-level`              | `LOG_LEVEL`              | 日志输出等级 (DEBUG, INFO, WARN, ERROR)                        | `INFO`    |
+| 命令行参数                | 环境变量                 | 说明                                                           | 默认值     |
+| ------------------------- | ------------------------ | -------------------------------------------------------------- | ---------- |
+| `-port`                   | `PORT`                   | 监听端口                                                       | `:3000`    |
+| `-prod`                   | `PROD`                   | 在生产环境中启用 prefork 模式                                  | `false`    |
+| `-enable-web`             | `ENABLE_WEB`             | 启用前端支持                                                   | `false`    |
+| `-web-dir`                | `WEB_DIR`                | 前端文件目录                                                   | `web`      |
+| `-enable-frontend-update` | `ENABLE_FRONTEND_UPDATE` | 启用前端更新检查                                               | `true`     |
+| `-github-proxy`           | `GITHUB_PROXY`           | GitHub 代理地址，用于加速 GitHub 访问                          |            |
+| `-db-type`                | `DB_TYPE`                | 数据库类型 (sqlite, mysql, postgres)                           | `sqlite`   |
+| `-db-host`                | `DB_HOST`                | 数据库主机地址                                                 |            |
+| `-db-port`                | `DB_PORT`                | 数据库端口                                                     |            |
+| `-db-user`                | `DB_USER`                | 数据库用户名                                                   |            |
+| `-db-pass`                | `DB_PASS`                | 数据库密码                                                     |            |
+| `-db-name`                | `DB_NAME`                | 数据库名称                                                     |            |
+| `-db-ssl-mode`            | `DB_SSL_MODE`            | PostgreSQL SSL 模式 (disable, require, verify-ca, verify-full) | `disable`  |
+| `-db-tls-config`          | `DB_TLS_CONFIG`          | MySQL TLS 配置 (true, false, skip-verify, preferred)           | `false`    |
+| `-api-token`              | `API_TOKEN`              | API Token，用于业务接口身份验证                                |            |
+| `-admin-token`            | `ADMIN_TOKEN`            | 管理 API Token，用于管理接口身份验证（可选）                   |            |
+| `-model-mapping`          | `MODEL_MAPPING`          | 模型映射规则，格式：`key1:value1,key2:value2`                  |            |
+| `-user-agent`             | `USER_AGENT`             | User-Agent 配置（见下方说明）                                  | 空（透传） |
+| `-log-level`              | `LOG_LEVEL`              | 日志输出等级 (DEBUG, INFO, WARN, ERROR)                        | `INFO`     |
 
 > [!NOTE]
 >
@@ -159,6 +160,43 @@ docker run -d \
 > - 代理服务仅用于加速 GitHub 访问，不会影响其他功能
 > - 请选择可信的代理服务，避免使用不明来源的代理
 > - 如果不设置此参数，将直接访问 GitHub
+
+#### User-Agent 配置说明
+
+User-Agent 配置用于控制向上游 AI 服务发送请求时的 User-Agent 头部。支持三种模式：
+
+1. **透传模式**（默认）：不设置或设置为空字符串时，将透传客户端请求的 User-Agent
+2. **默认模式**：设置为 `"default"` 时，不添加 User-Agent 头部，使用 fasthttp 库的默认值
+3. **自定义模式**：设置为其他任意字符串时，使用该字符串作为 User-Agent
+
+配置示例：
+
+```bash
+# 命令行方式 - 透传客户端 User-Agent（默认行为）
+./pinai
+
+# 命令行方式 - 使用 fasthttp 默认 User-Agent
+./pinai -user-agent="default"
+
+# 命令行方式 - 自定义 User-Agent
+./pinai -user-agent="MyCustomAgent/1.0"
+
+# 环境变量方式
+export USER_AGENT="MyCustomAgent/1.0"
+./pinai
+
+# Docker 方式
+docker run -d \
+  -p 3000:3000 \
+  -e USER_AGENT="MyCustomAgent/1.0" \
+  ghcr.io/meowsalty/pinai:latest
+```
+
+> [!NOTE]
+>
+> - User-Agent 配置对 OpenAI 和 Anthropic 兼容接口均有效
+> - 透传模式可以保留客户端的原始 User-Agent 信息
+> - 自定义模式适用于需要统一标识的场景
 
 ## 📚 API 接口
 
