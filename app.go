@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -117,6 +119,21 @@ func main() {
 	})
 
 	// 中间件
+	fiberApp.Use(recover.New(recover.Config{
+		EnableStackTrace: true, // 启用堆栈跟踪
+		StackTraceHandler: func(c *fiber.Ctx, e any) {
+			stack := debug.Stack()
+			// 将堆栈信息按行分割，以数组形式记录，提高 JSON 日志可读性
+			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			fiberLogger.Error("发生 panic",
+				"panic", e,
+				"path", c.Path(),
+				"method", c.Method(),
+				"body", string(c.Body()),
+				"stack", stackLines,
+			)
+		},
+	}))
 	fiberApp.Use(slogfiber.NewWithConfig(fiberLogger, slogfiber.Config{
 		Filters: []slogfiber.Filter{
 			// 忽略 /completions 路径下的请求，避免干扰流式传输
@@ -124,7 +141,6 @@ func main() {
 			slogfiber.IgnorePathContains("/messages"),
 		},
 	}))
-	fiberApp.Use(recover.New())
 
 	// 初始化服务
 	appContext := context.Background()
