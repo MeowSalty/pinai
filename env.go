@@ -18,9 +18,10 @@ var (
 	envDBSSLMode            = "" // PostgreSQL SSL 模式
 	envDBTLSConfig          = "" // MySQL TLS 配置
 	envAPIToken             = ""
-	envAdminToken           = "" // 管理 API Token
-	envGitHubProxy          = "" // GitHub 代理地址
-	envModelMapping         = "" // 模型映射规则，格式：key1:value1,key2:value2
+	envAdminToken           = ""     // 管理 API Token
+	envGitHubProxy          = ""     // GitHub 代理地址
+	envModelMapping         = ""     // 模型映射规则，格式：key1:value1,key2:value2
+	envLogLevel             = "INFO" // 日志输出等级
 )
 
 // LoadEnvConfig 从环境变量加载配置
@@ -101,5 +102,10 @@ func loadEnv() {
 	// 从环境变量加载模型映射规则配置
 	if os.Getenv("MODEL_MAPPING") != "" {
 		envModelMapping = os.Getenv("MODEL_MAPPING")
+	}
+
+	// 从环境变量加载日志等级配置
+	if os.Getenv("LOG_LEVEL") != "" {
+		envLogLevel = os.Getenv("LOG_LEVEL")
 	}
 }

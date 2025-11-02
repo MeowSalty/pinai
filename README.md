@@ -73,6 +73,7 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
 | `-api-token`              | `API_TOKEN`              | API Token，用于业务接口身份验证                                |           |
 | `-admin-token`            | `ADMIN_TOKEN`            | 管理 API Token，用于管理接口身份验证（可选）                   |           |
 | `-model-mapping`          | `MODEL_MAPPING`          | 模型映射规则，格式：`key1:value1,key2:value2`                  |           |
+| `-log-level`              | `LOG_LEVEL`              | 日志输出等级 (DEBUG, INFO, WARN, ERROR)                        | `INFO`    |
 
 > [!NOTE]
 >

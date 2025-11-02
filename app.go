@@ -43,6 +43,8 @@ var (
 	githubProxy *string
 
 	modelMapping *string
+
+	logLevel *string
 )
 
 func loadFlag() {
@@ -74,6 +76,9 @@ func loadFlag() {
 	// 模型映射规则参数
 	modelMapping = flag.String("model-mapping", envModelMapping, "模型映射规则，格式：key1:value1,key2:value2")
 
+	// 日志等级参数
+	logLevel = flag.String("log-level", envLogLevel, "日志输出等级 (DEBUG, INFO, WARN, ERROR)")
+
 	flag.Parse()
 }
 
@@ -83,8 +88,25 @@ func loadConfig() {
 }
 
 func main() {
+	// 解析日志等级
+	var level slog.Level
+	switch strings.ToUpper(*logLevel) {
+	case "DEBUG":
+		level = slog.LevelDebug
+	case "INFO":
+		level = slog.LevelInfo
+	case "WARN":
+		level = slog.LevelWarn
+	case "ERROR":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
 	// 创建日志记录器
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: level,
+	}))
 
 	// 创建日志组
 	appLogger := logger.WithGroup("app")
