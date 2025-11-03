@@ -2,13 +2,16 @@ package provider
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/MeowSalty/pinai/database/types"
 )
 
 // New 创建一个新的 Service 实例
-func New() Service {
-	return &service{}
+func New(logger *slog.Logger) Service {
+	return &service{
+		logger: logger,
+	}
 }
 
 // Service 定义了 LLM 供应商管理的服务接口

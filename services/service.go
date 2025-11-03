@@ -42,7 +42,7 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 	}
 
 	// 初始化供应商服务
-	providerService := provider.New()
+	providerService := provider.New(logger.WithGroup("provider"))
 
 	// 初始化统计服务
 	statsService := stats.New()
