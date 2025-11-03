@@ -44,13 +44,12 @@ type service struct {
 //   - Service: 初始化后的 Portal 服务实例
 //   - error: 初始化过程中可能出现的错误
 func New(ctx context.Context, logger *slog.Logger, modelMappingStr string) (Service, error) {
-	serviceLogger := logger.WithGroup("portal")
-	serviceLogger.Info("开始初始化 Portal 服务", "model_mapping", modelMappingStr)
+	logger.Info("开始初始化 Portal 服务", "model_mapping", modelMappingStr)
 
-	repoLogger := serviceLogger.WithGroup("database_repository")
+	repoLogger := logger.WithGroup("database_repository")
 	repo := &Repository{logger: repoLogger}
 
-	serviceLogger.Debug("正在创建网关管理器")
+	logger.Debug("正在创建网关管理器")
 	gatewayManager, err := portal.New(portal.Config{
 		PlatformRepo: repo,
 		ModelRepo:    repo,
@@ -59,26 +58,26 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string) (Serv
 		LogRepo:      repo,
 	})
 	if err != nil {
-		serviceLogger.Error("创建网关管理器失败", "error", err)
+		logger.Error("创建网关管理器失败", "error", err)
 		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
 	}
-	serviceLogger.Info("网关管理器创建成功")
+	logger.Info("网关管理器创建成功")
 
-	serviceLogger.Debug("正在解析模型映射规则")
+	logger.Debug("正在解析模型映射规则")
 	modelMappingRule, err := parseModelMapping(modelMappingStr)
 	if err != nil {
-		serviceLogger.Error("解析模型映射规则失败", "error", err, "mapping_str", modelMappingStr)
+		logger.Error("解析模型映射规则失败", "error", err, "mapping_str", modelMappingStr)
 		return nil, fmt.Errorf("解析模型映射规则失败：%w", err)
 	}
 
 	if len(modelMappingRule) == 0 {
-		serviceLogger.Debug("未启用模型映射规则")
+		logger.Debug("未启用模型映射规则")
 	} else {
-		serviceLogger.Info("使用自定义模型映射规则", "mapping", modelMappingRule, "count", len(modelMappingRule))
+		logger.Info("使用自定义模型映射规则", "mapping", modelMappingRule, "count", len(modelMappingRule))
 	}
 
-	serviceLogger.Info("Portal 服务初始化完成")
-	return &service{portal: gatewayManager, modelMappingRule: modelMappingRule, logger: serviceLogger}, nil
+	logger.Info("Portal 服务初始化完成")
+	return &service{portal: gatewayManager, modelMappingRule: modelMappingRule, logger: logger}, nil
 }
 
 // ChatCompletion 处理聊天完成请求

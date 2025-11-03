@@ -36,7 +36,7 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 	healthService := NewHealthService()
 
 	// 初始化 Portal 服务
-	portalService, err := portal.New(ctx, logger, modelMapping)
+	portalService, err := portal.New(ctx, logger.WithGroup("portal"), modelMapping)
 	if err != nil {
 		return nil, err
 	}
