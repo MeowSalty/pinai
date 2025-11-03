@@ -211,13 +211,13 @@ func main() {
 	_ = <-c
 	appLogger.Info("收到关闭信号，正在关闭应用...")
 
-	// 关闭 AI 网关服务
-	if svcs.AIGatewayService != nil {
-		appLogger.Info("正在关闭 AI 网关服务")
-		if err := svcs.AIGatewayService.Close(5 * time.Second); err != nil {
-			appLogger.Error("关闭 AI 网关服务失败", "error", err)
+	// 关闭 Portal 服务
+	if svcs.PortalService != nil {
+		appLogger.Info("正在关闭 Portal 服务")
+		if err := svcs.PortalService.Close(5 * time.Second); err != nil {
+			appLogger.Error("关闭 Portal 服务失败", "error", err)
 		} else {
-			appLogger.Info("AI 网关服务已成功关闭")
+			appLogger.Info("Portal 服务已成功关闭")
 		}
 	}
 

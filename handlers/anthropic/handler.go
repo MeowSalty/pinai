@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/database/query"
-	"github.com/MeowSalty/pinai/services"
+	"github.com/MeowSalty/pinai/services/portal"
 	statsService "github.com/MeowSalty/pinai/services/stats"
 	"github.com/MeowSalty/portal/request/adapter/anthropic/converter"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
@@ -23,7 +23,7 @@ import (
 // 该结构体封装了处理 Anthropic 兼容 API 请求所需的服务和日志记录器
 type AnthropicHandler struct {
 	// portal AI 网关服务实例，用于处理 AI 相关请求
-	portal services.PortalService
+	portal portal.Service
 	// userAgent User-Agent 配置，用于控制请求的 User-Agent 头部
 	userAgent string
 }
@@ -38,7 +38,7 @@ type AnthropicHandler struct {
 //
 // 返回值：
 //   - *AnthropicHandler: 初始化后的 Anthropic 处理器实例
-func New(portal services.PortalService, userAgent string) *AnthropicHandler {
+func New(portal portal.Service, userAgent string) *AnthropicHandler {
 	return &AnthropicHandler{
 		portal:    portal,
 		userAgent: userAgent,

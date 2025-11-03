@@ -43,8 +43,8 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir
 	})
 
 	health.SetupHealthRoutes(webAPI, svcs.HealthService)
-	openai.SetupOpenAIRoutes(openaiAPI, svcs.AIGatewayService, userAgent)
-	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.AIGatewayService, userAgent)
+	openai.SetupOpenAIRoutes(openaiAPI, svcs.PortalService, userAgent)
+	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.PortalService, userAgent)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
 

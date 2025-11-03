@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/database/query"
-	"github.com/MeowSalty/pinai/services"
+	"github.com/MeowSalty/pinai/services/portal"
 	statsService "github.com/MeowSalty/pinai/services/stats"
 	"github.com/MeowSalty/portal/request/adapter/openai/converter"
 	openaiTypes "github.com/MeowSalty/portal/request/adapter/openai/types"
@@ -22,8 +22,8 @@ import (
 //
 // 该结构体封装了处理 OpenAI 兼容 API 请求所需的服务和日志记录器
 type OpenAIHandler struct {
-	// aigatewayService AI 网关服务实例，用于处理 AI 相关请求
-	aigatewayService services.PortalService
+	// portalService AI 网关服务实例，用于处理 AI 相关请求
+	portalService portal.Service
 	// userAgent User-Agent 配置，用于控制请求的 User-Agent 头部
 	userAgent string
 }
@@ -33,15 +33,15 @@ type OpenAIHandler struct {
 // 该函数使用依赖注入的方式创建 OpenAIHandler 实例
 //
 // 参数：
-//   - aigatewayService: AI 网关服务实例，用于处理 AI 相关请求
+//   - portalService: AI 网关服务实例，用于处理 AI 相关请求
 //   - userAgent: User-Agent 配置，空则透传客户端 UA，"default" 使用 fasthttp 默认值，其他字符串则复写
 //
 // 返回值：
 //   - *OpenAIHandler: 初始化后的 OpenAI 处理器实例
-func New(aigatewayService services.PortalService, userAgent string) *OpenAIHandler {
+func New(portalService portal.Service, userAgent string) *OpenAIHandler {
 	return &OpenAIHandler{
-		aigatewayService: aigatewayService,
-		userAgent:        userAgent,
+		portalService: portalService,
+		userAgent:     userAgent,
 	}
 }
 
@@ -135,7 +135,7 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	}
 
 	// 非流式响应
-	resp, err := h.aigatewayService.ChatCompletion(c.Context(), portalReq)
+	resp, err := h.portalService.ChatCompletion(c.Context(), portalReq)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("处理请求时出错：%v", err),
@@ -160,7 +160,7 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 	ctx, cancel := context.WithCancel(c.Context())
 
 	// 获取流式响应通道
-	responseChan, err := h.aigatewayService.ChatCompletionStream(ctx, req)
+	responseChan, err := h.portalService.ChatCompletionStream(ctx, req)
 	if err != nil {
 		cancel()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

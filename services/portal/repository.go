@@ -1,177 +1,34 @@
-package services
+package portal
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
-	"time"
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
-	"github.com/MeowSalty/portal"
 	"github.com/MeowSalty/portal/request"
 	"github.com/MeowSalty/portal/routing"
 	"github.com/MeowSalty/portal/routing/health"
-	coreTypes "github.com/MeowSalty/portal/types"
 )
 
-// PortalService AI 网关服务接口
-//
-// 封装所有与 AI 网关相关的业务逻辑
-type PortalService interface {
-	// ChatCompletion 处理聊天完成请求
-	ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error)
-
-	// Shutdown 优雅关闭服务
-	Close(timeout time.Duration) error
-
-	// ChatCompletionStream 处理流式聊天完成请求
-	ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error)
-}
-
-// portalService AI 网关服务实现
-type portalService struct {
-	portal           *portal.Portal
-	modelMappingRule map[string]string
-}
-
-// parseModelMapping 解析模型映射字符串
-//
-// 将字符串格式的模型映射转换为 map[string]string
-//
-// 参数：
-//   - mappingStr: 模型映射字符串，格式为 "key1:value1,key2:value2"
-//
-// 返回值：
-//   - map[string]string: 解析后的模型映射
-//   - error: 解析过程中可能出现的错误
-func parseModelMapping(mappingStr string) (map[string]string, error) {
-	if mappingStr == "" {
-		return make(map[string]string), nil
-	}
-
-	result := make(map[string]string)
-	pairs := strings.Split(mappingStr, ",")
-
-	for _, pair := range pairs {
-		pair = strings.TrimSpace(pair)
-		if pair == "" {
-			continue
-		}
-
-		kv := strings.SplitN(pair, ":", 2)
-		if len(kv) != 2 {
-			return nil, fmt.Errorf("无效的模型映射格式: %s，期望格式为 key:value", pair)
-		}
-
-		key := strings.TrimSpace(kv[0])
-		value := strings.TrimSpace(kv[1])
-
-		if key == "" || value == "" {
-			return nil, fmt.Errorf("模型映射的键和值不能为空: %s", pair)
-		}
-
-		result[key] = value
-	}
-
-	return result, nil
-}
-
-// NewPortalService 创建新的 AI 网关服务实例
-//
-// 该函数初始化所有必要的组件，包括数据仓库和网关管理器，并正确配置日志记录器。
-//
-// 参数：
-//   - ctx: 上下文，用于初始化网关管理器
-//   - logger: 日志记录器实例，用于记录处理过程中的日志信息
-//   - modelMappingStr: 模型映射规则字符串，格式为 "key1:value1,key2:value2"
-//
-// 返回值：
-//   - PortalService: 初始化后的 AI 网关服务实例
-//   - error: 初始化过程中可能出现的错误
-func NewPortalService(ctx context.Context, logger *slog.Logger, modelMappingStr string) (PortalService, error) {
-	// 创建数据仓库实现
-	repo := &DatabaseRepository{}
-
-	// 创建网关管理器
-	gatewayManager, err := portal.New(portal.Config{
-		PlatformRepo: repo,
-		ModelRepo:    repo,
-		KeyRepo:      repo,
-		HealthRepo:   repo,
-		LogRepo:      repo,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
-	}
-
-	// 解析模型映射规则
-	modelMappingRule, err := parseModelMapping(modelMappingStr)
-	if err != nil {
-		return nil, fmt.Errorf("解析模型映射规则失败：%w", err)
-	}
-
-	// 如果没有提供模型映射规则，设置为空映射（不启用模型映射）
-	if len(modelMappingRule) == 0 {
-		logger.Debug("未启用模型映射规则")
-	} else {
-		logger.Debug("使用自定义模型映射规则", "mapping", modelMappingRule)
-	}
-
-	return &portalService{portal: gatewayManager, modelMappingRule: modelMappingRule}, nil
-}
-
-// ChatCompletion 处理聊天完成请求
-//
-// 提供统一的聊天完成处理入口，包含日志记录和错误处理
-func (s *portalService) ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error) {
-	// 应用模型映射规则
-	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
-		req.Model = mappedModel
-	}
-
-	resp, err := s.portal.ChatCompletion(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("聊天完成处理失败：%w", err)
-	}
-
-	return resp, nil
-}
-
-// ChatCompletionStream 处理流式聊天完成请求
-func (s *portalService) ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error) {
-	// 应用模型映射规则
-	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
-		req.Model = mappedModel
-	}
-
-	stream, err := s.portal.ChatCompletionStream(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("无法启动聊天完成流：%w", err)
-	}
-
-	return stream, nil
-}
-
-// Close 优雅关闭服务
-//
-// 停止健康管理器和取消所有相关的上下文
-func (s *portalService) Close(timeout time.Duration) error {
-	return s.portal.Close(timeout)
-}
-
-// DatabaseRepository 数据仓库实现
+// Repository 数据仓库实现
 //
 // 提供 portal 所需的数据访问接口
-type DatabaseRepository struct{}
+type Repository struct {
+	logger *slog.Logger
+}
 
 // GetModelByID 根据 ID 获取模型信息
-func (r *DatabaseRepository) GetModelByID(ctx context.Context, id uint) (routing.Model, error) {
+func (r *Repository) GetModelByID(ctx context.Context, id uint) (routing.Model, error) {
+	repoLogger := r.logger.WithGroup("model_repository")
+	repoLogger.Debug("根据 ID 获取模型信息", "model_id", id)
+
 	q := query.Q
 
 	dbModel, err := q.WithContext(ctx).Model.Where(q.Model.ID.Eq(id)).First()
 	if err != nil {
+		repoLogger.Error("获取模型失败", "error", err, "model_id", id)
 		return routing.Model{}, fmt.Errorf("获取模型失败：%w", err)
 	}
 
@@ -183,11 +40,15 @@ func (r *DatabaseRepository) GetModelByID(ctx context.Context, id uint) (routing
 		Alias:      dbModel.Alias,
 	}
 
+	repoLogger.Debug("模型信息获取成功", "model_id", id, "model_name", model.Name)
 	return model, nil
 }
 
 // FindModelsByNameOrAlias 根据名称或别名查找模型
-func (r *DatabaseRepository) FindModelsByNameOrAlias(ctx context.Context, name string) ([]routing.Model, error) {
+func (r *Repository) FindModelsByNameOrAlias(ctx context.Context, name string) ([]routing.Model, error) {
+	repoLogger := r.logger.WithGroup("model_repository")
+	repoLogger.Debug("根据名称或别名查找模型", "name", name)
+
 	q := query.Q
 
 	// 使用 GORM 查询模型（按名称或别名查找）
@@ -198,6 +59,7 @@ func (r *DatabaseRepository) FindModelsByNameOrAlias(ctx context.Context, name s
 	).Find()
 
 	if err != nil {
+		repoLogger.Error("查询模型失败", "error", err, "name", name)
 		return nil, fmt.Errorf("查询模型失败：%w", err)
 	}
 
@@ -212,15 +74,20 @@ func (r *DatabaseRepository) FindModelsByNameOrAlias(ctx context.Context, name s
 		}
 	}
 
+	repoLogger.Debug("模型查询成功", "name", name, "found_count", len(models))
 	return models, nil
 }
 
 // GetPlatformByID 根据 ID 获取平台信息
-func (r *DatabaseRepository) GetPlatformByID(ctx context.Context, id uint) (*routing.Platform, error) {
+func (r *Repository) GetPlatformByID(ctx context.Context, id uint) (*routing.Platform, error) {
+	repoLogger := r.logger.WithGroup("platform_repository")
+	repoLogger.Debug("根据 ID 获取平台信息", "platform_id", id)
+
 	q := query.Q
 
 	dbPlatform, err := q.WithContext(ctx).Platform.Where(q.Platform.ID.Eq(id)).First()
 	if err != nil {
+		repoLogger.Error("获取平台失败", "error", err, "platform_id", id)
 		return nil, fmt.Errorf("获取平台失败：%w", err)
 	}
 
@@ -236,15 +103,20 @@ func (r *DatabaseRepository) GetPlatformByID(ctx context.Context, id uint) (*rou
 		},
 	}
 
+	repoLogger.Debug("平台信息获取成功", "platform_id", id, "platform_name", platform.Name)
 	return platform, nil
 }
 
 // GetAllAPIKeysByPlatformID 根据平台 ID 获取所有 API 密钥
-func (r *DatabaseRepository) GetAllAPIKeysByPlatformID(ctx context.Context, platformID uint) ([]*routing.APIKey, error) {
+func (r *Repository) GetAllAPIKeysByPlatformID(ctx context.Context, platformID uint) ([]*routing.APIKey, error) {
+	repoLogger := r.logger.WithGroup("api_key_repository")
+	repoLogger.Debug("根据平台 ID 获取所有 API 密钥", "platform_id", platformID)
+
 	q := query.Q
 
 	dbKeys, err := q.WithContext(ctx).APIKey.Where(q.APIKey.PlatformID.Eq(platformID)).Find()
 	if err != nil {
+		repoLogger.Error("获取 API 密钥失败", "error", err, "platform_id", platformID)
 		return nil, fmt.Errorf("获取 API 密钥失败：%w", err)
 	}
 
@@ -257,15 +129,20 @@ func (r *DatabaseRepository) GetAllAPIKeysByPlatformID(ctx context.Context, plat
 		}
 	}
 
+	repoLogger.Debug("API 密钥获取成功", "platform_id", platformID, "key_count", len(keys))
 	return keys, nil
 }
 
 // GetAllHealth 获取所有健康状态
-func (r *DatabaseRepository) GetAllHealth(ctx context.Context) ([]*health.Health, error) {
+func (r *Repository) GetAllHealth(ctx context.Context) ([]*health.Health, error) {
+	repoLogger := r.logger.WithGroup("health_repository")
+	repoLogger.Debug("获取所有健康状态")
+
 	q := query.Q
 
 	dbHealths, err := q.WithContext(ctx).Health.Find()
 	if err != nil {
+		repoLogger.Error("获取健康状态失败", "error", err)
 		return nil, fmt.Errorf("获取健康状态失败：%w", err)
 	}
 
@@ -291,22 +168,34 @@ func (r *DatabaseRepository) GetAllHealth(ctx context.Context) ([]*health.Health
 		}
 	}
 
+	repoLogger.Debug("健康状态获取成功", "count", len(healths))
 	return healths, nil
 }
 
 // BatchUpdateHealth 批量更新健康状态
-func (r *DatabaseRepository) BatchUpdateHealth(ctx context.Context, statuses []health.Health) error {
+func (r *Repository) BatchUpdateHealth(ctx context.Context, statuses []health.Health) error {
+	repoLogger := r.logger.WithGroup("health_repository")
+	repoLogger.Info("开始批量更新健康状态", "count", len(statuses))
+
 	q := query.Q
 
 	// 开启事务
+	repoLogger.Debug("开启数据库事务")
 	tx := q.Begin()
 	defer func() {
 		if r := recover(); r != nil {
+			repoLogger.Error("事务执行过程中发生 panic，执行回滚", "recover", r)
 			tx.Rollback()
 		}
 	}()
 
-	for _, status := range statuses {
+	for i, status := range statuses {
+		repoLogger.Debug("更新健康状态",
+			"index", i,
+			"resource_id", status.ResourceID,
+			"resource_type", status.ResourceType,
+			"status", status.Status)
+
 		// 转换为数据库类型并更新或创建
 		dbHealth := &types.Health{
 			ID:              status.ID,
@@ -326,16 +215,23 @@ func (r *DatabaseRepository) BatchUpdateHealth(ctx context.Context, statuses []h
 
 		// 使用 Upsert 操作
 		if err := tx.WithContext(ctx).Health.Save(dbHealth); err != nil {
+			repoLogger.Error("更新健康状态失败，执行事务回滚",
+				"error", err,
+				"resource_id", status.ResourceID,
+				"resource_type", status.ResourceType)
 			tx.Rollback()
 			return fmt.Errorf("批量更新健康状态失败：%w", err)
 		}
 	}
 
 	// 检查提交事务是否有错误
+	repoLogger.Debug("提交事务")
 	if err := tx.Commit(); err != nil {
+		repoLogger.Error("提交事务失败", "error", err)
 		return fmt.Errorf("提交事务失败：%w", err)
 	}
 
+	repoLogger.Info("批量更新健康状态成功", "count", len(statuses))
 	return nil
 }
 
@@ -349,7 +245,20 @@ func (r *DatabaseRepository) BatchUpdateHealth(ctx context.Context, statuses []h
 //
 // 返回值：
 //   - error: 错误信息
-func (r *DatabaseRepository) CreateRequestLog(ctx context.Context, log *request.RequestLog) error {
+func (r *Repository) CreateRequestLog(ctx context.Context, log *request.RequestLog) error {
+	repoLogger := r.logger.WithGroup("log_repository")
+
+	// 记录审计日志
+	repoLogger.Info("创建请求日志",
+		"request_id", log.ID,
+		"request_type", log.RequestType,
+		"model_name", log.ModelName,
+		"original_model_name", log.OriginalModelName,
+		"platform_id", log.PlatformID,
+		"success", log.Success,
+		"duration_ms", log.Duration.Milliseconds(),
+		"total_tokens", log.TotalTokens)
+
 	// 将 request.RequestLog 转换为数据库类型
 	dbLog := &types.RequestLog{
 		ID:                log.ID,
@@ -373,10 +282,16 @@ func (r *DatabaseRepository) CreateRequestLog(ctx context.Context, log *request.
 	}
 
 	// 保存到数据库
+	repoLogger.Debug("保存请求日志到数据库")
 	err := query.Q.WithContext(ctx).RequestLog.Create(dbLog)
 	if err != nil {
+		repoLogger.Error("保存请求日志失败",
+			"error", err,
+			"request_id", log.ID,
+			"model_name", log.ModelName)
 		return fmt.Errorf("保存请求日志失败：%w", err)
 	}
 
+	repoLogger.Debug("请求日志保存成功", "request_id", log.ID)
 	return nil
 }
