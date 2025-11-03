@@ -42,6 +42,11 @@ func (s *service) GetOverview(ctx context.Context, duration time.Duration) (*Sta
 
 	startTime := time.Now().Add(-duration)
 
+	s.logger.InfoContext(ctx, "开始获取全局概览数据",
+		"duration", duration,
+		"start_time", startTime,
+	)
+
 	// 使用 WaitGroup 和 errgroup 模式并发执行独立查询
 	var (
 		totalRequests         int64
@@ -100,20 +105,30 @@ func (s *service) GetOverview(ctx context.Context, duration time.Duration) (*Sta
 
 	// 检查是否有错误发生
 	if err := <-errChan; err != nil {
+		s.logger.ErrorContext(ctx, "获取全局概览数据失败", "error", err)
 		return nil, err
 	}
 
 	// 计算成功率，避免除零错误
 	successRate := s.calculateSuccessRate(totalRequests, successRequests)
 
-	return &StatsOverviewResponse{
+	response := &StatsOverviewResponse{
 		TotalRequests:         totalRequests,
 		SuccessRate:           successRate,
 		AvgFirstByteTime:      avgFirstByteTime,
 		TotalPromptTokens:     totalPromptTokens,
 		TotalCompletionTokens: totalCompletionTokens,
 		TotalTokens:           totalTokens,
-	}, nil
+	}
+
+	s.logger.InfoContext(ctx, "成功获取全局概览数据",
+		"total_requests", totalRequests,
+		"success_rate", successRate,
+		"avg_first_byte_time", avgFirstByteTime,
+		"total_tokens", totalTokens,
+	)
+
+	return response, nil
 }
 
 // getRequestCounts 获取总请求数和成功请求数
@@ -127,11 +142,13 @@ func (s *service) getRequestCounts(ctx context.Context, startTime time.Time) (to
 		Where(r.Timestamp.Gte(startTime)).
 		Count()
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取总请求数失败", "error", err, "start_time", startTime)
 		return 0, 0, err
 	}
 
 	// 如果总数为 0，无需查询成功数
 	if total == 0 {
+		s.logger.DebugContext(ctx, "无请求数据", "start_time", startTime)
 		return 0, 0, nil
 	}
 
@@ -141,8 +158,15 @@ func (s *service) getRequestCounts(ctx context.Context, startTime time.Time) (to
 		Where(r.Success.Is(true)).
 		Count()
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取成功请求数失败", "error", err, "start_time", startTime)
 		return 0, 0, err
 	}
+
+	s.logger.DebugContext(ctx, "成功获取请求统计",
+		"total_requests", total,
+		"success_requests", success,
+		"start_time", startTime,
+	)
 
 	return total, success, nil
 }
@@ -179,6 +203,7 @@ func (s *service) getTokenStats(ctx context.Context, startTime time.Time) (promp
 		Scan(&result)
 
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取 Token 统计失败", "error", err, "start_time", startTime)
 		return 0, 0, 0, err
 	}
 
@@ -192,6 +217,13 @@ func (s *service) getTokenStats(ctx context.Context, startTime time.Time) (promp
 	if result.TotalTokens != nil {
 		total = *result.TotalTokens
 	}
+
+	s.logger.DebugContext(ctx, "成功获取 Token 统计",
+		"prompt_tokens", prompt,
+		"completion_tokens", completion,
+		"total_tokens", total,
+		"start_time", startTime,
+	)
 
 	return prompt, completion, total, nil
 }

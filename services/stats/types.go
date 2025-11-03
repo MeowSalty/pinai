@@ -1,9 +1,14 @@
 package stats
 
-import "time"
+import (
+	"log/slog"
+	"time"
+)
 
 // service 是 ServiceInterface 接口的具体实现
-type service struct{}
+type service struct {
+	logger *slog.Logger
+}
 
 // StatsOverviewResponse 定义了全局概览数据的响应结构
 type StatsOverviewResponse struct {

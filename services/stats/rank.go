@@ -27,11 +27,14 @@ func (s *service) GetModelCallRank(ctx context.Context, duration time.Duration) 
 
 	startTime := time.Now().Add(-duration)
 
+	s.logger.InfoContext(ctx, "开始获取模型调用排名", "duration", duration)
+
 	// 获取总请求数
 	totalRequests, err := r.WithContext(ctx).
 		Where(r.Timestamp.Gte(startTime)).
 		Count()
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取总请求数失败", "error", err)
 		return nil, fmt.Errorf("获取总请求数失败：%w", err)
 	}
 
@@ -56,8 +59,11 @@ func (s *service) GetModelCallRank(ctx context.Context, duration time.Duration) 
 		Scan(&results).Error
 
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取模型排名失败", "error", err)
 		return nil, fmt.Errorf("获取模型排名失败：%w", err)
 	}
+
+	s.logger.InfoContext(ctx, "成功获取模型调用排名", "model_count", len(results))
 
 	// 构建响应结果
 	modelCallRankItems := make([]ModelCallRankItem, 0, len(results))
@@ -106,11 +112,14 @@ func (s *service) GetPlatformCallRank(ctx context.Context, duration time.Duratio
 
 	startTime := time.Now().Add(-duration)
 
+	s.logger.InfoContext(ctx, "开始获取平台调用排名", "duration", duration)
+
 	// 获取总请求数
 	totalRequests, err := r.WithContext(ctx).
 		Where(r.Timestamp.Gte(startTime)).
 		Count()
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取总请求数失败", "error", err)
 		return nil, fmt.Errorf("获取总请求数失败：%w", err)
 	}
 
@@ -139,8 +148,11 @@ func (s *service) GetPlatformCallRank(ctx context.Context, duration time.Duratio
 		Scan(&results).Error
 
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取平台排名失败", "error", err)
 		return nil, fmt.Errorf("获取平台排名失败：%w", err)
 	}
+
+	s.logger.InfoContext(ctx, "成功获取平台调用排名", "platform_count", len(results))
 
 	// 构建响应结果
 	platformCallRankItems := make([]PlatformCallRankItem, 0, len(results))
@@ -189,6 +201,8 @@ func (s *service) GetModelUsageRank(ctx context.Context, duration time.Duration)
 
 	startTime := time.Now().Add(-duration)
 
+	s.logger.InfoContext(ctx, "开始获取模型用量排名", "duration", duration)
+
 	// 获取总 Token 数
 	var totalTokensSum struct {
 		Total int64 `gorm:"column:total"`
@@ -199,6 +213,7 @@ func (s *service) GetModelUsageRank(ctx context.Context, duration time.Duration)
 		Where("timestamp >= ? AND total_tokens IS NOT NULL", startTime).
 		Scan(&totalTokensSum).Error
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取总 Token 数失败", "error", err)
 		return nil, fmt.Errorf("获取总 Token 数失败：%w", err)
 	}
 
@@ -224,8 +239,14 @@ func (s *service) GetModelUsageRank(ctx context.Context, duration time.Duration)
 		Scan(&results).Error
 
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取模型用量排名失败", "error", err)
 		return nil, fmt.Errorf("获取模型用量排名失败：%w", err)
 	}
+
+	s.logger.InfoContext(ctx, "成功获取模型用量排名",
+		"model_count", len(results),
+		"total_tokens", totalTokensSum.Total,
+	)
 
 	// 构建响应结果
 	modelUsageRankItems := make([]ModelUsageRankItem, 0, len(results))
@@ -271,6 +292,8 @@ func (s *service) GetPlatformUsageRank(ctx context.Context, duration time.Durati
 
 	startTime := time.Now().Add(-duration)
 
+	s.logger.InfoContext(ctx, "开始获取平台用量排名", "duration", duration)
+
 	// 获取总 Token 数
 	var totalTokensSum struct {
 		Total int64 `gorm:"column:total"`
@@ -281,6 +304,7 @@ func (s *service) GetPlatformUsageRank(ctx context.Context, duration time.Durati
 		Where("timestamp >= ? AND total_tokens IS NOT NULL", startTime).
 		Scan(&totalTokensSum).Error
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取总 Token 数失败", "error", err)
 		return nil, fmt.Errorf("获取总 Token 数失败：%w", err)
 	}
 
@@ -310,8 +334,14 @@ func (s *service) GetPlatformUsageRank(ctx context.Context, duration time.Durati
 		Scan(&results).Error
 
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取平台用量排名失败", "error", err)
 		return nil, fmt.Errorf("获取平台用量排名失败：%w", err)
 	}
+
+	s.logger.InfoContext(ctx, "成功获取平台用量排名",
+		"platform_count", len(results),
+		"total_tokens", totalTokensSum.Total,
+	)
 
 	// 构建响应结果
 	platformUsageRankItems := make([]PlatformUsageRankItem, 0, len(results))

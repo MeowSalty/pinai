@@ -25,9 +25,17 @@ import (
 func (s *service) calculateAvgFirstByteTimeWithPercentile(ctx context.Context, lowerPercentile, upperPercentile float64) (float64, error) {
 	// 参数验证
 	if lowerPercentile < 0 || lowerPercentile >= 1 || upperPercentile <= 0 || upperPercentile > 1 {
+		s.logger.ErrorContext(ctx, "百分位参数无效",
+			"lower_percentile", lowerPercentile,
+			"upper_percentile", upperPercentile,
+		)
 		return 0, fmt.Errorf("百分位参数无效：lowerPercentile=%f, upperPercentile=%f", lowerPercentile, upperPercentile)
 	}
 	if lowerPercentile >= upperPercentile {
+		s.logger.ErrorContext(ctx, "百分位参数顺序错误",
+			"lower_percentile", lowerPercentile,
+			"upper_percentile", upperPercentile,
+		)
 		return 0, fmt.Errorf("下限百分位 (%f) 必须小于上限百分位 (%f)", lowerPercentile, upperPercentile)
 	}
 
@@ -42,11 +50,13 @@ func (s *service) calculateAvgFirstByteTimeWithPercentile(ctx context.Context, l
 		Where(r.Timestamp.Gte(time.Now().Add(-24 * time.Hour))).
 		Scan(&firstByteTimes)
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取首字时间数据失败", "error", err)
 		return 0, fmt.Errorf("获取首字时间数据失败：%w", err)
 	}
 
 	// 无数据时返回 0
 	if len(firstByteTimes) == 0 {
+		s.logger.DebugContext(ctx, "无首字时间数据")
 		return 0, nil
 	}
 
@@ -60,12 +70,18 @@ func (s *service) calculateAvgFirstByteTimeWithPercentile(ctx context.Context, l
 
 	// 过滤后无有效数据
 	if len(durations) == 0 {
+		s.logger.DebugContext(ctx, "过滤后无有效首字时间数据")
 		return 0, nil
 	}
 
 	// 数据量太少时不进行百分位过滤，直接计算平均值
 	if len(durations) < 10 {
-		return calculateAverage(durations), nil
+		avg := calculateAverage(durations)
+		s.logger.DebugContext(ctx, "数据量较少，直接计算平均值",
+			"data_count", len(durations),
+			"avg_ns", avg,
+		)
+		return avg, nil
 	}
 
 	// 对持续时间进行排序（升序）
@@ -95,11 +111,22 @@ func (s *service) calculateAvgFirstByteTimeWithPercentile(ctx context.Context, l
 	filteredDurations := durations[lowerIndex:upperIndex]
 
 	if len(filteredDurations) == 0 {
+		s.logger.WarnContext(ctx, "百分位过滤后无数据")
 		return 0, nil
 	}
 
 	// 计算平均值
-	return calculateAverage(filteredDurations), nil
+	avg := calculateAverage(filteredDurations)
+
+	s.logger.DebugContext(ctx, "成功计算平均首字时间",
+		"original_count", len(durations),
+		"filtered_count", len(filteredDurations),
+		"avg_ns", avg,
+		"lower_percentile", lowerPercentile,
+		"upper_percentile", upperPercentile,
+	)
+
+	return avg, nil
 }
 
 // calculateAverage 计算 uint64 切片的平均值

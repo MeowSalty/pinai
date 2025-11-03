@@ -45,7 +45,7 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 	providerService := provider.New(logger.WithGroup("provider"))
 
 	// 初始化统计服务
-	statsService := stats.New()
+	statsService := stats.New(logger.WithGroup("stats"))
 
 	return &Services{
 		HealthService:   healthService,

@@ -10,6 +10,11 @@ import (
 
 // ListRequestLogs 实现获取请求状态列表的业务逻辑
 func (s *service) ListRequestLogs(ctx context.Context, opts ListRequestLogsOptions) ([]*types.RequestLog, int64, error) {
+	s.logger.InfoContext(ctx, "开始获取请求日志列表",
+		"page", opts.Page,
+		"page_size", opts.PageSize,
+	)
+
 	q := query.Q
 	r := q.RequestLog
 
@@ -48,8 +53,14 @@ func (s *service) ListRequestLogs(ctx context.Context, opts ListRequestLogsOptio
 	// 执行分页查询
 	result, count, err := queryBuilder.FindByPage(offset, opts.PageSize)
 	if err != nil {
+		s.logger.ErrorContext(ctx, "获取请求日志列表失败", "error", err)
 		return nil, 0, fmt.Errorf("获取请求状态列表失败：%w", err)
 	}
+
+	s.logger.InfoContext(ctx, "成功获取请求日志列表",
+		"count", count,
+		"result_size", len(result),
+	)
 
 	return result, count, nil
 }

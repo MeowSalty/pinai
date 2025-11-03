@@ -2,6 +2,7 @@ package stats
 
 import (
 	"bufio"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,17 +19,24 @@ type Collector struct {
 
 	// 活动连接计数器
 	activeConnections int64
+
+	// 日志记录器
+	logger *slog.Logger
 }
 
 // globalCollector 全局采集器实例
 var globalCollector *Collector
+var once sync.Once
 
 // InitCollector 初始化全局采集器
-func InitCollector() {
+func InitCollector(logger *slog.Logger) {
 	globalCollector = &Collector{
 		requestCounts: make([]int64, 60), // 保存过去 60 秒的数据
 		currentSecond: time.Now().Unix(),
+		logger:        logger,
 	}
+
+	logger.Info("实时数据采集器初始化完成")
 
 	// 启动后台清理协程
 	go globalCollector.cleanup()
@@ -36,9 +44,13 @@ func InitCollector() {
 
 // GetCollector 获取全局采集器实例
 func GetCollector() *Collector {
-	if globalCollector == nil {
-		InitCollector()
-	}
+	once.Do(func() {
+		if globalCollector == nil {
+			logger := slog.Default()
+			logger.Warn("采集器未预初始化，使用默认日志记录器进行延迟初始化")
+			InitCollector(logger)
+		}
+	})
 	return globalCollector
 }
 
@@ -58,6 +70,7 @@ func (c *Collector) RecordRequest() {
 			c.requestCounts[i%60] = 0
 		}
 		c.currentSecond = now
+		c.logger.Debug("更新当前秒时间戳", "current_second", now)
 	}
 
 	// 记录当前秒的请求数
@@ -66,12 +79,14 @@ func (c *Collector) RecordRequest() {
 
 // IncrementConnection 增加活动连接数
 func (c *Collector) IncrementConnection() {
-	atomic.AddInt64(&c.activeConnections, 1)
+	newCount := atomic.AddInt64(&c.activeConnections, 1)
+	c.logger.Debug("增加活动连接", "active_connections", newCount)
 }
 
 // DecrementConnection 减少活动连接数
 func (c *Collector) DecrementConnection() {
-	atomic.AddInt64(&c.activeConnections, -1)
+	newCount := atomic.AddInt64(&c.activeConnections, -1)
+	c.logger.Debug("减少活动连接", "active_connections", newCount)
 }
 
 // GetRPM 获取过去 1 分钟的 RPM (每分钟请求数)
@@ -99,6 +114,7 @@ func (c *Collector) GetActiveConnections() int64 {
 
 // cleanup 后台清理协程，定期清理过期数据
 func (c *Collector) cleanup() {
+	c.logger.Info("启动后台清理协程")
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -108,10 +124,15 @@ func (c *Collector) cleanup() {
 
 		// 清理超过 60 秒的数据
 		if now > c.currentSecond {
+			clearedCount := now - c.currentSecond
 			for i := c.currentSecond + 1; i <= now; i++ {
 				c.requestCounts[i%60] = 0
 			}
 			c.currentSecond = now
+
+			if clearedCount > 1 {
+				c.logger.Debug("清理过期数据", "cleared_seconds", clearedCount)
+			}
 		}
 		c.mu.Unlock()
 	}
