@@ -56,6 +56,7 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string) (Serv
 		KeyRepo:      repo,
 		HealthRepo:   repo,
 		LogRepo:      repo,
+		Logger:       NewSlogAdapter(logger),
 	})
 	if err != nil {
 		logger.Error("创建网关管理器失败", "error", err)
