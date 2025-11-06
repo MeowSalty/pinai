@@ -26,21 +26,32 @@ func (r *Repository) GetModelByID(ctx context.Context, id uint) (routing.Model, 
 
 	q := query.Q
 
-	dbModel, err := q.WithContext(ctx).Model.Where(q.Model.ID.Eq(id)).First()
+	// 预加载 APIKeys 关联数据
+	dbModel, err := q.WithContext(ctx).Model.Preload(q.Model.APIKeys).Where(q.Model.ID.Eq(id)).First()
 	if err != nil {
 		repoLogger.Error("获取模型失败", "error", err, "model_id", id)
 		return routing.Model{}, fmt.Errorf("获取模型失败：%w", err)
 	}
 
-	// 转换为 core.Model 类型
+	// 转换 APIKeys
+	apiKeys := make([]routing.APIKey, len(dbModel.APIKeys))
+	for i, dbKey := range dbModel.APIKeys {
+		apiKeys[i] = routing.APIKey{
+			ID:    dbKey.ID,
+			Value: dbKey.Value,
+		}
+	}
+
+	// 转换为 routing.Model 类型
 	model := routing.Model{
 		ID:         dbModel.ID,
 		PlatformID: dbModel.PlatformID,
 		Name:       dbModel.Name,
 		Alias:      dbModel.Alias,
+		APIKeys:    apiKeys,
 	}
 
-	repoLogger.Debug("模型信息获取成功", "model_id", id, "model_name", model.Name)
+	repoLogger.Debug("模型信息获取成功", "model_id", id, "model_name", model.Name, "api_keys_count", len(apiKeys))
 	return model, nil
 }
 
@@ -51,8 +62,8 @@ func (r *Repository) FindModelsByNameOrAlias(ctx context.Context, name string) (
 
 	q := query.Q
 
-	// 使用 GORM 查询模型（按名称或别名查找）
-	dbModels, err := q.WithContext(ctx).Model.Where(
+	// 使用 GORM 查询模型（按名称或别名查找），预加载 APIKeys 关联数据
+	dbModels, err := q.WithContext(ctx).Model.Preload(q.Model.APIKeys).Where(
 		q.Model.Name.Eq(name),
 	).Or(
 		q.Model.Alias_.Eq(name),
@@ -63,14 +74,24 @@ func (r *Repository) FindModelsByNameOrAlias(ctx context.Context, name string) (
 		return nil, fmt.Errorf("查询模型失败：%w", err)
 	}
 
-	// 转换为 core.Model 类型
+	// 转换为 routing.Model 类型
 	models := make([]routing.Model, len(dbModels))
 	for i, dbModel := range dbModels {
+		// 转换 APIKeys
+		apiKeys := make([]routing.APIKey, len(dbModel.APIKeys))
+		for j, dbKey := range dbModel.APIKeys {
+			apiKeys[j] = routing.APIKey{
+				ID:    dbKey.ID,
+				Value: dbKey.Value,
+			}
+		}
+
 		models[i] = routing.Model{
 			ID:         dbModel.ID,
 			PlatformID: dbModel.PlatformID,
 			Name:       dbModel.Name,
 			Alias:      dbModel.Alias,
+			APIKeys:    apiKeys,
 		}
 	}
 
