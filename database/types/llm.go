@@ -17,17 +17,18 @@ type Platform struct {
 
 // 模型表 (models)
 type Model struct {
-	ID         uint     `gorm:"primaryKey" json:"id"`                    // 模型 ID
-	PlatformID uint     `gorm:"index" json:"platform_id"`                // 平台 ID（外键）
-	Name       string   `gorm:"index" json:"name"`                       // 模型名称（平台中的模型标识）
-	Alias      string   `gorm:"index" json:"alias"`                      // 模型别名（可选）
+	ID         uint     `gorm:"primaryKey" json:"id"`     // 模型 ID
+	PlatformID uint     `gorm:"index" json:"platform_id"` // 平台 ID（外键）
+	Name       string   `gorm:"index" json:"name"`        // 模型名称（平台中的模型标识）
+	Alias      string   `gorm:"index" json:"alias"`       // 模型别名（可选）
 	Platform   Platform `json:"-"`
+	APIKeys    []APIKey `gorm:"many2many:api_key_models;" json:"api_keys,omitempty"` // Many-to-Many 关系
 }
 
 // 密钥表 (api_keys)
 type APIKey struct {
-	ID         uint     `gorm:"primaryKey" json:"id"`         // 密钥 ID
-	PlatformID uint     `gorm:"index" json:"platform_id"`     // 平台 ID（外键）
-	Value      string   `json:"value"`                        // 密钥值
+	ID         uint     `gorm:"primaryKey" json:"id"`     // 密钥 ID
+	PlatformID uint     `gorm:"index" json:"platform_id"` // 平台 ID（外键）
+	Value      string   `json:"value"`                    // 密钥值
 	Platform   Platform `json:"-"`
 }

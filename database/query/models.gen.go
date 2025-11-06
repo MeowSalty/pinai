@@ -38,6 +38,17 @@ func newModel(db *gorm.DB, opts ...gen.DOOption) model {
 		RelationField: field.NewRelation("Platform", "types.Platform"),
 	}
 
+	_model.APIKeys = modelManyToManyAPIKeys{
+		db: db.Session(&gorm.Session{}),
+
+		RelationField: field.NewRelation("APIKeys", "types.APIKey"),
+		Platform: struct {
+			field.RelationField
+		}{
+			RelationField: field.NewRelation("APIKeys.Platform", "types.Platform"),
+		},
+	}
+
 	_model.fillFieldMap()
 
 	return _model
@@ -52,6 +63,8 @@ type model struct {
 	Name       field.String
 	Alias_     field.String
 	Platform   modelBelongsToPlatform
+
+	APIKeys modelManyToManyAPIKeys
 
 	fieldMap map[string]field.Expr
 }
@@ -88,7 +101,7 @@ func (m *model) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (m *model) fillFieldMap() {
-	m.fieldMap = make(map[string]field.Expr, 5)
+	m.fieldMap = make(map[string]field.Expr, 6)
 	m.fieldMap["id"] = m.ID
 	m.fieldMap["platform_id"] = m.PlatformID
 	m.fieldMap["name"] = m.Name
@@ -100,12 +113,15 @@ func (m model) clone(db *gorm.DB) model {
 	m.modelDo.ReplaceConnPool(db.Statement.ConnPool)
 	m.Platform.db = db.Session(&gorm.Session{Initialized: true})
 	m.Platform.db.Statement.ConnPool = db.Statement.ConnPool
+	m.APIKeys.db = db.Session(&gorm.Session{Initialized: true})
+	m.APIKeys.db.Statement.ConnPool = db.Statement.ConnPool
 	return m
 }
 
 func (m model) replaceDB(db *gorm.DB) model {
 	m.modelDo.ReplaceDB(db)
 	m.Platform.db = db.Session(&gorm.Session{})
+	m.APIKeys.db = db.Session(&gorm.Session{})
 	return m
 }
 
@@ -186,6 +202,91 @@ func (a modelBelongsToPlatformTx) Count() int64 {
 }
 
 func (a modelBelongsToPlatformTx) Unscoped() *modelBelongsToPlatformTx {
+	a.tx = a.tx.Unscoped()
+	return &a
+}
+
+type modelManyToManyAPIKeys struct {
+	db *gorm.DB
+
+	field.RelationField
+
+	Platform struct {
+		field.RelationField
+	}
+}
+
+func (a modelManyToManyAPIKeys) Where(conds ...field.Expr) *modelManyToManyAPIKeys {
+	if len(conds) == 0 {
+		return &a
+	}
+
+	exprs := make([]clause.Expression, 0, len(conds))
+	for _, cond := range conds {
+		exprs = append(exprs, cond.BeCond().(clause.Expression))
+	}
+	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
+	return &a
+}
+
+func (a modelManyToManyAPIKeys) WithContext(ctx context.Context) *modelManyToManyAPIKeys {
+	a.db = a.db.WithContext(ctx)
+	return &a
+}
+
+func (a modelManyToManyAPIKeys) Session(session *gorm.Session) *modelManyToManyAPIKeys {
+	a.db = a.db.Session(session)
+	return &a
+}
+
+func (a modelManyToManyAPIKeys) Model(m *types.Model) *modelManyToManyAPIKeysTx {
+	return &modelManyToManyAPIKeysTx{a.db.Model(m).Association(a.Name())}
+}
+
+func (a modelManyToManyAPIKeys) Unscoped() *modelManyToManyAPIKeys {
+	a.db = a.db.Unscoped()
+	return &a
+}
+
+type modelManyToManyAPIKeysTx struct{ tx *gorm.Association }
+
+func (a modelManyToManyAPIKeysTx) Find() (result []*types.APIKey, err error) {
+	return result, a.tx.Find(&result)
+}
+
+func (a modelManyToManyAPIKeysTx) Append(values ...*types.APIKey) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Append(targetValues...)
+}
+
+func (a modelManyToManyAPIKeysTx) Replace(values ...*types.APIKey) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Replace(targetValues...)
+}
+
+func (a modelManyToManyAPIKeysTx) Delete(values ...*types.APIKey) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Delete(targetValues...)
+}
+
+func (a modelManyToManyAPIKeysTx) Clear() error {
+	return a.tx.Clear()
+}
+
+func (a modelManyToManyAPIKeysTx) Count() int64 {
+	return a.tx.Count()
+}
+
+func (a modelManyToManyAPIKeysTx) Unscoped() *modelManyToManyAPIKeysTx {
 	a.tx = a.tx.Unscoped()
 	return &a
 }
