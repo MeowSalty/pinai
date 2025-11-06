@@ -99,6 +99,36 @@ func (s *service) DeleteKey(ctx context.Context, keyId uint) error {
 	logger := s.logger.With(slog.Uint64("key_id", uint64(keyId)))
 	logger.Debug("开始删除 API 密钥")
 
+	// 先查询密钥是否存在
+	apiKey, err := query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.ID.Eq(keyId)).First()
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			logger.Warn("API 密钥不存在")
+			return fmt.Errorf("未找到 ID 为 %d 的 API 密钥", keyId)
+		}
+		logger.Error("查询 API 密钥失败", slog.Any("error", err))
+		return fmt.Errorf("查询 ID 为 %d 的 API 密钥失败：%w", keyId, err)
+	}
+
+	// 查找所有关联此密钥的模型
+	models, err := query.Q.Model.WithContext(ctx).Where(query.Q.Model.PlatformID.Eq(apiKey.PlatformID)).Find()
+	if err != nil {
+		logger.Error("查询关联模型失败", slog.Any("error", err))
+		return fmt.Errorf("查询关联模型失败：%w", err)
+	}
+
+	// 清理每个模型与该密钥的关联关系
+	db := query.Q.APIKey.UnderlyingDB().WithContext(ctx)
+	for _, model := range models {
+		if err := db.Model(model).Association("APIKeys").Delete(apiKey); err != nil {
+			logger.Error("清理模型关联失败",
+				slog.Uint64("model_id", uint64(model.ID)),
+				slog.Any("error", err))
+			return fmt.Errorf("清理模型 ID 为 %d 与密钥的关联失败：%w", model.ID, err)
+		}
+	}
+	logger.Debug("成功清理多对多关联关系", slog.Int("model_count", len(models)))
+
 	// 删除密钥
 	result, err := query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.ID.Eq(keyId)).Delete()
 	if err != nil {

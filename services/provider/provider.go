@@ -49,11 +49,13 @@ func (s *service) CreateProvider(ctx context.Context, req CreateRequest) (*types
 	}
 	s.logger.Debug("API 密钥创建成功", slog.Uint64("key_id", uint64(apiKey.ID)))
 
-	// 3. 批量创建模型
+	// 3. 批量创建模型并建立与密钥的关联关系
 	modelsToCreate := make([]*types.Model, len(req.Models))
 	for i := range req.Models {
 		req.Models[i].PlatformID = platform.ID
 		req.Models[i].ID = 0
+		// 为每个模型关联创建的密钥
+		req.Models[i].APIKeys = []types.APIKey{apiKey}
 		modelsToCreate[i] = &req.Models[i]
 	}
 	if len(modelsToCreate) > 0 {
@@ -62,7 +64,7 @@ func (s *service) CreateProvider(ctx context.Context, req CreateRequest) (*types
 			s.logger.Error("批量创建模型失败，已回滚事务", slog.Uint64("platform_id", uint64(platform.ID)), slog.Int("model_count", len(modelsToCreate)), slog.Any("error", err))
 			return nil, fmt.Errorf("创建模型失败：%w", err)
 		}
-		s.logger.Debug("模型批量创建成功", slog.Int("model_count", len(modelsToCreate)))
+		s.logger.Debug("模型批量创建成功，已关联 API 密钥", slog.Int("model_count", len(modelsToCreate)))
 	}
 
 	// 提交事务
@@ -98,7 +100,28 @@ func (s *service) DeleteProvider(ctx context.Context, id uint) error {
 		}
 	}()
 
-	// 1. 删除关联的模型
+	// 1. 查询所有关联的模型
+	models, err := tx.Model.WithContext(ctx).Where(tx.Model.PlatformID.Eq(id)).Find()
+	if err != nil {
+		tx.Rollback()
+		logger.Error("查询关联模型失败，已回滚事务", slog.Any("error", err))
+		return fmt.Errorf("查询平台 ID 为 %d 的模型失败：%w", id, err)
+	}
+
+	// 2. 清理模型与密钥的多对多关联关系
+	db := tx.Model.UnderlyingDB().WithContext(ctx)
+	for _, model := range models {
+		if err := db.Model(model).Association("APIKeys").Clear(); err != nil {
+			tx.Rollback()
+			logger.Error("清理模型密钥关联失败，已回滚事务",
+				slog.Uint64("model_id", uint64(model.ID)),
+				slog.Any("error", err))
+			return fmt.Errorf("清理模型 ID 为 %d 的密钥关联失败：%w", model.ID, err)
+		}
+	}
+	logger.Debug("清理模型密钥关联成功", slog.Int("model_count", len(models)))
+
+	// 3. 删除关联的模型
 	modelResult, err := tx.Model.WithContext(ctx).Where(tx.Model.PlatformID.Eq(id)).Delete()
 	if err != nil {
 		tx.Rollback()
@@ -107,7 +130,7 @@ func (s *service) DeleteProvider(ctx context.Context, id uint) error {
 	}
 	logger.Debug("删除关联模型成功", slog.Int64("deleted_count", modelResult.RowsAffected))
 
-	// 2. 删除关联的密钥
+	// 4. 删除关联的密钥
 	keyResult, err := tx.APIKey.WithContext(ctx).Where(tx.APIKey.PlatformID.Eq(id)).Delete()
 	if err != nil {
 		tx.Rollback()
@@ -116,7 +139,7 @@ func (s *service) DeleteProvider(ctx context.Context, id uint) error {
 	}
 	logger.Debug("删除关联 API 密钥成功", slog.Int64("deleted_count", keyResult.RowsAffected))
 
-	// 3. 删除平台本身
+	// 5. 删除平台本身
 	result, err := tx.Platform.WithContext(ctx).Where(tx.Platform.ID.Eq(id)).Delete()
 	if err != nil {
 		tx.Rollback()
