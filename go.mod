@@ -6,7 +6,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.9
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
-	gorm.io/gorm v1.30.2
+	gorm.io/gorm v1.31.1
 	gorm.io/plugin/dbresolver v1.6.2
 )
 
