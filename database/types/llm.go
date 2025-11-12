@@ -31,4 +31,5 @@ type APIKey struct {
 	PlatformID uint     `gorm:"index" json:"platform_id"` // 平台 ID（外键）
 	Value      string   `json:"value"`                    // 密钥值
 	Platform   Platform `json:"-"`
+	Models     []Model  `gorm:"many2many:api_key_models;" json:"models,omitempty"`
 }

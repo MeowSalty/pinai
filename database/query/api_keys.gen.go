@@ -37,6 +37,38 @@ func newAPIKey(db *gorm.DB, opts ...gen.DOOption) aPIKey {
 		RelationField: field.NewRelation("Platform", "types.Platform"),
 	}
 
+	_aPIKey.Models = aPIKeyManyToManyModels{
+		db: db.Session(&gorm.Session{}),
+
+		RelationField: field.NewRelation("Models", "types.Model"),
+		Platform: struct {
+			field.RelationField
+		}{
+			RelationField: field.NewRelation("Models.Platform", "types.Platform"),
+		},
+		APIKeys: struct {
+			field.RelationField
+			Platform struct {
+				field.RelationField
+			}
+			Models struct {
+				field.RelationField
+			}
+		}{
+			RelationField: field.NewRelation("Models.APIKeys", "types.APIKey"),
+			Platform: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Models.APIKeys.Platform", "types.Platform"),
+			},
+			Models: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Models.APIKeys.Models", "types.Model"),
+			},
+		},
+	}
+
 	_aPIKey.fillFieldMap()
 
 	return _aPIKey
@@ -50,6 +82,8 @@ type aPIKey struct {
 	PlatformID field.Uint
 	Value      field.String
 	Platform   aPIKeyBelongsToPlatform
+
+	Models aPIKeyManyToManyModels
 
 	fieldMap map[string]field.Expr
 }
@@ -85,7 +119,7 @@ func (a *aPIKey) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (a *aPIKey) fillFieldMap() {
-	a.fieldMap = make(map[string]field.Expr, 4)
+	a.fieldMap = make(map[string]field.Expr, 5)
 	a.fieldMap["id"] = a.ID
 	a.fieldMap["platform_id"] = a.PlatformID
 	a.fieldMap["value"] = a.Value
@@ -96,12 +130,15 @@ func (a aPIKey) clone(db *gorm.DB) aPIKey {
 	a.aPIKeyDo.ReplaceConnPool(db.Statement.ConnPool)
 	a.Platform.db = db.Session(&gorm.Session{Initialized: true})
 	a.Platform.db.Statement.ConnPool = db.Statement.ConnPool
+	a.Models.db = db.Session(&gorm.Session{Initialized: true})
+	a.Models.db.Statement.ConnPool = db.Statement.ConnPool
 	return a
 }
 
 func (a aPIKey) replaceDB(db *gorm.DB) aPIKey {
 	a.aPIKeyDo.ReplaceDB(db)
 	a.Platform.db = db.Session(&gorm.Session{})
+	a.Models.db = db.Session(&gorm.Session{})
 	return a
 }
 
@@ -182,6 +219,100 @@ func (a aPIKeyBelongsToPlatformTx) Count() int64 {
 }
 
 func (a aPIKeyBelongsToPlatformTx) Unscoped() *aPIKeyBelongsToPlatformTx {
+	a.tx = a.tx.Unscoped()
+	return &a
+}
+
+type aPIKeyManyToManyModels struct {
+	db *gorm.DB
+
+	field.RelationField
+
+	Platform struct {
+		field.RelationField
+	}
+	APIKeys struct {
+		field.RelationField
+		Platform struct {
+			field.RelationField
+		}
+		Models struct {
+			field.RelationField
+		}
+	}
+}
+
+func (a aPIKeyManyToManyModels) Where(conds ...field.Expr) *aPIKeyManyToManyModels {
+	if len(conds) == 0 {
+		return &a
+	}
+
+	exprs := make([]clause.Expression, 0, len(conds))
+	for _, cond := range conds {
+		exprs = append(exprs, cond.BeCond().(clause.Expression))
+	}
+	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
+	return &a
+}
+
+func (a aPIKeyManyToManyModels) WithContext(ctx context.Context) *aPIKeyManyToManyModels {
+	a.db = a.db.WithContext(ctx)
+	return &a
+}
+
+func (a aPIKeyManyToManyModels) Session(session *gorm.Session) *aPIKeyManyToManyModels {
+	a.db = a.db.Session(session)
+	return &a
+}
+
+func (a aPIKeyManyToManyModels) Model(m *types.APIKey) *aPIKeyManyToManyModelsTx {
+	return &aPIKeyManyToManyModelsTx{a.db.Model(m).Association(a.Name())}
+}
+
+func (a aPIKeyManyToManyModels) Unscoped() *aPIKeyManyToManyModels {
+	a.db = a.db.Unscoped()
+	return &a
+}
+
+type aPIKeyManyToManyModelsTx struct{ tx *gorm.Association }
+
+func (a aPIKeyManyToManyModelsTx) Find() (result []*types.Model, err error) {
+	return result, a.tx.Find(&result)
+}
+
+func (a aPIKeyManyToManyModelsTx) Append(values ...*types.Model) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Append(targetValues...)
+}
+
+func (a aPIKeyManyToManyModelsTx) Replace(values ...*types.Model) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Replace(targetValues...)
+}
+
+func (a aPIKeyManyToManyModelsTx) Delete(values ...*types.Model) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Delete(targetValues...)
+}
+
+func (a aPIKeyManyToManyModelsTx) Clear() error {
+	return a.tx.Clear()
+}
+
+func (a aPIKeyManyToManyModelsTx) Count() int64 {
+	return a.tx.Count()
+}
+
+func (a aPIKeyManyToManyModelsTx) Unscoped() *aPIKeyManyToManyModelsTx {
 	a.tx = a.tx.Unscoped()
 	return &a
 }

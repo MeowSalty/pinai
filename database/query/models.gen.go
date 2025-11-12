@@ -47,6 +47,27 @@ func newModel(db *gorm.DB, opts ...gen.DOOption) model {
 		}{
 			RelationField: field.NewRelation("APIKeys.Platform", "types.Platform"),
 		},
+		Models: struct {
+			field.RelationField
+			Platform struct {
+				field.RelationField
+			}
+			APIKeys struct {
+				field.RelationField
+			}
+		}{
+			RelationField: field.NewRelation("APIKeys.Models", "types.Model"),
+			Platform: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("APIKeys.Models.Platform", "types.Platform"),
+			},
+			APIKeys: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("APIKeys.Models.APIKeys", "types.APIKey"),
+			},
+		},
 	}
 
 	_model.fillFieldMap()
@@ -213,6 +234,15 @@ type modelManyToManyAPIKeys struct {
 
 	Platform struct {
 		field.RelationField
+	}
+	Models struct {
+		field.RelationField
+		Platform struct {
+			field.RelationField
+		}
+		APIKeys struct {
+			field.RelationField
+		}
 	}
 }
 
