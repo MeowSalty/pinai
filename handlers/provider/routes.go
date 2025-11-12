@@ -11,18 +11,16 @@ func SetupProviderRoutes(router fiber.Router, llmService provider.Service) {
 	// 创建单一的 Provider Handler 实例
 	handler := NewHandler(llmService)
 
-	// 供应方 (Providers) 相关路由
-	router.Post("/providers", handler.CreateProvider)
-	router.Delete("/providers/:id", handler.DeleteProvider)
-
 	// 平台 (Platforms) 相关路由
 	router.Post("/platforms", handler.CreatePlatform)
 	router.Get("/platforms", handler.GetPlatforms)
 	router.Get("/platforms/:id", handler.GetPlatform)
 	router.Put("/platforms/:id", handler.UpdatePlatform)
+	router.Delete("/platforms/:id", handler.DeletePlatform)
 
 	// 模型 (Models) 相关路由 (嵌套在平台下)
 	router.Post("/platforms/:platformId/models", handler.AddModelToPlatform)
+	router.Post("/platforms/:platformId/models/batch", handler.BatchAddModelsToPlatform)
 	router.Get("/platforms/:platformId/models", handler.GetModelsByPlatform)
 	router.Put("/platforms/:platformId/models/:modelId", handler.UpdateModel)
 	router.Delete("/platforms/:platformId/models/:modelId", handler.DeleteModel)

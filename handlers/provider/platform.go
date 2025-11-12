@@ -140,3 +140,39 @@ func (h *Handler) UpdatePlatform(c *fiber.Ctx) error {
 
 	return c.JSON(updatedPlatform)
 }
+
+// DeletePlatform godoc
+// @Summary      删除指定平台
+// @Description  删除指定平台及其所有关联的模型、密钥和关联关系
+// @Tags         platforms
+// @Produce      json
+// @Param        id   path      int  true  "平台 ID"
+// @Success      204  "删除成功"
+// @Failure      400  {object}  map[string]interface{}            "请求参数错误"
+// @Failure      404  {object}  map[string]interface{}            "平台未找到"
+// @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
+// @Router       /api/platforms/{id} [delete]
+func (h *Handler) DeletePlatform(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无效的平台 ID",
+		})
+	}
+
+	ctx := context.Background()
+	err = h.service.DeletePlatform(ctx, uint(id))
+	if err != nil {
+		// 检查错误类型
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "平台未找到",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("删除平台失败: %v", err),
+		})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}

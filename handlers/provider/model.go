@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -53,6 +54,64 @@ func (h *Handler) AddModelToPlatform(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(createdModel)
+}
+
+// BatchAddModelsToPlatform godoc
+// @Summary      批量为指定平台添加模型
+// @Description  批量创建多个模型，采用原子性事务（全部成功或全部失败）
+// @Tags         models
+// @Accept       json
+// @Produce      json
+// @Param        platformId  path      int                                      true  "平台 ID"
+// @Param        request     body      provider.BatchCreateModelsRequest        true  "批量创建模型的请求体"
+// @Success      201         {object}  provider.BatchCreateModelsResponse       "全部创建成功"
+// @Failure      400         {object}  map[string]interface{}                   "请求参数错误"
+// @Failure      404         {object}  map[string]interface{}                   "平台未找到"
+// @Failure      500         {object}  map[string]interface{}                   "服务器内部错误"
+// @Router       /api/platforms/{platformId}/models/batch [post]
+func (h *Handler) BatchAddModelsToPlatform(c *fiber.Ctx) error {
+	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无效的平台 ID",
+		})
+	}
+
+	var req provider.BatchCreateModelsRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("无法解析请求体: %v", err),
+		})
+	}
+
+	// 验证至少有一个模型
+	if len(req.Models) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "必须至少提供一个模型",
+		})
+	}
+
+	ctx := context.Background()
+	createdModels, err := h.service.BatchAddModelsToPlatform(ctx, uint(platformId), req.Models)
+	if err != nil {
+		// 检查错误类型
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "平台未找到",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("批量创建模型失败: %v", err),
+		})
+	}
+
+	response := provider.BatchCreateModelsResponse{
+		Models:       createdModels,
+		TotalCount:   len(req.Models),
+		CreatedCount: len(createdModels),
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(response)
 }
 
 // GetModelsByPlatform godoc
