@@ -16,9 +16,6 @@ func New(logger *slog.Logger) Service {
 
 // Service 定义了 LLM 供应商管理的服务接口
 type Service interface {
-	// CreateProvider 创建一个新的供应方，包括平台、模型和密钥
-	CreateProvider(ctx context.Context, req CreateRequest) (*types.Platform, error)
-
 	// CreatePlatform 创建一个新的平台
 	CreatePlatform(ctx context.Context, platform types.Platform) (*types.Platform, error)
 
@@ -31,11 +28,14 @@ type Service interface {
 	// UpdatePlatform 更新指定平台信息
 	UpdatePlatform(ctx context.Context, id uint, platform types.Platform) (*types.Platform, error)
 
-	// DeleteProvider 删除指定供应方 (将级联删除模型和密钥)
-	DeleteProvider(ctx context.Context, id uint) error
+	// DeletePlatform 删除指定平台（包括其关联的模型、密钥及关联关系）
+	DeletePlatform(ctx context.Context, id uint) error
 
 	// AddModelToPlatform 为指定平台添加新模型
 	AddModelToPlatform(ctx context.Context, platformId uint, model types.Model) (*types.Model, error)
+
+	// BatchAddModelsToPlatform 批量为指定平台添加模型（原子性操作）
+	BatchAddModelsToPlatform(ctx context.Context, platformId uint, models []types.Model) ([]*types.Model, error)
 
 	// GetModelsByPlatform 获取指定平台的所有模型列表
 	GetModelsByPlatform(ctx context.Context, platformId uint) ([]*types.Model, error)
