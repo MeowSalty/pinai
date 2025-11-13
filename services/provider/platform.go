@@ -187,8 +187,7 @@ func (s *service) DeletePlatform(ctx context.Context, id uint) error {
 			return fmt.Errorf("平台 ID 为 %d 已被删除", id)
 		}
 
-		// return nil
-		return fmt.Errorf("手动触发错误回滚")
+		return nil
 	})
 
 	if err != nil {
