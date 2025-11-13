@@ -92,6 +92,7 @@ type ListRequestLogsOptions struct {
 	Success     *bool      `json:"success,omitempty"`
 	RequestType *string    `json:"request_type,omitempty"`
 	ModelName   *string    `json:"model_name,omitempty"`
+	PlatformID  *uint      `json:"platform_id,omitempty"`
 	Page        int        `json:"page"`
 	PageSize    int        `json:"page_size"`
 }

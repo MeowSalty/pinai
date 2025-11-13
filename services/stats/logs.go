@@ -44,6 +44,11 @@ func (s *service) ListRequestLogs(ctx context.Context, opts ListRequestLogsOptio
 		queryBuilder = queryBuilder.Where(r.ModelName.Eq(*opts.ModelName))
 	}
 
+	// 平台 ID 筛选
+	if opts.PlatformID != nil {
+		queryBuilder = queryBuilder.Where(r.PlatformID.Eq(*opts.PlatformID))
+	}
+
 	// 计算偏移量
 	offset := (opts.Page - 1) * opts.PageSize
 

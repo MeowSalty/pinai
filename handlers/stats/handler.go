@@ -96,6 +96,7 @@ func (h *StatsHandler) GetRealtime(c *fiber.Ctx) error {
 //   - success: 成功状态 (可选)
 //   - request_type: 请求类型 (可选)
 //   - model_name: 模型名称 (可选)
+//   - platform_id: 平台 ID (可选)
 //   - page: 页码 (默认为 1)
 //   - page_size: 每页大小 (默认为 10, 最大 100)
 //
@@ -137,6 +138,15 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 	// 解析模型名称参数
 	if modelName := c.Query("model_name"); modelName != "" {
 		opts.ModelName = &modelName
+	}
+
+	// 解析平台 ID 参数
+	if platformIDStr := c.Query("platform_id"); platformIDStr != "" {
+		platformID := c.QueryInt("platform_id")
+		if platformID > 0 {
+			platformIDUint := uint(platformID)
+			opts.PlatformID = &platformIDUint
+		}
 	}
 
 	// 解析分页参数
