@@ -23,6 +23,7 @@ func SetupProviderRoutes(router fiber.Router, llmService provider.Service) {
 	router.Post("/platforms/:platformId/models/batch", handler.BatchAddModelsToPlatform)
 	router.Get("/platforms/:platformId/models", handler.GetModelsByPlatform)
 	router.Put("/platforms/:platformId/models/:modelId", handler.UpdateModel)
+	router.Put("/platforms/:platformId/models/batch", handler.BatchUpdateModels)
 	router.Delete("/platforms/:platformId/models/:modelId", handler.DeleteModel)
 
 	// 密钥 (Keys) 相关路由 (嵌套在平台下)

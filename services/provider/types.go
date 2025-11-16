@@ -29,3 +29,23 @@ type BatchCreateModelsResponse struct {
 	TotalCount   int            `json:"total_count"`   // 请求的模型总数
 	CreatedCount int            `json:"created_count"` // 实际创建的模型数
 }
+
+// ModelUpdateItem 单个模型的更新项
+type ModelUpdateItem struct {
+	ID      uint           `json:"id" binding:"required"` // 必需：要更新的模型 ID
+	Name    string         `json:"name,omitempty"`        // 可选：模型名称
+	Alias   string         `json:"alias,omitempty"`       // 可选：模型别名
+	APIKeys []types.APIKey `json:"api_keys,omitempty"`    // 可选：关联的 API 密钥
+}
+
+// BatchUpdateModelsRequest 批量更新模型的请求体
+type BatchUpdateModelsRequest struct {
+	Models []ModelUpdateItem `json:"models" binding:"required,min=1,dive"`
+}
+
+// BatchUpdateModelsResponse 批量更新模型的响应体
+type BatchUpdateModelsResponse struct {
+	Models       []*types.Model `json:"models"`        // 更新成功的模型列表
+	TotalCount   int            `json:"total_count"`   // 请求的模型总数
+	UpdatedCount int            `json:"updated_count"` // 实际更新的模型数
+}

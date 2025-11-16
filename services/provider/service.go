@@ -43,6 +43,9 @@ type Service interface {
 	// UpdateModel 更新指定模型信息
 	UpdateModel(ctx context.Context, modelId uint, model types.Model) (*types.Model, error)
 
+	// BatchUpdateModels 批量更新指定平台的模型（原子性操作）
+	BatchUpdateModels(ctx context.Context, platformId uint, updateItems []ModelUpdateItem) ([]*types.Model, error)
+
 	// DeleteModel 删除指定模型
 	DeleteModel(ctx context.Context, modelId uint) error
 

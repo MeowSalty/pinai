@@ -203,3 +203,164 @@ func (s *service) DeleteModel(ctx context.Context, modelId uint) error {
 	logger.Info("成功删除模型")
 	return nil
 }
+
+// BatchUpdateModels 实现批量更新指定平台的模型（原子性操作）
+func (s *service) BatchUpdateModels(ctx context.Context, platformId uint, updateItems []ModelUpdateItem) ([]*types.Model, error) {
+	logger := s.logger.With(
+		slog.Uint64("platform_id", uint64(platformId)),
+		slog.Int("model_count", len(updateItems)),
+	)
+	logger.Debug("开始批量更新模型")
+
+	// 基本参数验证
+	if len(updateItems) == 0 {
+		logger.Warn("未提供任何更新项")
+		return nil, fmt.Errorf("必须至少提供一个模型更新项")
+	}
+
+	// 验证平台是否存在
+	if err := s.validatePlatformExists(ctx, platformId); err != nil {
+		logger.Warn("平台验证失败", slog.Any("error", err))
+		return nil, err
+	}
+
+	// 批量验证所有模型是否存在且属于该平台
+	if err := s.batchValidateModels(ctx, platformId, updateItems, logger); err != nil {
+		logger.Error("模型验证失败", slog.Any("error", err))
+		return nil, err
+	}
+
+	// 在事务中批量更新模型
+	var updatedModels []*types.Model
+	err := query.Q.Transaction(func(tx *query.Query) error {
+		for i := range updateItems {
+			item := &updateItems[i]
+			itemLogger := logger.With(slog.Uint64("model_id", uint64(item.ID)))
+
+			// 查询现有模型
+			existingModel, err := s.getModelByID(ctx, item.ID)
+			if err != nil {
+				itemLogger.Error("查询模型失败", slog.Any("error", err))
+				return err
+			}
+
+			// 如果提供了 API 密钥列表，则更新关联关系
+			if len(item.APIKeys) > 0 {
+				validKeys, err := s.validateAndGetAPIKeys(ctx, existingModel.PlatformID, item.APIKeys, itemLogger)
+				if err != nil {
+					return err
+				}
+
+				// 使用 Association 的 Replace 方法更新多对多关系
+				apiKeyPtrs := make([]*types.APIKey, len(validKeys))
+				copy(apiKeyPtrs, validKeys)
+				if err := tx.Model.APIKeys.Model(existingModel).Replace(apiKeyPtrs...); err != nil {
+					itemLogger.Error("更新模型密钥关联失败", slog.Any("error", err))
+					return fmt.Errorf("更新模型 ID %d 的密钥关联失败：%w", item.ID, err)
+				}
+
+				itemLogger.Debug("成功更新模型密钥关联", slog.Int("api_key_count", len(validKeys)))
+			}
+
+			// 更新模型的其他字段（部分更新，只更新非空字段）
+			needsUpdate := false
+			updates := make(map[string]interface{})
+
+			if item.Name != "" && item.Name != existingModel.Name {
+				updates["name"] = item.Name
+				needsUpdate = true
+			}
+
+			if item.Alias != "" && item.Alias != existingModel.Alias {
+				updates["alias"] = item.Alias
+				needsUpdate = true
+			}
+
+			if needsUpdate {
+				result, err := tx.Model.WithContext(ctx).
+					Where(tx.Model.ID.Eq(item.ID)).
+					Updates(updates)
+				if err != nil {
+					itemLogger.Error("更新模型字段失败", slog.Any("error", err))
+					return fmt.Errorf("更新模型 ID %d 的字段失败：%w", item.ID, err)
+				}
+				if result.RowsAffected == 0 {
+					itemLogger.Warn("模型更新无影响行")
+				}
+				itemLogger.Debug("成功更新模型字段")
+			}
+
+			// 重新加载完整的模型数据（包含关联的 API 密钥）
+			updatedModel, err := s.getModelWithAPIKeys(ctx, item.ID)
+			if err != nil {
+				itemLogger.Error("获取更新后的模型失败", slog.Any("error", err))
+				return err
+			}
+
+			updatedModels = append(updatedModels, updatedModel)
+		}
+		return nil
+	})
+
+	if err != nil {
+		logger.Error("批量更新模型事务失败", slog.Any("error", err))
+		return nil, err
+	}
+
+	logger.Info("成功批量更新模型", slog.Int("updated_count", len(updatedModels)))
+	return updatedModels, nil
+}
+
+// batchValidateModels 批量验证模型是否存在且属于指定平台
+func (s *service) batchValidateModels(ctx context.Context, platformId uint, updateItems []ModelUpdateItem, logger *slog.Logger) error {
+	// 提取所有模型 ID
+	modelIds := make([]uint, len(updateItems))
+	for i, item := range updateItems {
+		modelIds[i] = item.ID
+	}
+
+	// 批量查询所有模型
+	models, err := query.Q.Model.WithContext(ctx).
+		Where(query.Q.Model.ID.In(modelIds...)).
+		Find()
+	if err != nil {
+		logger.Error("批量查询模型失败", slog.Any("error", err))
+		return fmt.Errorf("批量查询模型失败：%w", err)
+	}
+
+	// 检查模型数量是否匹配
+	if len(models) != len(modelIds) {
+		logger.Warn("部分模型不存在",
+			slog.Int("requested_count", len(modelIds)),
+			slog.Int("found_count", len(models)))
+
+		// 找出哪些模型不存在
+		foundIds := make(map[uint]struct{}, len(models))
+		for _, model := range models {
+			foundIds[model.ID] = struct{}{}
+		}
+
+		var missingIds []uint
+		for _, id := range modelIds {
+			if _, exists := foundIds[id]; !exists {
+				missingIds = append(missingIds, id)
+			}
+		}
+
+		return fmt.Errorf("以下模型不存在：%v", missingIds)
+	}
+
+	// 验证所有模型都属于指定平台
+	for _, model := range models {
+		if model.PlatformID != platformId {
+			logger.Warn("模型不属于指定平台",
+				slog.Uint64("model_id", uint64(model.ID)),
+				slog.Uint64("model_platform_id", uint64(model.PlatformID)),
+				slog.Uint64("expected_platform_id", uint64(platformId)))
+			return fmt.Errorf("模型 ID %d 不属于平台 ID %d", model.ID, platformId)
+		}
+	}
+
+	logger.Debug("成功验证所有模型", slog.Int("validated_count", len(models)))
+	return nil
+}
