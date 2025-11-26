@@ -114,10 +114,11 @@ func (r *Repository) GetPlatformByID(ctx context.Context, id uint) (*routing.Pla
 
 	// 转换为 core.Platform 类型
 	platform := &routing.Platform{
-		ID:      dbPlatform.ID,
-		Name:    dbPlatform.Name,
-		Format:  dbPlatform.Format,
-		BaseURL: dbPlatform.BaseURL,
+		ID:            dbPlatform.ID,
+		Name:          dbPlatform.Name,
+		Format:        dbPlatform.Format,
+		BaseURL:       dbPlatform.BaseURL,
+		CustomHeaders: dbPlatform.CustomHeaders,
 		RateLimit: routing.RateLimitConfig{
 			RPM: dbPlatform.RateLimit.RPM,
 			TPM: dbPlatform.RateLimit.TPM,
