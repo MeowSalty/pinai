@@ -7,6 +7,7 @@ import (
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
+	"gorm.io/gorm"
 )
 
 // AddModelToPlatform 实现为指定平台添加新模型
@@ -189,14 +190,68 @@ func (s *service) DeleteModel(ctx context.Context, modelId uint) error {
 	logger := s.logger.With(slog.Uint64("model_id", uint64(modelId)))
 	logger.Debug("开始删除模型")
 
+	// 查询模型是否存在
+	model, err := query.Q.Model.WithContext(ctx).Where(query.Q.Model.ID.Eq(modelId)).First()
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			logger.Warn("模型不存在")
+			return fmt.Errorf("未找到 ID 为 %d 的模型", modelId)
+		}
+		logger.Error("查询模型失败", slog.Any("error", err))
+		return fmt.Errorf("查询模型失败：%w", err)
+	}
+
+	// 备份模型与密钥的关联关系
+	var backupAPIKeys []*types.APIKey
+	apiKeys, err := query.Q.Model.APIKeys.Model(model).Find()
+	if err != nil {
+		logger.Error("查询模型关联的密钥失败", slog.Any("error", err))
+		return fmt.Errorf("查询模型关联的密钥失败：%w", err)
+	}
+	if len(apiKeys) > 0 {
+		backupAPIKeys = apiKeys
+		logger.Debug("备份模型关联关系", slog.Int("api_key_count", len(apiKeys)))
+	}
+
+	// 清理模型与密钥的多对多关联关系
+	if len(backupAPIKeys) > 0 {
+		if err := query.Q.Model.APIKeys.Model(model).Clear(); err != nil {
+			logger.Error("清理模型与密钥的关联关系失败", slog.Any("error", err))
+			return fmt.Errorf("清理模型与密钥的关联关系失败：%w", err)
+		}
+		logger.Debug("成功清理模型与密钥的关联关系", slog.Int("api_key_count", len(backupAPIKeys)))
+	}
+
 	// 删除模型
 	result, err := query.Q.Model.WithContext(ctx).Where(query.Q.Model.ID.Eq(modelId)).Delete()
 	if err != nil {
 		logger.Error("删除模型失败", slog.Any("error", err))
+
+		// 删除失败，恢复关联关系
+		if len(backupAPIKeys) > 0 {
+			logger.Warn("删除失败，开始恢复关联关系")
+			if restoreErr := query.Q.Model.APIKeys.Model(model).Append(backupAPIKeys...); restoreErr != nil {
+				logger.Error("恢复模型与密钥的关联关系失败", slog.Any("error", restoreErr))
+			} else {
+				logger.Debug("成功恢复模型与密钥的关联关系", slog.Int("api_key_count", len(backupAPIKeys)))
+			}
+		}
+
 		return fmt.Errorf("删除 ID 为 %d 的模型失败：%w", modelId, err)
 	}
 	if result.RowsAffected == 0 {
 		logger.Warn("模型不存在")
+
+		// 模型不存在，恢复关联关系
+		if len(backupAPIKeys) > 0 {
+			logger.Warn("模型不存在，开始恢复关联关系")
+			if restoreErr := query.Q.Model.APIKeys.Model(model).Append(backupAPIKeys...); restoreErr != nil {
+				logger.Error("恢复模型与密钥的关联关系失败", slog.Any("error", restoreErr))
+			} else {
+				logger.Debug("成功恢复模型与密钥的关联关系", slog.Int("api_key_count", len(backupAPIKeys)))
+			}
+		}
+
 		return fmt.Errorf("未找到 ID 为 %d 的模型", modelId)
 	}
 
