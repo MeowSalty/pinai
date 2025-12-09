@@ -49,3 +49,14 @@ type BatchUpdateModelsResponse struct {
 	TotalCount   int            `json:"total_count"`   // 请求的模型总数
 	UpdatedCount int            `json:"updated_count"` // 实际更新的模型数
 }
+
+// BatchDeleteModelsRequest 批量删除模型的请求体
+type BatchDeleteModelsRequest struct {
+	ModelIDs []uint `json:"model_ids" binding:"required,min=1"` // 要删除的模型 ID 列表
+}
+
+// BatchDeleteModelsResponse 批量删除模型的响应体
+type BatchDeleteModelsResponse struct {
+	TotalCount   int `json:"total_count"`   // 请求删除的模型总数
+	DeletedCount int `json:"deleted_count"` // 实际删除的模型数
+}

@@ -204,6 +204,161 @@ func (s *service) DeleteModel(ctx context.Context, modelId uint) error {
 	return nil
 }
 
+// BatchDeleteModels 实现批量删除指定平台的模型（原子性操作）
+func (s *service) BatchDeleteModels(ctx context.Context, platformId uint, modelIds []uint) (int, error) {
+	// modelAPIKeysBackup 关联关系备份结构
+	type modelAPIKeysBackup struct {
+		modelID uint
+		apiKeys []*types.APIKey
+	}
+
+	logger := s.logger.With(
+		slog.Uint64("platform_id", uint64(platformId)),
+		slog.Int("model_count", len(modelIds)),
+	)
+	logger.Debug("开始批量删除模型")
+
+	// 基本参数验证
+	if len(modelIds) == 0 {
+		logger.Warn("未提供任何模型 ID")
+		return 0, fmt.Errorf("必须至少提供一个模型 ID")
+	}
+
+	// 验证平台是否存在
+	if err := s.validatePlatformExists(ctx, platformId); err != nil {
+		logger.Warn("平台验证失败", slog.Any("error", err))
+		return 0, err
+	}
+
+	// 批量验证所有模型是否存在且属于该平台
+	models, err := query.Q.Model.WithContext(ctx).
+		Where(query.Q.Model.ID.In(modelIds...)).
+		Find()
+	if err != nil {
+		logger.Error("批量查询模型失败", slog.Any("error", err))
+		return 0, fmt.Errorf("批量查询模型失败：%w", err)
+	}
+
+	// 检查模型数量是否匹配
+	if len(models) != len(modelIds) {
+		logger.Warn("部分模型不存在",
+			slog.Int("requested_count", len(modelIds)),
+			slog.Int("found_count", len(models)))
+
+		// 找出哪些模型不存在
+		foundIds := make(map[uint]struct{}, len(models))
+		for _, model := range models {
+			foundIds[model.ID] = struct{}{}
+		}
+
+		var missingIds []uint
+		for _, id := range modelIds {
+			if _, exists := foundIds[id]; !exists {
+				missingIds = append(missingIds, id)
+			}
+		}
+
+		return 0, fmt.Errorf("以下模型不存在：%v", missingIds)
+	}
+
+	// 验证所有模型都属于指定平台
+	for _, model := range models {
+		if model.PlatformID != platformId {
+			logger.Warn("模型不属于指定平台",
+				slog.Uint64("model_id", uint64(model.ID)),
+				slog.Uint64("model_platform_id", uint64(model.PlatformID)),
+				slog.Uint64("expected_platform_id", uint64(platformId)))
+			return 0, fmt.Errorf("模型 ID %d 不属于平台 ID %d", model.ID, platformId)
+		}
+	}
+
+	// 备份模型与密钥的关联关系
+	backups := make([]modelAPIKeysBackup, 0, len(models))
+	logger.Debug("开始备份模型与密钥的关联关系")
+	for _, model := range models {
+		// 查询该模型关联的所有密钥
+		apiKeys, err := query.Q.Model.APIKeys.Model(model).Find()
+		if err != nil {
+			logger.Error("查询模型关联的密钥失败",
+				slog.Uint64("model_id", uint64(model.ID)),
+				slog.Any("error", err))
+			return 0, fmt.Errorf("查询模型 ID 为 %d 关联的密钥失败：%w", model.ID, err)
+		}
+		if len(apiKeys) > 0 {
+			backups = append(backups, modelAPIKeysBackup{
+				modelID: model.ID,
+				apiKeys: apiKeys,
+			})
+			logger.Debug("备份模型关联关系",
+				slog.Uint64("model_id", uint64(model.ID)),
+				slog.Int("api_key_count", len(apiKeys)))
+		}
+	}
+	logger.Debug("完成备份关联关系", slog.Int("backup_count", len(backups)))
+
+	// 清理模型与密钥的多对多关联关系
+	//
+	// TODO：这里由于存在未知错误，导致该操作在事务内无法正常完成，
+	// 因此采取暂时将其移动到事务外的临时方案。
+	// Issue：https://github.com/go-gorm/gorm/issues/7649
+	logger.Debug("开始清理模型与密钥的关联关系")
+	for _, model := range models {
+		count := query.Q.Model.APIKeys.Model(model).Count()
+		if count == 0 {
+			logger.Debug("模型没有关联密钥，跳过清理", slog.Uint64("model_id", uint64(model.ID)))
+			continue
+		}
+		// 清理该模型与所有密钥的关联
+		if err := query.Q.Model.APIKeys.Model(model).Clear(); err != nil {
+			logger.Error("清理模型与密钥的关联关系失败",
+				slog.Uint64("model_id", uint64(model.ID)),
+				slog.Any("error", err))
+			return 0, fmt.Errorf("清理模型 ID 为 %d 与密钥的关联关系失败：%w", model.ID, err)
+		}
+		logger.Debug("成功清理模型与密钥的关联关系",
+			slog.Uint64("model_id", uint64(model.ID)),
+			slog.Int64("api_key_count", count))
+	}
+	logger.Debug("成功清理所有模型与密钥的关联关系")
+
+	// 在事务中批量删除模型
+	var deletedCount int
+	err = query.Q.Transaction(func(tx *query.Query) error {
+		result, err := tx.Model.WithContext(ctx).
+			Where(tx.Model.ID.In(modelIds...)).
+			Delete()
+		if err != nil {
+			logger.Error("批量删除模型失败", slog.Any("error", err))
+			return fmt.Errorf("批量删除模型失败：%w", err)
+		}
+
+		deletedCount = int(result.RowsAffected)
+		return nil
+	})
+
+	if err != nil {
+		// 事务失败，恢复关联关系备份
+		logger.Warn("事务失败，开始恢复关联关系备份", slog.Any("error", err))
+		for _, backup := range backups {
+			model := &types.Model{ID: backup.modelID}
+			if restoreErr := query.Q.Model.APIKeys.Model(model).Append(backup.apiKeys...); restoreErr != nil {
+				logger.Error("恢复模型与密钥的关联关系失败",
+					slog.Uint64("model_id", uint64(backup.modelID)),
+					slog.Any("error", restoreErr))
+			} else {
+				logger.Debug("成功恢复模型与密钥的关联关系",
+					slog.Uint64("model_id", uint64(backup.modelID)),
+					slog.Int("api_key_count", len(backup.apiKeys)))
+			}
+		}
+		logger.Debug("完成关联关系恢复")
+		return 0, err
+	}
+
+	logger.Info("成功批量删除模型", slog.Int("deleted_count", deletedCount))
+	return deletedCount, nil
+}
+
 // BatchUpdateModels 实现批量更新指定平台的模型（原子性操作）
 func (s *service) BatchUpdateModels(ctx context.Context, platformId uint, updateItems []ModelUpdateItem) ([]*types.Model, error) {
 	logger := s.logger.With(

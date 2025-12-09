@@ -49,6 +49,9 @@ type Service interface {
 	// DeleteModel 删除指定模型
 	DeleteModel(ctx context.Context, modelId uint) error
 
+	// BatchDeleteModels 批量删除指定平台的模型（原子性操作）
+	BatchDeleteModels(ctx context.Context, platformId uint, modelIds []uint) (int, error)
+
 	// AddKeyToPlatform 为指定平台添加新密钥
 	AddKeyToPlatform(ctx context.Context, platformId uint, key types.APIKey) (*types.APIKey, error)
 
