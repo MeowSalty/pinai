@@ -153,3 +153,54 @@ func (s *service) getModelWithAPIKeys(ctx context.Context, modelId uint) (*types
 	}
 	return model, nil
 }
+
+// removeOrphanedModels 辅助函数：检测并移除指定平台的孤立模型
+// 孤立模型是指没有和任何密钥关联的模型
+// 返回被删除的模型数量和可能的错误
+func (s *service) removeOrphanedModels(ctx context.Context, platformId uint, logger *slog.Logger) (int64, error) {
+	logger.Debug("开始检测孤立模型")
+
+	// 查询该平台下的所有模型（预加载密钥关联）
+	models, err := query.Q.Model.WithContext(ctx).
+		Preload(query.Q.Model.APIKeys).
+		Where(query.Q.Model.PlatformID.Eq(platformId)).
+		Find()
+	if err != nil {
+		logger.Error("查询平台模型失败", slog.Any("error", err))
+		return 0, fmt.Errorf("查询平台模型失败：%w", err)
+	}
+
+	// 找出孤立模型（没有关联任何密钥的模型）
+	var orphanedModelIDs []uint
+	for _, model := range models {
+		if len(model.APIKeys) == 0 {
+			orphanedModelIDs = append(orphanedModelIDs, model.ID)
+			logger.Debug("发现孤立模型",
+				slog.Uint64("model_id", uint64(model.ID)),
+				slog.String("model_name", model.Name))
+		}
+	}
+
+	// 如果没有孤立模型，直接返回
+	if len(orphanedModelIDs) == 0 {
+		logger.Debug("没有发现孤立模型")
+		return 0, nil
+	}
+
+	// 批量删除孤立模型
+	result, err := query.Q.Model.WithContext(ctx).
+		Where(query.Q.Model.ID.In(orphanedModelIDs...)).
+		Delete()
+	if err != nil {
+		logger.Error("删除孤立模型失败",
+			slog.Int("orphaned_count", len(orphanedModelIDs)),
+			slog.Any("error", err))
+		return 0, fmt.Errorf("删除孤立模型失败：%w", err)
+	}
+
+	logger.Info("成功移除孤立模型",
+		slog.Int64("deleted_count", result.RowsAffected),
+		slog.Any("model_ids", orphanedModelIDs))
+
+	return result.RowsAffected, nil
+}

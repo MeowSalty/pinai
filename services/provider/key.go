@@ -164,5 +164,14 @@ func (s *service) DeleteKey(ctx context.Context, keyId uint) error {
 	}
 
 	logger.Info("成功删除 API 密钥")
+
+	count, err = s.removeOrphanedModels(ctx, apiKey.PlatformID, logger)
+	if err != nil {
+		logger.Error("删除孤立模型失败", slog.Any("error", err))
+		return err
+	}
+	if count > 0 {
+		logger.Info("成功删除孤立模型", slog.Int64("deleted_count", count))
+	}
 	return nil
 }
