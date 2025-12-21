@@ -1,6 +1,7 @@
 package router
 
 import (
+	"crypto/subtle"
 	"strings"
 
 	"github.com/MeowSalty/pinai/handlers/anthropic"
@@ -82,7 +83,7 @@ func createOpenAIAuthMiddleware(validToken string) fiber.Handler {
 
 		// 验证 token
 		token := parts[1]
-		if token != validToken {
+		if subtle.ConstantTimeCompare([]byte(token), []byte(validToken)) != 1 {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "无效的 API token",
 			})
@@ -109,7 +110,7 @@ func createAnthropicAuthMiddleware(validToken string) fiber.Handler {
 		}
 
 		// 验证 API key
-		if apiKey != validToken {
+		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(validToken)) != 1 {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"type": "error",
 				"error": fiber.Map{
