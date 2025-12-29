@@ -109,6 +109,64 @@ func autoMigrate(db *gorm.DB) error {
 	if err := migrateOldData(db); err != nil {
 		return err
 	}
+	// 清理 health 表中的重复数据
+	if err := CleanupDuplicateHealthRecords(db); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CleanupDuplicateHealthRecords 清理 health 表中的重复数据
+//
+// 该函数根据 ResourceType 和 ResourceID 来识别重复记录，
+// 对于重复的数据，只保留 LastCheckAt 最新的那条记录。
+//
+// 参数：
+//   - db: GORM 数据库连接对象
+//
+// 返回值：
+//   - error: 清理过程中可能发生的错误
+func CleanupDuplicateHealthRecords(db *gorm.DB) error {
+	slog.Info("开始清理 health 表中的重复数据")
+
+	// 查询所有 health 记录，按 ResourceType, ResourceID 分组
+	var healthRecords []types.Health
+	if err := db.Order("resource_type, resource_id, last_check_at DESC").Find(&healthRecords).Error; err != nil {
+		return fmt.Errorf("查询 health 数据失败：%w", err)
+	}
+
+	if len(healthRecords) == 0 {
+		slog.Info("health 表为空，无需清理")
+		return nil
+	}
+
+	// 使用 map 记录每个 (ResourceType, ResourceID) 组合是否已出现
+	// key 格式："ResourceType-ResourceID"
+	seen := make(map[string]bool)
+	var duplicateIDs []uint
+
+	for _, record := range healthRecords {
+		key := fmt.Sprintf("%d-%d", record.ResourceType, record.ResourceID)
+		if seen[key] {
+			// 已经存在该组合的记录，当前记录是重复的（且 LastCheckAt 较旧）
+			duplicateIDs = append(duplicateIDs, record.ID)
+		} else {
+			// 第一次出现该组合，标记为已见（由于按 LastCheckAt DESC 排序，第一条是最新的）
+			seen[key] = true
+		}
+	}
+
+	if len(duplicateIDs) == 0 {
+		slog.Info("未发现重复的 health 记录，无需清理")
+		return nil
+	}
+
+	// 批量删除重复记录
+	if err := db.Delete(&types.Health{}, duplicateIDs).Error; err != nil {
+		return fmt.Errorf("删除重复 health 记录失败：%w", err)
+	}
+
+	slog.Info("health 表重复数据清理完成", "deleted_count", len(duplicateIDs))
 	return nil
 }
 
