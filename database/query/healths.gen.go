@@ -28,7 +28,6 @@ func newHealth(db *gorm.DB, opts ...gen.DOOption) health {
 
 	tableName := _health.healthDo.TableName()
 	_health.ALL = field.NewAsterisk(tableName)
-	_health.ID = field.NewUint(tableName, "id")
 	_health.ResourceType = field.NewInt8(tableName, "resource_type")
 	_health.ResourceID = field.NewUint(tableName, "resource_id")
 	_health.Status = field.NewInt8(tableName, "status")
@@ -53,7 +52,6 @@ type health struct {
 	healthDo
 
 	ALL             field.Asterisk
-	ID              field.Uint
 	ResourceType    field.Int8
 	ResourceID      field.Uint
 	Status          field.Int8
@@ -84,7 +82,6 @@ func (h health) As(alias string) *health {
 
 func (h *health) updateTableName(table string) *health {
 	h.ALL = field.NewAsterisk(table)
-	h.ID = field.NewUint(table, "id")
 	h.ResourceType = field.NewInt8(table, "resource_type")
 	h.ResourceID = field.NewUint(table, "resource_id")
 	h.Status = field.NewInt8(table, "status")
@@ -115,8 +112,7 @@ func (h *health) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (h *health) fillFieldMap() {
-	h.fieldMap = make(map[string]field.Expr, 15)
-	h.fieldMap["id"] = h.ID
+	h.fieldMap = make(map[string]field.Expr, 14)
 	h.fieldMap["resource_type"] = h.ResourceType
 	h.fieldMap["resource_id"] = h.ResourceID
 	h.fieldMap["status"] = h.Status

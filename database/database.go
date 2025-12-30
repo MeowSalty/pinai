@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
@@ -99,6 +100,10 @@ func Connect(dbType, host, port, user, password, dbname, sslMode, tlsConfig stri
 // 返回值：
 //   - error: 迁移过程中可能发生的错误
 func autoMigrate(db *gorm.DB) error {
+	// 迁移 Health 表
+	if err := migrateHealthTable(db); err != nil {
+		return err
+	}
 	// 自动迁移表结构
 	if err := db.AutoMigrate(
 		types.Types...,
@@ -109,64 +114,6 @@ func autoMigrate(db *gorm.DB) error {
 	if err := migrateOldData(db); err != nil {
 		return err
 	}
-	// 清理 health 表中的重复数据
-	if err := CleanupDuplicateHealthRecords(db); err != nil {
-		return err
-	}
-	return nil
-}
-
-// CleanupDuplicateHealthRecords 清理 health 表中的重复数据
-//
-// 该函数根据 ResourceType 和 ResourceID 来识别重复记录，
-// 对于重复的数据，只保留 LastCheckAt 最新的那条记录。
-//
-// 参数：
-//   - db: GORM 数据库连接对象
-//
-// 返回值：
-//   - error: 清理过程中可能发生的错误
-func CleanupDuplicateHealthRecords(db *gorm.DB) error {
-	slog.Info("开始清理 health 表中的重复数据")
-
-	// 查询所有 health 记录，按 ResourceType, ResourceID 分组
-	var healthRecords []types.Health
-	if err := db.Order("resource_type, resource_id, last_check_at DESC").Find(&healthRecords).Error; err != nil {
-		return fmt.Errorf("查询 health 数据失败：%w", err)
-	}
-
-	if len(healthRecords) == 0 {
-		slog.Info("health 表为空，无需清理")
-		return nil
-	}
-
-	// 使用 map 记录每个 (ResourceType, ResourceID) 组合是否已出现
-	// key 格式："ResourceType-ResourceID"
-	seen := make(map[string]bool)
-	var duplicateIDs []uint
-
-	for _, record := range healthRecords {
-		key := fmt.Sprintf("%d-%d", record.ResourceType, record.ResourceID)
-		if seen[key] {
-			// 已经存在该组合的记录，当前记录是重复的（且 LastCheckAt 较旧）
-			duplicateIDs = append(duplicateIDs, record.ID)
-		} else {
-			// 第一次出现该组合，标记为已见（由于按 LastCheckAt DESC 排序，第一条是最新的）
-			seen[key] = true
-		}
-	}
-
-	if len(duplicateIDs) == 0 {
-		slog.Info("未发现重复的 health 记录，无需清理")
-		return nil
-	}
-
-	// 批量删除重复记录
-	if err := db.Delete(&types.Health{}, duplicateIDs).Error; err != nil {
-		return fmt.Errorf("删除重复 health 记录失败：%w", err)
-	}
-
-	slog.Info("health 表重复数据清理完成", "deleted_count", len(duplicateIDs))
 	return nil
 }
 
@@ -237,5 +184,103 @@ func migrateOldData(db *gorm.DB) error {
 	} else {
 		slog.Info("无需迁移旧数据，所有模型已有密钥关联或平台无密钥")
 	}
+	return nil
+}
+
+// migrateHealthTable 迁移 Health 表从旧结构到新的联合主键结构
+//
+// 检测旧表是否存在 id 列，如果存在则：
+// 1. 备份数据到内存
+// 2. 去重（保留每个 ResourceType+ResourceID 组合中 LastCheckAt 最新的记录）
+// 3. 删除旧表
+// 4. 让 AutoMigrate 创建新表后恢复数据
+func migrateHealthTable(db *gorm.DB) error {
+	// 检查表是否存在
+	if !db.Migrator().HasTable("healths") {
+		return nil // 表不存在，跳过
+	}
+
+	// 检查是否存在 id 列（旧结构标志）
+	if !db.Migrator().HasColumn(&types.Health{}, "id") {
+		return nil // 已是新结构，跳过
+	}
+
+	slog.Info("检测到旧版 Health 表结构，开始迁移")
+
+	// 定义旧表结构用于读取数据
+	type oldHealth struct {
+		ID              uint
+		ResourceType    types.ResourceType
+		ResourceID      uint
+		Status          types.HealthStatus
+		RetryCount      int
+		NextAvailableAt *time.Time
+		BackoffDuration int64
+		LastError       string
+		LastErrorCode   int
+		LastCheckAt     time.Time
+		LastSuccessAt   *time.Time
+		SuccessCount    int
+		ErrorCount      int
+		CreatedAt       time.Time
+		UpdatedAt       time.Time
+	}
+
+	// 1. 备份数据
+	var oldRecords []oldHealth
+	if err := db.Table("healths").Order("resource_type, resource_id, last_check_at DESC").Find(&oldRecords).Error; err != nil {
+		return fmt.Errorf("备份 Health 数据失败：%w", err)
+	}
+
+	// 2. 去重 - 保留每个组合中最新的记录
+	seen := make(map[string]bool)
+	var uniqueRecords []types.Health
+	for _, record := range oldRecords {
+		key := fmt.Sprintf("%d-%d", record.ResourceType, record.ResourceID)
+		if !seen[key] {
+			seen[key] = true
+			uniqueRecords = append(uniqueRecords, types.Health{
+				ResourceType:    record.ResourceType,
+				ResourceID:      record.ResourceID,
+				Status:          record.Status,
+				RetryCount:      record.RetryCount,
+				NextAvailableAt: record.NextAvailableAt,
+				BackoffDuration: record.BackoffDuration,
+				LastError:       record.LastError,
+				LastErrorCode:   record.LastErrorCode,
+				LastCheckAt:     record.LastCheckAt,
+				LastSuccessAt:   record.LastSuccessAt,
+				SuccessCount:    record.SuccessCount,
+				ErrorCount:      record.ErrorCount,
+				CreatedAt:       record.CreatedAt,
+				UpdatedAt:       record.UpdatedAt,
+			})
+		}
+	}
+
+	slog.Info("Health 数据备份完成",
+		"total_records", len(oldRecords),
+		"unique_records", len(uniqueRecords),
+		"duplicates_removed", len(oldRecords)-len(uniqueRecords))
+
+	// 3. 删除旧表
+	if err := db.Migrator().DropTable("healths"); err != nil {
+		return fmt.Errorf("删除旧 Health 表失败：%w", err)
+	}
+
+	// 4. 创建新表（由 AutoMigrate 完成）并恢复数据
+	// 先创建新表
+	if err := db.AutoMigrate(&types.Health{}); err != nil {
+		return fmt.Errorf("创建新 Health 表失败：%w", err)
+	}
+
+	// 恢复数据
+	if len(uniqueRecords) > 0 {
+		if err := db.Create(&uniqueRecords).Error; err != nil {
+			return fmt.Errorf("恢复 Health 数据失败：%w", err)
+		}
+	}
+
+	slog.Info("Health 表迁移完成", "restored_records", len(uniqueRecords))
 	return nil
 }

@@ -41,10 +41,8 @@ func (DBIntType) GormDBDataType(db *gorm.DB, field *schema.Field) string {
 
 // Health 健康状态表 (health_status)
 type Health struct {
-	ID uint `gorm:"primaryKey"`
-
-	ResourceType ResourceType `gorm:"not null;index:idx_resource"` // 资源类型
-	ResourceID   uint         `gorm:"not null;index:idx_resource"` // 资源 ID
+	ResourceType ResourceType `gorm:"primaryKey"` // 资源类型
+	ResourceID   uint         `gorm:"primaryKey"` // 资源 ID
 
 	Status HealthStatus `gorm:"not null;index"` // 健康状态
 
