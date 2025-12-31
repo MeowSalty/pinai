@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
@@ -12,17 +11,6 @@ import (
 	"github.com/MeowSalty/portal/routing"
 	"github.com/MeowSalty/portal/routing/health"
 )
-
-// healthIDCache 健康状态 ID 缓存（包级）
-//
-// key: "resourceType:resourceID" 格式字符串
-// value: 健康状态记录的 ID
-var healthIDCache sync.Map
-
-// healthCacheKey 生成健康状态缓存的 key
-func healthCacheKey(resourceType int8, resourceID uint) string {
-	return fmt.Sprintf("%d:%d", resourceType, resourceID)
-}
 
 // Repository 数据仓库实现
 //
@@ -184,7 +172,6 @@ func (r *Repository) GetAllHealth(ctx context.Context) ([]*health.Health, error)
 	healths := make([]*health.Health, len(dbHealths))
 	for i, dbHealth := range dbHealths {
 		healths[i] = &health.Health{
-			ID:              dbHealth.ID,
 			ResourceType:    health.ResourceType(dbHealth.ResourceType),
 			ResourceID:      dbHealth.ResourceID,
 			Status:          health.HealthStatus(dbHealth.Status),
@@ -230,48 +217,8 @@ func (r *Repository) BatchUpdateHealth(ctx context.Context, statuses []health.He
 			"resource_type", status.ResourceType,
 			"status", status.Status)
 
-		// 如果 ID 为空，先查询数据库中是否存在对应的记录
-		healthID := status.ID
-		if healthID == 0 {
-			cacheKey := healthCacheKey(int8(status.ResourceType), status.ResourceID)
-
-			// 先从缓存中查找
-			if cachedID, ok := healthIDCache.Load(cacheKey); ok {
-				healthID = cachedID.(uint)
-				repoLogger.Debug("从缓存中获取到健康状态 ID",
-					"cached_id", healthID,
-					"resource_type", status.ResourceType,
-					"resource_id", status.ResourceID)
-			} else {
-				// 缓存未命中，查询数据库
-				repoLogger.Debug("缓存未命中，尝试通过 ResourceType 和 ResourceID 查找已存在的记录",
-					"resource_type", status.ResourceType,
-					"resource_id", status.ResourceID)
-
-				existingHealth, err := tx.WithContext(ctx).Health.Where(
-					tx.Health.ResourceType.Eq(int8(status.ResourceType)),
-					tx.Health.ResourceID.Eq(status.ResourceID),
-				).First()
-
-				if err == nil && existingHealth != nil {
-					healthID = existingHealth.ID
-					// 将查询结果存入缓存
-					healthIDCache.Store(cacheKey, healthID)
-					repoLogger.Debug("找到已存在的健康状态记录，已缓存",
-						"existing_id", healthID,
-						"resource_type", status.ResourceType,
-						"resource_id", status.ResourceID)
-				} else {
-					repoLogger.Debug("未找到已存在的健康状态记录，将创建新记录",
-						"resource_type", status.ResourceType,
-						"resource_id", status.ResourceID)
-				}
-			}
-		}
-
 		// 转换为数据库类型并更新或创建
 		dbHealth := &types.Health{
-			ID:              healthID,
 			ResourceType:    types.ResourceType(status.ResourceType),
 			ResourceID:      status.ResourceID,
 			Status:          types.HealthStatus(status.Status),
@@ -286,7 +233,7 @@ func (r *Repository) BatchUpdateHealth(ctx context.Context, statuses []health.He
 			ErrorCount:      status.ErrorCount,
 		}
 
-		// 使用 Upsert 操作
+		// 使用 Save 进行 upsert 操作
 		if err := tx.WithContext(ctx).Health.Save(dbHealth); err != nil {
 			repoLogger.Error("更新健康状态失败，执行事务回滚",
 				"error", err,
