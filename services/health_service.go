@@ -61,7 +61,6 @@ func (s *HealthService) GetResourceHealth(ctx context.Context, resourceType dbty
 	}
 
 	return &types.HealthStatusResponse{
-		ID:              healthInfo.ID,
 		ResourceType:    healthInfo.ResourceType,
 		ResourceID:      healthInfo.ResourceID,
 		ResourceName:    resourceName,

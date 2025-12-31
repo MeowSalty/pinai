@@ -8,7 +8,6 @@ import (
 
 // HealthStatusResponse 用于表示单个资源的详细健康状态
 type HealthStatusResponse struct {
-	ID              uint               `json:"id"`
 	ResourceType    types.ResourceType `json:"resource_type"`
 	ResourceID      uint               `json:"resource_id"`
 	ResourceName    string             `json:"resource_name"`
