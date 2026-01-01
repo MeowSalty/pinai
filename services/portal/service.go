@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/MeowSalty/pinai/services/health"
 	"github.com/MeowSalty/portal"
 	coreTypes "github.com/MeowSalty/portal/types"
 )
@@ -39,11 +40,12 @@ type service struct {
 //   - ctx: 上下文，用于初始化网关管理器
 //   - logger: 日志记录器实例，用于记录处理过程中的日志信息
 //   - modelMappingStr: 模型映射规则字符串，格式为 "key1:value1,key2:value2"
+//   - healthStorage: 健康状态存储实例，由 health 包初始化后传入
 //
 // 返回值：
 //   - Service: 初始化后的 Portal 服务实例
 //   - error: 初始化过程中可能出现的错误
-func New(ctx context.Context, logger *slog.Logger, modelMappingStr string) (Service, error) {
+func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healthStorage *health.Storage) (Service, error) {
 	logger.Info("开始初始化 Portal 服务", "model_mapping", modelMappingStr)
 
 	repoLogger := logger.WithGroup("database_repository")
@@ -51,12 +53,12 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string) (Serv
 
 	logger.Debug("正在创建网关管理器")
 	gatewayManager, err := portal.New(portal.Config{
-		PlatformRepo: repo,
-		ModelRepo:    repo,
-		KeyRepo:      repo,
-		HealthRepo:   repo,
-		LogRepo:      repo,
-		Logger:       NewSlogAdapter(logger),
+		PlatformRepo:  repo,
+		ModelRepo:     repo,
+		KeyRepo:       repo,
+		HealthStorage: healthStorage,
+		LogRepo:       repo,
+		Logger:        NewSlogAdapter(logger),
 	})
 	if err != nil {
 		logger.Error("创建网关管理器失败", "error", err)
@@ -78,7 +80,11 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string) (Serv
 	}
 
 	logger.Info("Portal 服务初始化完成")
-	return &service{portal: gatewayManager, modelMappingRule: modelMappingRule, logger: logger}, nil
+	return &service{
+		portal:           gatewayManager,
+		modelMappingRule: modelMappingRule,
+		logger:           logger,
+	}, nil
 }
 
 // ChatCompletion 处理聊天完成请求

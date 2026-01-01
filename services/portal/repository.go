@@ -9,7 +9,6 @@ import (
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/portal/request"
 	"github.com/MeowSalty/portal/routing"
-	"github.com/MeowSalty/portal/routing/health"
 )
 
 // Repository 数据仓库实现
@@ -153,106 +152,6 @@ func (r *Repository) GetAllAPIKeysByPlatformID(ctx context.Context, platformID u
 
 	repoLogger.Debug("API 密钥获取成功", "platform_id", platformID, "key_count", len(keys))
 	return keys, nil
-}
-
-// GetAllHealth 获取所有健康状态
-func (r *Repository) GetAllHealth(ctx context.Context) ([]*health.Health, error) {
-	repoLogger := r.logger.WithGroup("health_repository")
-	repoLogger.Debug("获取所有健康状态")
-
-	q := query.Q
-
-	dbHealths, err := q.WithContext(ctx).Health.Find()
-	if err != nil {
-		repoLogger.Error("获取健康状态失败", "error", err)
-		return nil, fmt.Errorf("获取健康状态失败：%w", err)
-	}
-
-	// 转换为 core.Health 类型
-	healths := make([]*health.Health, len(dbHealths))
-	for i, dbHealth := range dbHealths {
-		healths[i] = &health.Health{
-			ResourceType:    health.ResourceType(dbHealth.ResourceType),
-			ResourceID:      dbHealth.ResourceID,
-			Status:          health.HealthStatus(dbHealth.Status),
-			RetryCount:      dbHealth.RetryCount,
-			NextAvailableAt: dbHealth.NextAvailableAt,
-			BackoffDuration: dbHealth.BackoffDuration,
-			LastError:       dbHealth.LastError,
-			LastErrorCode:   dbHealth.LastErrorCode,
-			LastCheckAt:     dbHealth.LastCheckAt,
-			LastSuccessAt:   dbHealth.LastSuccessAt,
-			SuccessCount:    dbHealth.SuccessCount,
-			ErrorCount:      dbHealth.ErrorCount,
-			CreatedAt:       dbHealth.CreatedAt,
-			UpdatedAt:       dbHealth.UpdatedAt,
-		}
-	}
-
-	repoLogger.Debug("健康状态获取成功", "count", len(healths))
-	return healths, nil
-}
-
-// BatchUpdateHealth 批量更新健康状态
-func (r *Repository) BatchUpdateHealth(ctx context.Context, statuses []health.Health) error {
-	repoLogger := r.logger.WithGroup("health_repository")
-	repoLogger.Info("开始批量更新健康状态", "count", len(statuses))
-
-	q := query.Q
-
-	// 开启事务
-	repoLogger.Debug("开启数据库事务")
-	tx := q.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			repoLogger.Error("事务执行过程中发生 panic，执行回滚", "recover", r)
-			tx.Rollback()
-		}
-	}()
-
-	for i, status := range statuses {
-		repoLogger.Debug("更新健康状态",
-			"index", i,
-			"resource_id", status.ResourceID,
-			"resource_type", status.ResourceType,
-			"status", status.Status)
-
-		// 转换为数据库类型并更新或创建
-		dbHealth := &types.Health{
-			ResourceType:    types.ResourceType(status.ResourceType),
-			ResourceID:      status.ResourceID,
-			Status:          types.HealthStatus(status.Status),
-			RetryCount:      status.RetryCount,
-			NextAvailableAt: status.NextAvailableAt,
-			BackoffDuration: status.BackoffDuration,
-			LastError:       status.LastError,
-			LastErrorCode:   status.LastErrorCode,
-			LastCheckAt:     status.LastCheckAt,
-			LastSuccessAt:   status.LastSuccessAt,
-			SuccessCount:    status.SuccessCount,
-			ErrorCount:      status.ErrorCount,
-		}
-
-		// 使用 Save 进行 upsert 操作
-		if err := tx.WithContext(ctx).Health.Save(dbHealth); err != nil {
-			repoLogger.Error("更新健康状态失败，执行事务回滚",
-				"error", err,
-				"resource_id", status.ResourceID,
-				"resource_type", status.ResourceType)
-			tx.Rollback()
-			return fmt.Errorf("批量更新健康状态失败：%w", err)
-		}
-	}
-
-	// 检查提交事务是否有错误
-	repoLogger.Debug("提交事务")
-	if err := tx.Commit(); err != nil {
-		repoLogger.Error("提交事务失败", "error", err)
-		return fmt.Errorf("提交事务失败：%w", err)
-	}
-
-	repoLogger.Info("批量更新健康状态成功", "count", len(statuses))
-	return nil
 }
 
 // CreateRequestLog 创建请求日志

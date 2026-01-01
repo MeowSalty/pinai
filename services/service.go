@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/MeowSalty/pinai/services/health"
 	"github.com/MeowSalty/pinai/services/portal"
 	"github.com/MeowSalty/pinai/services/provider"
 	"github.com/MeowSalty/pinai/services/stats"
@@ -11,7 +12,8 @@ import (
 
 // Services 持有所有服务实例的结构体
 type Services struct {
-	HealthService   HealthServiceInterface
+	HealthService   health.Service
+	HealthStorage   *health.Storage // 健康状态存储，供外部需要时访问
 	PortalService   portal.Service
 	ProviderService provider.Service
 	StatsService    stats.Service
@@ -32,11 +34,17 @@ type Services struct {
 //	*Services - 包含所有服务实例的结构体
 //	error - 初始化过程中可能出现的错误
 func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) (*Services, error) {
-	// 初始化健康服务
-	healthService := NewHealthService()
+	// 初始化健康服务（内部会创建 Storage）
+	healthService, err := health.NewService(ctx, logger.WithGroup("health"))
+	if err != nil {
+		return nil, err
+	}
 
-	// 初始化 Portal 服务
-	portalService, err := portal.New(ctx, logger.WithGroup("portal"), modelMapping)
+	// 从健康服务获取共享的 Storage 实例
+	healthStorage := healthService.GetStorage()
+
+	// 使用共享的 Storage 创建 Portal 服务
+	portalService, err := portal.New(ctx, logger.WithGroup("portal"), modelMapping, healthStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +57,7 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 
 	return &Services{
 		HealthService:   healthService,
+		HealthStorage:   healthStorage,
 		PortalService:   portalService,
 		ProviderService: providerService,
 		StatsService:    statsService,
