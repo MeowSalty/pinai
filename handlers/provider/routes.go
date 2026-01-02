@@ -19,6 +19,10 @@ func SetupProviderRoutes(router fiber.Router, llmService provider.Service, healt
 	router.Put("/platforms/:id", handler.UpdatePlatform)
 	router.Delete("/platforms/:id", handler.DeletePlatform)
 
+	// 平台健康状态管理路由
+	router.Post("/platforms/:id/health/enable", handler.EnablePlatformHealth)
+	router.Post("/platforms/:id/health/disable", handler.DisablePlatformHealth)
+
 	// 模型 (Models) 相关路由 (嵌套在平台下)
 	router.Post("/platforms/:platformId/models", handler.AddModelToPlatform)
 	router.Post("/platforms/:platformId/models/batch", handler.BatchAddModelsToPlatform)

@@ -200,3 +200,97 @@ func (h *Handler) DeletePlatform(c *fiber.Ctx) error {
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
+
+// EnablePlatformHealth godoc
+// @Summary      启用/恢复平台健康状态
+// @Description  删除平台的健康记录，让系统重新评估健康状态
+// @Tags         platforms
+// @Produce      json
+// @Param        id   path      int  true  "平台 ID"
+// @Success      200  {object}  map[string]interface{}  "操作成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      404  {object}  map[string]interface{}  "平台未找到"
+// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
+// @Router       /api/platforms/{id}/health/enable [post]
+func (h *Handler) EnablePlatformHealth(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无效的平台 ID",
+		})
+	}
+
+	// 验证平台是否存在
+	ctx := context.Background()
+	_, err = h.service.GetPlatform(ctx, uint(id))
+	if err != nil {
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "平台未找到",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("获取平台失败: %v", err),
+		})
+	}
+
+	// 启用健康状态
+	if err := h.healthService.EnableHealth(types.ResourceTypePlatform, uint(id)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("启用平台健康状态失败: %v", err),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":     "平台已启用",
+		"platform_id": id,
+		"status":      "unknown",
+	})
+}
+
+// DisablePlatformHealth godoc
+// @Summary      禁用平台健康状态
+// @Description  将平台健康状态设置为不可用
+// @Tags         platforms
+// @Produce      json
+// @Param        id   path      int  true  "平台 ID"
+// @Success      200  {object}  map[string]interface{}  "操作成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      404  {object}  map[string]interface{}  "平台未找到"
+// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
+// @Router       /api/platforms/{id}/health/disable [post]
+func (h *Handler) DisablePlatformHealth(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无效的平台 ID",
+		})
+	}
+
+	// 验证平台是否存在
+	ctx := context.Background()
+	_, err = h.service.GetPlatform(ctx, uint(id))
+	if err != nil {
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "平台未找到",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("获取平台失败: %v", err),
+		})
+	}
+
+	// 禁用健康状态
+	if err := h.healthService.DisableHealth(types.ResourceTypePlatform, uint(id)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("禁用平台健康状态失败: %v", err),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":     "平台已禁用",
+		"platform_id": id,
+		"status":      "unavailable",
+	})
+}
