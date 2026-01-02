@@ -10,6 +10,12 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// PlatformWithHealth 带健康状态的平台响应
+type PlatformWithHealth struct {
+	*types.Platform
+	HealthStatus *types.HealthStatus `json:"health_status,omitempty"`
+}
+
 // CreatePlatform godoc
 // @Summary      创建一个新的平台
 // @Description  创建一个新的平台
@@ -42,10 +48,11 @@ func (h *Handler) CreatePlatform(c *fiber.Ctx) error {
 
 // GetPlatforms godoc
 // @Summary      获取所有平台列表
-// @Description  获取所有平台列表
+// @Description  获取所有平台列表，可通过 include=health 参数包含健康状态
 // @Tags         platforms
 // @Produce      json
-// @Success      200  {array}   types.Platform                    "平台列表"
+// @Param        include  query     string  false  "包含额外信息，支持 health"
+// @Success      200  {array}   PlatformWithHealth                "平台列表"
 // @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms [get]
 func (h *Handler) GetPlatforms(c *fiber.Ctx) error {
@@ -55,6 +62,23 @@ func (h *Handler) GetPlatforms(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("获取平台列表失败: %v", err),
 		})
+	}
+
+	// 检查是否需要包含健康状态
+	if c.Query("include") == "health" {
+		storage := h.healthService.GetStorage()
+		result := make([]PlatformWithHealth, len(platforms))
+		for i, p := range platforms {
+			result[i].Platform = p
+			if health, _ := storage.Get(types.ResourceTypePlatform, p.ID); health != nil {
+				result[i].HealthStatus = &health.Status
+			} else {
+				// 没有健康数据时使用未知状态
+				unknownStatus := types.HealthStatusUnknown
+				result[i].HealthStatus = &unknownStatus
+			}
+		}
+		return c.JSON(result)
 	}
 
 	return c.JSON(platforms)

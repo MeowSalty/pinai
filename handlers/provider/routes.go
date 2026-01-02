@@ -1,15 +1,16 @@
 package provider
 
 import (
+	"github.com/MeowSalty/pinai/services/health"
 	"github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 // SetupProviderRoutes 配置 LLM 供应方管理相关的 API 路由
-func SetupProviderRoutes(router fiber.Router, llmService provider.Service) {
+func SetupProviderRoutes(router fiber.Router, llmService provider.Service, healthService health.Service) {
 	// 创建单一的 Provider Handler 实例
-	handler := NewHandler(llmService)
+	handler := NewHandler(llmService, healthService)
 
 	// 平台 (Platforms) 相关路由
 	router.Post("/platforms", handler.CreatePlatform)
