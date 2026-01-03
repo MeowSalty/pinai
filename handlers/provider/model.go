@@ -332,6 +332,102 @@ func (h *Handler) BatchUpdateModels(c *fiber.Ctx) error {
 	return c.JSON(response)
 }
 
+// EnableModelHealth godoc
+// @Summary      启用/恢复模型健康状态
+// @Description  删除模型的健康记录，让系统重新评估健康状态
+// @Tags         models
+// @Produce      json
+// @Param        platformId  path      int  true  "平台 ID"
+// @Param        modelId     path      int  true  "模型 ID"
+// @Success      200  {object}  map[string]interface{}  "操作成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      404  {object}  map[string]interface{}  "模型未找到"
+// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
+// @Router       /api/platforms/{platformId}/models/{modelId}/health/enable [post]
+func (h *Handler) EnableModelHealth(c *fiber.Ctx) error {
+	modelId, err := strconv.ParseUint(c.Params("modelId"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无效的模型 ID",
+		})
+	}
+
+	// 验证模型是否存在
+	ctx := context.Background()
+	_, err = h.service.GetModel(ctx, uint(modelId))
+	if err != nil {
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的模型", modelId) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "模型未找到",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("获取模型失败: %v", err),
+		})
+	}
+
+	// 启用健康状态
+	if err := h.healthService.EnableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("启用模型健康状态失败: %v", err),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":  "模型已启用",
+		"model_id": modelId,
+		"status":   "unknown",
+	})
+}
+
+// DisableModelHealth godoc
+// @Summary      禁用模型健康状态
+// @Description  将模型健康状态设置为不可用
+// @Tags         models
+// @Produce      json
+// @Param        platformId  path      int  true  "平台 ID"
+// @Param        modelId     path      int  true  "模型 ID"
+// @Success      200  {object}  map[string]interface{}  "操作成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      404  {object}  map[string]interface{}  "模型未找到"
+// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
+// @Router       /api/platforms/{platformId}/models/{modelId}/health/disable [post]
+func (h *Handler) DisableModelHealth(c *fiber.Ctx) error {
+	modelId, err := strconv.ParseUint(c.Params("modelId"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无效的模型 ID",
+		})
+	}
+
+	// 验证模型是否存在
+	ctx := context.Background()
+	_, err = h.service.GetModel(ctx, uint(modelId))
+	if err != nil {
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的模型", modelId) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "模型未找到",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("获取模型失败: %v", err),
+		})
+	}
+
+	// 禁用健康状态
+	if err := h.healthService.DisableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("禁用模型健康状态失败: %v", err),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":  "模型已禁用",
+		"model_id": modelId,
+		"status":   "unavailable",
+	})
+}
+
 // BatchDeleteModels godoc
 // @Summary      批量删除指定平台的模型
 // @Description  批量删除多个模型，采用原子性事务（全部成功或全部失败）

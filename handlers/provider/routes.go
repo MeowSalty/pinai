@@ -32,9 +32,17 @@ func SetupProviderRoutes(router fiber.Router, llmService provider.Service, healt
 	router.Delete("/platforms/:platformId/models/batch", handler.BatchDeleteModels)
 	router.Delete("/platforms/:platformId/models/:modelId", handler.DeleteModel)
 
+	// 模型健康状态管理路由
+	router.Post("/platforms/:platformId/models/:modelId/health/enable", handler.EnableModelHealth)
+	router.Post("/platforms/:platformId/models/:modelId/health/disable", handler.DisableModelHealth)
+
 	// 密钥 (Keys) 相关路由 (嵌套在平台下)
 	router.Post("/platforms/:platformId/keys", handler.AddKeyToPlatform)
 	router.Get("/platforms/:platformId/keys", handler.GetKeysByPlatform)
 	router.Put("/platforms/:platformId/keys/:keyId", handler.UpdateKey)
 	router.Delete("/platforms/:platformId/keys/:keyId", handler.DeleteKey)
+
+	// 密钥健康状态管理路由
+	router.Post("/platforms/:platformId/keys/:keyId/health/enable", handler.EnableKeyHealth)
+	router.Post("/platforms/:platformId/keys/:keyId/health/disable", handler.DisableKeyHealth)
 }

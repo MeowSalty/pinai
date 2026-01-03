@@ -56,6 +56,22 @@ func (s *service) GetKeysByPlatform(ctx context.Context, providerId uint) ([]*ty
 	return keys, nil
 }
 
+// GetKey 实现获取指定密钥详情
+func (s *service) GetKey(ctx context.Context, keyId uint) (*types.APIKey, error) {
+	logger := s.logger.With(slog.Uint64("key_id", uint64(keyId)))
+	logger.Debug("开始获取 API 密钥详情")
+
+	// 查询密钥
+	apiKey, err := s.getAPIKeyByID(ctx, keyId)
+	if err != nil {
+		logger.Warn("API 密钥不存在或查询失败", slog.Any("error", err))
+		return nil, err
+	}
+
+	logger.Info("成功获取 API 密钥详情")
+	return apiKey, nil
+}
+
 // UpdateKey 实现更新指定密钥
 func (s *service) UpdateKey(ctx context.Context, keyId uint, key types.APIKey) (*types.APIKey, error) {
 	logger := s.logger.With(slog.Uint64("key_id", uint64(keyId)))

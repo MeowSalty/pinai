@@ -202,3 +202,99 @@ func (h *Handler) UpdateKey(c *fiber.Ctx) error {
 	updatedKey.Value = ""
 	return c.JSON(updatedKey)
 }
+
+// EnableKeyHealth godoc
+// @Summary      启用/恢复密钥健康状态
+// @Description  删除密钥的健康记录，让系统重新评估健康状态
+// @Tags         keys
+// @Produce      json
+// @Param        platformId  path      int  true  "平台 ID"
+// @Param        keyId       path      int  true  "密钥 ID"
+// @Success      200  {object}  map[string]interface{}  "操作成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      404  {object}  map[string]interface{}  "密钥未找到"
+// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
+// @Router       /api/platforms/{platformId}/keys/{keyId}/health/enable [post]
+func (h *Handler) EnableKeyHealth(c *fiber.Ctx) error {
+	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无效的密钥 ID",
+		})
+	}
+
+	// 验证密钥是否存在
+	ctx := context.Background()
+	_, err = h.service.GetKey(ctx, uint(keyId))
+	if err != nil {
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "密钥未找到",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("获取密钥失败: %v", err),
+		})
+	}
+
+	// 启用健康状态
+	if err := h.healthService.EnableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("启用密钥健康状态失败: %v", err),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "密钥已启用",
+		"key_id":  keyId,
+		"status":  "unknown",
+	})
+}
+
+// DisableKeyHealth godoc
+// @Summary      禁用密钥健康状态
+// @Description  将密钥健康状态设置为不可用
+// @Tags         keys
+// @Produce      json
+// @Param        platformId  path      int  true  "平台 ID"
+// @Param        keyId       path      int  true  "密钥 ID"
+// @Success      200  {object}  map[string]interface{}  "操作成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      404  {object}  map[string]interface{}  "密钥未找到"
+// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
+// @Router       /api/platforms/{platformId}/keys/{keyId}/health/disable [post]
+func (h *Handler) DisableKeyHealth(c *fiber.Ctx) error {
+	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无效的密钥 ID",
+		})
+	}
+
+	// 验证密钥是否存在
+	ctx := context.Background()
+	_, err = h.service.GetKey(ctx, uint(keyId))
+	if err != nil {
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "密钥未找到",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("获取密钥失败: %v", err),
+		})
+	}
+
+	// 禁用健康状态
+	if err := h.healthService.DisableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("禁用密钥健康状态失败: %v", err),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "密钥已禁用",
+		"key_id":  keyId,
+		"status":  "unavailable",
+	})
+}

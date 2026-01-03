@@ -58,9 +58,15 @@ type Service interface {
 	// GetKeysByPlatform 获取指定平台的所有密钥列表
 	GetKeysByPlatform(ctx context.Context, platformId uint) ([]*types.APIKey, error)
 
+	// GetKey 获取指定密钥详情
+	GetKey(ctx context.Context, keyId uint) (*types.APIKey, error)
+
 	// UpdateKey 更新指定密钥
 	UpdateKey(ctx context.Context, keyId uint, key types.APIKey) (*types.APIKey, error)
 
 	// DeleteKey 删除指定密钥
 	DeleteKey(ctx context.Context, keyId uint) error
+
+	// GetModel 获取指定模型详情
+	GetModel(ctx context.Context, modelId uint) (*types.Model, error)
 }

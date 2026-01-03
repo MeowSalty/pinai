@@ -132,6 +132,22 @@ func (s *service) GetModelsByPlatform(ctx context.Context, providerId uint) ([]*
 	return models, nil
 }
 
+// GetModel 实现获取指定模型详情
+func (s *service) GetModel(ctx context.Context, modelId uint) (*types.Model, error) {
+	logger := s.logger.With(slog.Uint64("model_id", uint64(modelId)))
+	logger.Debug("开始获取模型详情")
+
+	// 查询模型（预加载关联的 API 密钥）
+	model, err := s.getModelWithAPIKeys(ctx, modelId)
+	if err != nil {
+		logger.Warn("模型不存在或查询失败", slog.Any("error", err))
+		return nil, err
+	}
+
+	logger.Info("成功获取模型详情")
+	return model, nil
+}
+
 // UpdateModel 实现更新指定模型信息
 func (s *service) UpdateModel(ctx context.Context, modelId uint, model types.Model) (*types.Model, error) {
 	logger := s.logger.With(slog.Uint64("model_id", uint64(modelId)))
