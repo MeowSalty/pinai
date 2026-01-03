@@ -218,14 +218,7 @@ func (s *service) ChatCompletionStream(ctx context.Context, req *coreTypes.Reque
 	}
 
 	streamLogger.Debug("正在启动流式处理")
-	stream, err := s.portal.ChatCompletionStream(ctx, req)
-	if err != nil {
-		streamLogger.Error("启动聊天完成流失败",
-			"error", err,
-			"model", req.Model,
-			"original_model", originalModel)
-		return nil, fmt.Errorf("无法启动聊天完成流：%w", err)
-	}
+	stream := s.portal.ChatCompletionStream(ctx, req)
 
 	streamLogger.Info("聊天完成流启动成功", "model", req.Model)
 	return stream, nil
