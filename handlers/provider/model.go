@@ -11,6 +11,12 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// ModelWithHealth 带健康状态的模型响应
+type ModelWithHealth struct {
+	*types.Model
+	HealthStatus *types.HealthStatus `json:"health_status,omitempty"`
+}
+
 // AddModelToPlatform godoc
 // @Summary      为指定平台添加新模型
 // @Description  为指定平台添加新模型
@@ -116,11 +122,12 @@ func (h *Handler) BatchAddModelsToPlatform(c *fiber.Ctx) error {
 
 // GetModelsByPlatform godoc
 // @Summary      获取指定平台的所有模型列表
-// @Description  获取指定平台的所有模型列表
+// @Description  获取指定平台的所有模型列表，可通过 include=health 参数包含健康状态
 // @Tags         models
 // @Produce      json
-// @Param        platformId  path      int  true  "平台 ID"
-// @Success      200         {array}   types.Model                       "模型列表"
+// @Param        platformId  path      int     true   "平台 ID"
+// @Param        include     query     string  false  "包含额外信息，支持 health"
+// @Success      200         {array}   ModelWithHealth                   "模型列表"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
@@ -145,6 +152,23 @@ func (h *Handler) GetModelsByPlatform(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("获取平台模型列表失败: %v", err),
 		})
+	}
+
+	// 检查是否需要包含健康状态
+	if c.Query("include") == "health" {
+		storage := h.healthService.GetStorage()
+		result := make([]ModelWithHealth, len(models))
+		for i, m := range models {
+			result[i].Model = m
+			if health, _ := storage.Get(types.ResourceTypeModel, m.ID); health != nil {
+				result[i].HealthStatus = &health.Status
+			} else {
+				// 没有健康数据时使用未知状态
+				unknownStatus := types.HealthStatusUnknown
+				result[i].HealthStatus = &unknownStatus
+			}
+		}
+		return c.JSON(result)
 	}
 
 	return c.JSON(models)
