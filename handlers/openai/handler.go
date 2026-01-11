@@ -13,7 +13,9 @@ import (
 	"github.com/MeowSalty/pinai/services/portal"
 	statsService "github.com/MeowSalty/pinai/services/stats"
 	openaiChatConverter "github.com/MeowSalty/portal/request/adapter/openai/converter/chat"
+	openaiResponsesConverter "github.com/MeowSalty/portal/request/adapter/openai/converter/responses"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
+	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
 	portalTypes "github.com/MeowSalty/portal/types"
 	"github.com/gofiber/fiber/v2"
 )
@@ -148,6 +150,58 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	return c.JSON(openaiResp)
 }
 
+// Responses 处理 Responses API 请求
+// @Summary      Responses
+// @Description  创建 Responses API 响应
+// @Tags         OpenAI
+// @Accept       json
+// @Produce      json
+// @Param        request  body      openaiResponsesTypes.Request  true  "Responses 请求"
+// @Success      200      {object}  openaiResponsesTypes.Response
+// @Failure      400      {object}  fiber.Map
+// @Failure      401      {object}  fiber.Map
+// @Failure      500      {object}  fiber.Map
+// @Router       /openai/v1/responses [post]
+func (h *OpenAIHandler) Responses(c *fiber.Ctx) error {
+	var req openaiResponsesTypes.Request
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("无效的请求格式： %v", err),
+		})
+	}
+
+	portalReq := openaiResponsesConverter.ConvertCoreRequest(&req)
+
+	if portalReq.Headers == nil {
+		portalReq.Headers = make(map[string]string)
+	}
+
+	switch h.userAgent {
+	case "":
+		if userAgent := c.Get("User-Agent"); userAgent != "" {
+			portalReq.Headers["User-Agent"] = userAgent
+		}
+	case "default":
+		// "default"：不设置 User-Agent，使用 fasthttp 默认值
+	default:
+		portalReq.Headers["User-Agent"] = h.userAgent
+	}
+
+	if portalReq.Stream != nil && *portalReq.Stream {
+		return h.handleResponsesStream(c, portalReq)
+	}
+
+	resp, err := h.portalService.ChatCompletion(c.Context(), portalReq)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("处理请求时出错：%v", err),
+		})
+	}
+
+	openaiResp := openaiResponsesConverter.ConvertResponse(resp)
+	return c.JSON(openaiResp)
+}
+
 // handleStreamResponse 处理流式响应
 func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Request) error {
 	// 设置流式响应头
@@ -250,6 +304,99 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 		// 发送流结束标记
 		_, err = fmt.Fprintf(w, "data: [DONE]\n\n")
 		if err != nil {
+			cancel()
+			slog.Error("写入流结束标记失败", "error", err)
+		}
+
+		w.Flush()
+		return nil
+	}))
+
+	return nil
+}
+
+// handleResponsesStream 处理 Responses API 流式响应
+func (h *OpenAIHandler) handleResponsesStream(c *fiber.Ctx, req *portalTypes.Request) error {
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+	c.Set("Transfer-Encoding", "chunked")
+
+	ctx, cancel := context.WithCancel(c.Context())
+
+	responseChan, err := h.portalService.ChatCompletionStream(ctx, req)
+	if err != nil {
+		cancel()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("启动流式传输时出错：%v", err),
+		})
+	}
+
+	collector := statsService.GetCollector()
+	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
+		defer func() {
+			if r := recover(); r != nil {
+				stack := debug.Stack()
+				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+				slog.Error("流式响应处理发生 panic",
+					"panic", r,
+					"path", c.Path(),
+					"method", c.Method(),
+					"body", string(c.Body()),
+					"stack", stackLines,
+				)
+				errorEvent := map[string]any{
+					"error": map[string]any{
+						"type":    "internal_error",
+						"message": fmt.Sprintf("服务器内部错误: %v", r),
+					},
+				}
+				if jsonBytes, err := json.Marshal(errorEvent); err == nil {
+					fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes))
+					w.Flush()
+				}
+			}
+		}()
+
+		isErr := false
+		for resp := range responseChan {
+			if len(resp.Choices) > 0 && resp.Choices[0].Error != nil {
+				isErr = true
+				errorEvent := map[string]any{
+					"error": map[string]any{
+						"type":    "stream_error",
+						"message": resp.Choices[0].Error.Message,
+					},
+				}
+
+				jsonBytes, marshalErr := json.Marshal(errorEvent)
+				if marshalErr != nil {
+					slog.Error("无法序列化错误事件", "error", marshalErr)
+					break
+				}
+
+				if _, err := fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes)); err != nil {
+					slog.Error("无法发送错误事件，写入流失败", "error", err)
+					break
+				}
+				w.Flush()
+				break
+			}
+
+			openaiResp := openaiResponsesConverter.ConvertResponse(resp)
+			data, _ := json.Marshal(openaiResp)
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+				cancel()
+				slog.Error("写入流式响应失败", "error", err)
+				break
+			}
+			w.Flush()
+		}
+		if isErr {
+			return nil
+		}
+
+		if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
 			cancel()
 			slog.Error("写入流结束标记失败", "error", err)
 		}

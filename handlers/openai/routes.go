@@ -12,4 +12,5 @@ func SetupOpenAIRoutes(router fiber.Router, portalService portal.Service, userAg
 
 	router.Get("/models", ListModels)
 	router.Post("/chat/completions", handler.ChatCompletions)
+	router.Post("/responses", handler.Responses)
 }
