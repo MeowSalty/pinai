@@ -30,7 +30,8 @@ func newPlatform(db *gorm.DB, opts ...gen.DOOption) platform {
 	_platform.ALL = field.NewAsterisk(tableName)
 	_platform.ID = field.NewUint(tableName, "id")
 	_platform.Name = field.NewString(tableName, "name")
-	_platform.Format = field.NewString(tableName, "format")
+	_platform.Provider = field.NewString(tableName, "provider")
+	_platform.Variant = field.NewString(tableName, "variant")
 	_platform.BaseURL = field.NewString(tableName, "base_url")
 	_platform.CustomHeaders = field.NewField(tableName, "custom_headers")
 	_platform.RateLimit = field.NewField(tableName, "rate_limit")
@@ -46,7 +47,8 @@ type platform struct {
 	ALL           field.Asterisk
 	ID            field.Uint
 	Name          field.String
-	Format        field.String
+	Provider      field.String
+	Variant       field.String
 	BaseURL       field.String
 	CustomHeaders field.Field
 	RateLimit     field.Field
@@ -68,7 +70,8 @@ func (p *platform) updateTableName(table string) *platform {
 	p.ALL = field.NewAsterisk(table)
 	p.ID = field.NewUint(table, "id")
 	p.Name = field.NewString(table, "name")
-	p.Format = field.NewString(table, "format")
+	p.Provider = field.NewString(table, "provider")
+	p.Variant = field.NewString(table, "variant")
 	p.BaseURL = field.NewString(table, "base_url")
 	p.CustomHeaders = field.NewField(table, "custom_headers")
 	p.RateLimit = field.NewField(table, "rate_limit")
@@ -88,10 +91,11 @@ func (p *platform) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (p *platform) fillFieldMap() {
-	p.fieldMap = make(map[string]field.Expr, 6)
+	p.fieldMap = make(map[string]field.Expr, 7)
 	p.fieldMap["id"] = p.ID
 	p.fieldMap["name"] = p.Name
-	p.fieldMap["format"] = p.Format
+	p.fieldMap["provider"] = p.Provider
+	p.fieldMap["variant"] = p.Variant
 	p.fieldMap["base_url"] = p.BaseURL
 	p.fieldMap["custom_headers"] = p.CustomHeaders
 	p.fieldMap["rate_limit"] = p.RateLimit

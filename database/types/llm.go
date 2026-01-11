@@ -10,8 +10,9 @@ type RateLimitConfig struct {
 type Platform struct {
 	ID            uint              `gorm:"primaryKey" json:"id"`                  // 平台 ID
 	Name          string            `gorm:"index" json:"name"`                     // 平台名称
-	Format        string            `gorm:"index" json:"format"`                   // API 格式（例如：openai, anthropic, azure 等）
-	BaseURL       string            `json:"base_url"`                              // 基础 URL（可选）
+	Provider      string            `json:"provider"`                              // 平台类型
+	Variant       string            `json:"variant"`                               // 平台变体
+	BaseURL       string            `json:"base_url"`                              // 基础 URL
 	CustomHeaders map[string]string `gorm:"serializer:json" json:"custom_headers"` // 自定义请求头
 	RateLimit     RateLimitConfig   `gorm:"serializer:json" json:"rate_limit"`     // 限流配置
 }

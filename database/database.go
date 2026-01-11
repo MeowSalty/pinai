@@ -110,6 +110,10 @@ func autoMigrate(db *gorm.DB) error {
 	); err != nil {
 		return err
 	}
+	// 迁移旧平台表的 Format 字段到 Provider/Variant
+	if err := migratePlatformFormatToProvider(db); err != nil {
+		return err
+	}
 	// 调用数据迁移函数，迁移老数据到新结构
 	if err := migrateOldData(db); err != nil {
 		return err
@@ -183,6 +187,68 @@ func migrateOldData(db *gorm.DB) error {
 		slog.Info("旧数据迁移完成", "migrated_models", migratedCount)
 	} else {
 		slog.Info("无需迁移旧数据，所有模型已有密钥关联或平台无密钥")
+	}
+	return nil
+}
+
+// migratePlatformFormatToProvider 将旧平台表的 Format 迁移到 Provider/Variant
+//
+// 仅在旧表仍存在 format 列时执行，且只更新 provider 为空的记录。
+//
+// 参数：
+//   - db: GORM 数据库连接对象
+//
+// 返回值：
+//   - error: 迁移过程中可能发生的错误
+func migratePlatformFormatToProvider(db *gorm.DB) error {
+	if !db.Migrator().HasTable("platforms") {
+		return nil
+	}
+	if !db.Migrator().HasColumn("platforms", "format") {
+		return nil
+	}
+	if !db.Migrator().HasColumn("platforms", "provider") {
+		return nil
+	}
+
+	slog.Info("检测到旧平台表 Format 列，开始迁移")
+
+	type oldPlatform struct {
+		ID       uint
+		Format   sql.NullString
+		Provider sql.NullString
+	}
+
+	var platforms []oldPlatform
+	if err := db.Table("platforms").Select("id, format, provider").Find(&platforms).Error; err != nil {
+		return fmt.Errorf("读取平台旧数据失败：%w", err)
+	}
+	if len(platforms) == 0 {
+		slog.Info("未发现平台数据，跳过 Format 迁移")
+		return nil
+	}
+
+	migratedCount := 0
+	for _, platform := range platforms {
+		if platform.Provider.Valid && platform.Provider.String != "" {
+			continue
+		}
+		if !platform.Format.Valid || platform.Format.String == "" {
+			continue
+		}
+		if err := db.Table("platforms").Where("id = ?", platform.ID).Updates(map[string]interface{}{
+			"provider": platform.Format.String,
+			"variant":  "default",
+		}).Error; err != nil {
+			return fmt.Errorf("迁移平台 %d 的 Provider 失败：%w", platform.ID, err)
+		}
+		migratedCount++
+	}
+
+	if migratedCount > 0 {
+		slog.Info("平台 Format 迁移完成", "migrated_platforms", migratedCount)
+	} else {
+		slog.Info("无需迁移平台 Format，Provider 均已存在或 Format 为空")
 	}
 	return nil
 }
