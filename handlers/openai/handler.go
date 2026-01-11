@@ -12,8 +12,8 @@ import (
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/services/portal"
 	statsService "github.com/MeowSalty/pinai/services/stats"
-	"github.com/MeowSalty/portal/request/adapter/openai/converter"
-	openaiTypes "github.com/MeowSalty/portal/request/adapter/openai/types"
+	openaiChatConverter "github.com/MeowSalty/portal/request/adapter/openai/converter/chat"
+	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
 	portalTypes "github.com/MeowSalty/portal/types"
 	"github.com/gofiber/fiber/v2"
 )
@@ -99,7 +99,7 @@ func ListModels(c *fiber.Ctx) error {
 // @Router       /openai/v1/chat/completions [post]
 func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	// 解析请求
-	var req openaiTypes.Request
+	var req openaiChatTypes.Request
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fmt.Sprintf("无效的请求格式： %v", err),
@@ -107,7 +107,7 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	}
 
 	// 转换请求格式
-	portalReq := converter.ConvertCoreRequest(&req)
+	portalReq := openaiChatConverter.ConvertCoreRequest(&req)
 
 	// 处理 User-Agent 头部
 	if portalReq.Headers == nil {
@@ -143,7 +143,7 @@ func (h *OpenAIHandler) ChatCompletions(c *fiber.Ctx) error {
 	}
 
 	// 转换响应格式
-	openaiResp := converter.ConvertResponse(resp)
+	openaiResp := openaiChatConverter.ConvertResponse(resp)
 
 	return c.JSON(openaiResp)
 }
@@ -228,7 +228,7 @@ func (h *OpenAIHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 			}
 
 			// 转换为 OpenAI 格式
-			openaiResp := converter.ConvertResponse(resp)
+			openaiResp := openaiChatConverter.ConvertResponse(resp)
 
 			// 发送事件
 			data, _ := json.Marshal(openaiResp)
