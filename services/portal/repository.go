@@ -115,7 +115,8 @@ func (r *Repository) GetPlatformByID(ctx context.Context, id uint) (*routing.Pla
 	platform := &routing.Platform{
 		ID:            dbPlatform.ID,
 		Name:          dbPlatform.Name,
-		Format:        dbPlatform.Format,
+		Provider:      dbPlatform.Provider,
+		Variant:       dbPlatform.Variant,
 		BaseURL:       dbPlatform.BaseURL,
 		CustomHeaders: dbPlatform.CustomHeaders,
 		RateLimit: routing.RateLimitConfig{
