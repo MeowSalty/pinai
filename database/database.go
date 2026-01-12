@@ -191,6 +191,20 @@ func migrateOldData(db *gorm.DB) error {
 	return nil
 }
 
+// getDefaultVariant 根据 Provider 获取默认 Variant
+func getDefaultVariant(provider string) string {
+	switch provider {
+	case "OpenAI":
+		return "chat_completions"
+	case "Anthropic":
+		return "messages"
+	case "Gemini":
+		return "generate"
+	default:
+		return "default"
+	}
+}
+
 // migratePlatformFormatToProvider 将旧平台表的 Format 迁移到 Provider/Variant
 //
 // 仅在旧表仍存在 format 列时执行，且只更新 provider 为空的记录。
@@ -236,9 +250,10 @@ func migratePlatformFormatToProvider(db *gorm.DB) error {
 		if !platform.Format.Valid || platform.Format.String == "" {
 			continue
 		}
+		variant := getDefaultVariant(platform.Format.String)
 		if err := db.Table("platforms").Where("id = ?", platform.ID).Updates(map[string]interface{}{
 			"provider": platform.Format.String,
-			"variant":  "default",
+			"variant":  variant,
 		}).Error; err != nil {
 			return fmt.Errorf("迁移平台 %d 的 Provider 失败：%w", platform.ID, err)
 		}
