@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/MeowSalty/pinai/database/query"
@@ -290,6 +291,11 @@ func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*
 			PageSize: pageSize,
 		}, nil
 	}
+
+	// 按最后检查时间降序排序
+	sort.Slice(modelHealths, func(i, j int) bool {
+		return modelHealths[i].LastCheckAt.After(modelHealths[j].LastCheckAt)
+	})
 
 	// 计算总数和分页范围
 	total := len(modelHealths)
