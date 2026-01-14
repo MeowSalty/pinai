@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/handlers/anthropic"
+	"github.com/MeowSalty/pinai/handlers/health"
 	"github.com/MeowSalty/pinai/handlers/openai"
 	"github.com/MeowSalty/pinai/handlers/provider"
 	"github.com/MeowSalty/pinai/handlers/stats"
@@ -46,6 +47,7 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir
 	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.PortalService, userAgent)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
+	health.SetupHealthRoutes(webAPI, svcs.HealthService)
 
 	// 如果启用了前端支持，则设置前端路由
 	if enableWeb {

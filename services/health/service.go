@@ -6,14 +6,32 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
 )
+
+// ResourceHealthSummary 单个资源类型的健康状态汇总
+type ResourceHealthSummary struct {
+	Total       int64 `json:"total"`       // 总数
+	Available   int64 `json:"available"`   // 可用数量
+	Warning     int64 `json:"warning"`     // 警告数量
+	Unavailable int64 `json:"unavailable"` // 不可用数量
+	Unknown     int64 `json:"unknown"`     // 未知数量
+}
+
+// HealthSummaryResponse 健康状态统计响应
+type HealthSummaryResponse struct {
+	Platform ResourceHealthSummary `json:"platform"` // 平台健康状态统计
+	APIKey   ResourceHealthSummary `json:"api_key"`  // 密钥健康状态统计
+	Model    ResourceHealthSummary `json:"model"`    // 模型健康状态统计
+}
 
 // Service 定义健康服务接口
 type Service interface {
 	GetStorage() *Storage
 	EnableHealth(resourceType types.ResourceType, resourceID uint) error
 	DisableHealth(resourceType types.ResourceType, resourceID uint) error
+	GetHealthSummary(ctx context.Context) (*HealthSummaryResponse, error)
 }
 
 // service 健康服务实现
@@ -139,4 +157,79 @@ func (s *service) DisableHealth(resourceType types.ResourceType, resourceID uint
 		"resource_type", resourceType,
 		"resource_id", resourceID)
 	return nil
+}
+
+// GetHealthSummary 获取健康状态统计
+//
+// 该方法返回系统中所有资源类型（平台、密钥、模型）的健康状态统计信息，
+// 包括总数、可用数量、警告数量、不可用数量和未知数量。
+//
+// 参数：
+//
+//	ctx - 上下文
+//
+// 返回值：
+//
+//	*HealthSummaryResponse - 健康状态统计响应
+//	error - 操作错误
+func (s *service) GetHealthSummary(ctx context.Context) (*HealthSummaryResponse, error) {
+	s.logger.Debug("开始获取健康状态统计")
+
+	q := query.Q
+
+	// 获取各资源类型的总数
+	platformTotal, err := q.Platform.WithContext(ctx).Count()
+	if err != nil {
+		s.logger.Error("获取平台总数失败", "error", err)
+		return nil, fmt.Errorf("获取平台总数失败：%w", err)
+	}
+
+	apiKeyTotal, err := q.APIKey.WithContext(ctx).Count()
+	if err != nil {
+		s.logger.Error("获取密钥总数失败", "error", err)
+		return nil, fmt.Errorf("获取密钥总数失败：%w", err)
+	}
+
+	modelTotal, err := q.Model.WithContext(ctx).Count()
+	if err != nil {
+		s.logger.Error("获取模型总数失败", "error", err)
+		return nil, fmt.Errorf("获取模型总数失败：%w", err)
+	}
+
+	// 从缓存获取各状态数量
+	platformCount := s.storage.CountByResourceType(types.ResourceTypePlatform)
+	apiKeyCount := s.storage.CountByResourceType(types.ResourceTypeAPIKey)
+	modelCount := s.storage.CountByResourceType(types.ResourceTypeModel)
+
+	// 计算 Unknown 数量 = 总数 - 其他三种状态
+	response := &HealthSummaryResponse{
+		Platform: ResourceHealthSummary{
+			Total:       platformTotal,
+			Available:   platformCount.Available,
+			Warning:     platformCount.Warning,
+			Unavailable: platformCount.Unavailable,
+			Unknown:     platformTotal - platformCount.Available - platformCount.Warning - platformCount.Unavailable,
+		},
+		APIKey: ResourceHealthSummary{
+			Total:       apiKeyTotal,
+			Available:   apiKeyCount.Available,
+			Warning:     apiKeyCount.Warning,
+			Unavailable: apiKeyCount.Unavailable,
+			Unknown:     apiKeyTotal - apiKeyCount.Available - apiKeyCount.Warning - apiKeyCount.Unavailable,
+		},
+		Model: ResourceHealthSummary{
+			Total:       modelTotal,
+			Available:   modelCount.Available,
+			Warning:     modelCount.Warning,
+			Unavailable: modelCount.Unavailable,
+			Unknown:     modelTotal - modelCount.Available - modelCount.Warning - modelCount.Unavailable,
+		},
+	}
+
+	s.logger.Info("成功获取健康状态统计",
+		"platform_total", platformTotal,
+		"api_key_total", apiKeyTotal,
+		"model_total", modelTotal)
+
+	return response, nil
 }

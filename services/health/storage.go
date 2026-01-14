@@ -214,3 +214,51 @@ func (s *Storage) deleteFromDatabase(ctx context.Context, resourceType types.Res
 		"resource_id", resourceID)
 	return nil
 }
+
+// StatusCount 各状态数量统计
+type StatusCount struct {
+	Available   int64 // 可用数量
+	Warning     int64 // 警告数量
+	Unavailable int64 // 不可用数量
+}
+
+// CountByResourceType 按资源类型统计各状态数量
+//
+// 从内存缓存中统计指定资源类型的各状态数量
+//
+// 参数：
+//
+//	resourceType - 资源类型（平台、密钥、模型）
+//
+// 返回值：
+//
+//	StatusCount - 各状态数量统计
+func (s *Storage) CountByResourceType(resourceType types.ResourceType) StatusCount {
+	var count StatusCount
+
+	s.cache.Range(func(key, value interface{}) bool {
+		h := value.(*types.Health)
+		if h.ResourceType != resourceType {
+			return true
+		}
+
+		switch h.Status {
+		case types.HealthStatusAvailable:
+			count.Available++
+		case types.HealthStatusWarning:
+			count.Warning++
+		case types.HealthStatusUnavailable:
+			count.Unavailable++
+			// Unknown 状态不会存储在健康表中，所以不需要统计
+		}
+		return true
+	})
+
+	s.logger.Debug("统计资源类型健康状态完成",
+		"resource_type", resourceType,
+		"available", count.Available,
+		"warning", count.Warning,
+		"unavailable", count.Unavailable)
+
+	return count
+}
