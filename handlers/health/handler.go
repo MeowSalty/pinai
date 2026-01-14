@@ -38,3 +38,38 @@ func (h *Handler) GetHealthSummary(c *fiber.Ctx) error {
 
 	return c.JSON(summary)
 }
+
+// GetModelHealthList 获取模型健康列表
+//
+// 查询参数：
+//
+//	page - 页码，默认为 1
+//	page_size - 每页大小，默认为 10，最大 100
+//
+// 返回值：
+//
+//	成功 - 模型健康列表数据
+//	失败 - 错误信息
+func (h *Handler) GetModelHealthList(c *fiber.Ctx) error {
+	// 解析分页参数
+	page := c.QueryInt("page", 1)
+	if page <= 0 {
+		page = 1
+	}
+
+	pageSize := c.QueryInt("page_size", 10)
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	// 调用服务获取模型健康列表
+	result, err := h.healthService.GetModelHealthList(c.Context(), page, pageSize)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "获取模型健康列表失败："+err.Error())
+	}
+
+	return c.JSON(result)
+}

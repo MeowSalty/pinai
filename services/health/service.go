@@ -26,12 +26,35 @@ type HealthSummaryResponse struct {
 	Model    ResourceHealthSummary `json:"model"`    // 模型健康状态统计
 }
 
+// ModelHealthItem 单个模型健康状态项
+type ModelHealthItem struct {
+	ModelID       uint               `json:"model_id"`        // 模型 ID
+	ModelName     string             `json:"model_name"`      // 模型名称
+	ModelAlias    string             `json:"model_alias"`     // 模型别名
+	Status        types.HealthStatus `json:"status"`          // 健康状态
+	RetryCount    int                `json:"retry_count"`     // 重试次数
+	LastError     string             `json:"last_error"`      // 最后错误信息
+	LastCheckAt   time.Time          `json:"last_check_at"`   // 最后检查时间
+	LastSuccessAt *time.Time         `json:"last_success_at"` // 最后成功时间
+	SuccessCount  int                `json:"success_count"`   // 成功次数
+	ErrorCount    int                `json:"error_count"`     // 错误次数
+}
+
+// ModelHealthListResponse 模型健康列表响应
+type ModelHealthListResponse struct {
+	Items    []ModelHealthItem `json:"items"`     // 模型健康列表
+	Total    int               `json:"total"`     // 总数
+	Page     int               `json:"page"`      // 当前页码
+	PageSize int               `json:"page_size"` // 每页大小
+}
+
 // Service 定义健康服务接口
 type Service interface {
 	GetStorage() *Storage
 	EnableHealth(resourceType types.ResourceType, resourceID uint) error
 	DisableHealth(resourceType types.ResourceType, resourceID uint) error
 	GetHealthSummary(ctx context.Context) (*HealthSummaryResponse, error)
+	GetModelHealthList(ctx context.Context, page, pageSize int) (*ModelHealthListResponse, error)
 }
 
 // service 健康服务实现
@@ -232,4 +255,107 @@ func (s *service) GetHealthSummary(ctx context.Context) (*HealthSummaryResponse,
 		"model_total", modelTotal)
 
 	return response, nil
+}
+
+// GetModelHealthList 获取模型健康列表
+//
+// 该方法返回所有模型的健康状态列表，包括模型名称、别名和详细的健康信息。
+// 支持分页查询，提升大数据量场景下的性能。
+//
+// 参数：
+//
+//	ctx - 上下文
+//	page - 页码（从 1 开始）
+//	pageSize - 每页大小
+//
+// 返回值：
+//
+//	*ModelHealthListResponse - 模型健康列表响应
+//	error - 操作错误
+func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*ModelHealthListResponse, error) {
+	s.logger.Debug("开始获取模型健康列表",
+		"page", page,
+		"page_size", pageSize)
+
+	// 从存储中获取所有模型的健康状态
+	modelHealths := s.storage.GetByResourceType(types.ResourceTypeModel)
+
+	// 如果没有健康记录，返回空列表
+	if len(modelHealths) == 0 {
+		s.logger.Info("没有找到任何模型健康记录")
+		return &ModelHealthListResponse{
+			Items:    []ModelHealthItem{},
+			Total:    0,
+			Page:     page,
+			PageSize: pageSize,
+		}, nil
+	}
+
+	// 计算总数和分页范围
+	total := len(modelHealths)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+
+	// 边界检查
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+
+	// 先分页，只处理当前页的健康记录
+	pagedHealths := modelHealths[start:end]
+
+	// 提取当前页的模型 ID
+	modelIDs := make([]uint, 0, len(pagedHealths))
+	healthMap := make(map[uint]*types.Health, len(pagedHealths))
+	for _, health := range pagedHealths {
+		modelIDs = append(modelIDs, health.ResourceID)
+		healthMap[health.ResourceID] = health
+	}
+
+	// 只查询当前页需要的模型信息
+	q := query.Q
+	models, err := q.Model.WithContext(ctx).
+		Select(q.Model.ID, q.Model.Name, q.Model.Alias_).
+		Where(q.Model.ID.In(modelIDs...)).
+		Find()
+	if err != nil {
+		s.logger.Error("查询模型信息失败", "error", err)
+		return nil, fmt.Errorf("查询模型信息失败：%w", err)
+	}
+
+	// 组装响应数据
+	items := make([]ModelHealthItem, 0, len(models))
+	for _, model := range models {
+		health := healthMap[model.ID]
+		if health != nil {
+			items = append(items, ModelHealthItem{
+				ModelID:       model.ID,
+				ModelName:     model.Name,
+				ModelAlias:    model.Alias,
+				Status:        health.Status,
+				RetryCount:    health.RetryCount,
+				LastError:     health.LastError,
+				LastCheckAt:   health.LastCheckAt,
+				LastSuccessAt: health.LastSuccessAt,
+				SuccessCount:  health.SuccessCount,
+				ErrorCount:    health.ErrorCount,
+			})
+		}
+	}
+
+	s.logger.Info("成功获取模型健康列表",
+		"total", total,
+		"page", page,
+		"page_size", pageSize,
+		"returned_count", len(items))
+
+	return &ModelHealthListResponse{
+		Items:    items,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
 }

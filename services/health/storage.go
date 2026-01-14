@@ -262,3 +262,32 @@ func (s *Storage) CountByResourceType(resourceType types.ResourceType) StatusCou
 
 	return count
 }
+
+// GetByResourceType 获取指定资源类型的所有健康状态
+//
+// 从内存缓存中获取指定资源类型的所有健康状态记录
+//
+// 参数：
+//
+//	resourceType - 资源类型（平台、密钥、模型）
+//
+// 返回值：
+//
+//	[]*types.Health - 健康状态列表
+func (s *Storage) GetByResourceType(resourceType types.ResourceType) []*types.Health {
+	var results []*types.Health
+
+	s.cache.Range(func(key, value interface{}) bool {
+		h := value.(*types.Health)
+		if h.ResourceType == resourceType {
+			results = append(results, h)
+		}
+		return true
+	})
+
+	s.logger.Debug("获取资源类型健康状态列表完成",
+		"resource_type", resourceType,
+		"count", len(results))
+
+	return results
+}
