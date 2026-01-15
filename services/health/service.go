@@ -27,6 +27,48 @@ type HealthSummaryResponse struct {
 	Model    ResourceHealthSummary `json:"model"`    // 模型健康状态统计
 }
 
+// PlatformHealthItem 单个平台健康状态项
+type PlatformHealthItem struct {
+	PlatformID    uint               `json:"platform_id"`     // 平台 ID
+	PlatformName  string             `json:"platform_name"`   // 平台名称
+	Status        types.HealthStatus `json:"status"`          // 健康状态
+	RetryCount    int                `json:"retry_count"`     // 重试次数
+	LastError     string             `json:"last_error"`      // 最后错误信息
+	LastCheckAt   time.Time          `json:"last_check_at"`   // 最后检查时间
+	LastSuccessAt *time.Time         `json:"last_success_at"` // 最后成功时间
+	SuccessCount  int                `json:"success_count"`   // 成功次数
+	ErrorCount    int                `json:"error_count"`     // 错误次数
+}
+
+// PlatformHealthListResponse 平台健康列表响应
+type PlatformHealthListResponse struct {
+	Items    []PlatformHealthItem `json:"items"`     // 平台健康列表
+	Total    int                  `json:"total"`     // 总数
+	Page     int                  `json:"page"`      // 当前页码
+	PageSize int                  `json:"page_size"` // 每页大小
+}
+
+// APIKeyHealthItem 单个密钥健康状态项
+type APIKeyHealthItem struct {
+	KeyID         uint               `json:"key_id"`          // 密钥 ID
+	KeyValue      string             `json:"key_value"`       // 密钥值
+	Status        types.HealthStatus `json:"status"`          // 健康状态
+	RetryCount    int                `json:"retry_count"`     // 重试次数
+	LastError     string             `json:"last_error"`      // 最后错误信息
+	LastCheckAt   time.Time          `json:"last_check_at"`   // 最后检查时间
+	LastSuccessAt *time.Time         `json:"last_success_at"` // 最后成功时间
+	SuccessCount  int                `json:"success_count"`   // 成功次数
+	ErrorCount    int                `json:"error_count"`     // 错误次数
+}
+
+// APIKeyHealthListResponse 密钥健康列表响应
+type APIKeyHealthListResponse struct {
+	Items    []APIKeyHealthItem `json:"items"`     // 密钥健康列表
+	Total    int                `json:"total"`     // 总数
+	Page     int                `json:"page"`      // 当前页码
+	PageSize int                `json:"page_size"` // 每页大小
+}
+
 // ModelHealthItem 单个模型健康状态项
 type ModelHealthItem struct {
 	ModelID       uint               `json:"model_id"`        // 模型 ID
@@ -55,6 +97,8 @@ type Service interface {
 	EnableHealth(resourceType types.ResourceType, resourceID uint) error
 	DisableHealth(resourceType types.ResourceType, resourceID uint) error
 	GetHealthSummary(ctx context.Context) (*HealthSummaryResponse, error)
+	GetPlatformHealthList(ctx context.Context, page, pageSize int) (*PlatformHealthListResponse, error)
+	GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (*APIKeyHealthListResponse, error)
 	GetModelHealthList(ctx context.Context, page, pageSize int) (*ModelHealthListResponse, error)
 }
 
@@ -256,6 +300,238 @@ func (s *service) GetHealthSummary(ctx context.Context) (*HealthSummaryResponse,
 		"model_total", modelTotal)
 
 	return response, nil
+}
+
+// GetPlatformHealthList 获取平台健康列表
+//
+// 该方法返回所有平台的健康状态列表，包括平台名称和详细的健康信息。
+// 支持分页查询，提升大数据量场景下的性能。
+//
+// 参数：
+//
+//	ctx - 上下文
+//	page - 页码（从 1 开始）
+//	pageSize - 每页大小
+//
+// 返回值：
+//
+//	*PlatformHealthListResponse - 平台健康列表响应
+//	error - 操作错误
+func (s *service) GetPlatformHealthList(ctx context.Context, page, pageSize int) (*PlatformHealthListResponse, error) {
+	s.logger.Debug("开始获取平台健康列表",
+		"page", page,
+		"page_size", pageSize)
+
+	// 从存储中获取所有平台的健康状态
+	platformHealths := s.storage.GetByResourceType(types.ResourceTypePlatform)
+
+	// 如果没有健康记录，返回空列表
+	if len(platformHealths) == 0 {
+		s.logger.Info("没有找到任何平台健康记录")
+		return &PlatformHealthListResponse{
+			Items:    []PlatformHealthItem{},
+			Total:    0,
+			Page:     page,
+			PageSize: pageSize,
+		}, nil
+	}
+
+	// 按最后检查时间降序排序
+	sort.Slice(platformHealths, func(i, j int) bool {
+		return platformHealths[i].LastCheckAt.After(platformHealths[j].LastCheckAt)
+	})
+
+	// 计算总数和分页范围
+	total := len(platformHealths)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+
+	// 边界检查
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+
+	// 先分页，只处理当前页的健康记录
+	pagedHealths := platformHealths[start:end]
+
+	// 提取当前页的平台 ID
+	platformIDs := make([]uint, 0, len(pagedHealths))
+	healthMap := make(map[uint]*types.Health, len(pagedHealths))
+	for _, health := range pagedHealths {
+		platformIDs = append(platformIDs, health.ResourceID)
+		healthMap[health.ResourceID] = health
+	}
+
+	// 只查询当前页需要的平台信息
+	q := query.Q
+	platforms, err := q.Platform.WithContext(ctx).
+		Select(q.Platform.ID, q.Platform.Name).
+		Where(q.Platform.ID.In(platformIDs...)).
+		Find()
+	if err != nil {
+		s.logger.Error("查询平台信息失败", "error", err)
+		return nil, fmt.Errorf("查询平台信息失败：%w", err)
+	}
+
+	// 构建平台 ID 到平台信息的映射
+	platformMap := make(map[uint]*types.Platform, len(platforms))
+	for i := range platforms {
+		platformMap[platforms[i].ID] = platforms[i]
+	}
+
+	// 按照 pagedHealths 的顺序组装响应数据，保持排序
+	items := make([]PlatformHealthItem, 0, len(pagedHealths))
+	for _, health := range pagedHealths {
+		platform := platformMap[health.ResourceID]
+		if platform != nil {
+			items = append(items, PlatformHealthItem{
+				PlatformID:    platform.ID,
+				PlatformName:  platform.Name,
+				Status:        health.Status,
+				RetryCount:    health.RetryCount,
+				LastError:     health.LastError,
+				LastCheckAt:   health.LastCheckAt,
+				LastSuccessAt: health.LastSuccessAt,
+				SuccessCount:  health.SuccessCount,
+				ErrorCount:    health.ErrorCount,
+			})
+		}
+	}
+
+	s.logger.Info("成功获取平台健康列表",
+		"total", total,
+		"page", page,
+		"page_size", pageSize,
+		"returned_count", len(items))
+
+	return &PlatformHealthListResponse{
+		Items:    items,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
+// GetAPIKeyHealthList 获取密钥健康列表
+//
+// 该方法返回所有密钥的健康状态列表，包括密钥值和详细的健康信息。
+// 支持分页查询，提升大数据量场景下的性能。
+//
+// 参数：
+//
+//	ctx - 上下文
+//	page - 页码（从 1 开始）
+//	pageSize - 每页大小
+//
+// 返回值：
+//
+//	*APIKeyHealthListResponse - 密钥健康列表响应
+//	error - 操作错误
+func (s *service) GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (*APIKeyHealthListResponse, error) {
+	s.logger.Debug("开始获取密钥健康列表",
+		"page", page,
+		"page_size", pageSize)
+
+	// 从存储中获取所有密钥的健康状态
+	keyHealths := s.storage.GetByResourceType(types.ResourceTypeAPIKey)
+
+	// 如果没有健康记录，返回空列表
+	if len(keyHealths) == 0 {
+		s.logger.Info("没有找到任何密钥健康记录")
+		return &APIKeyHealthListResponse{
+			Items:    []APIKeyHealthItem{},
+			Total:    0,
+			Page:     page,
+			PageSize: pageSize,
+		}, nil
+	}
+
+	// 按最后检查时间降序排序
+	sort.Slice(keyHealths, func(i, j int) bool {
+		return keyHealths[i].LastCheckAt.After(keyHealths[j].LastCheckAt)
+	})
+
+	// 计算总数和分页范围
+	total := len(keyHealths)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+
+	// 边界检查
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+
+	// 先分页，只处理当前页的健康记录
+	pagedHealths := keyHealths[start:end]
+
+	// 提取当前页的密钥 ID
+	keyIDs := make([]uint, 0, len(pagedHealths))
+	healthMap := make(map[uint]*types.Health, len(pagedHealths))
+	for _, health := range pagedHealths {
+		keyIDs = append(keyIDs, health.ResourceID)
+		healthMap[health.ResourceID] = health
+	}
+
+	// 只查询当前页需要的密钥信息
+	q := query.Q
+	keys, err := q.APIKey.WithContext(ctx).
+		Select(q.APIKey.ID, q.APIKey.Value).
+		Where(q.APIKey.ID.In(keyIDs...)).
+		Find()
+	if err != nil {
+		s.logger.Error("查询密钥信息失败", "error", err)
+		return nil, fmt.Errorf("查询密钥信息失败：%w", err)
+	}
+
+	// 提取平台 ID
+	platformIDs := make([]uint, 0, len(keys))
+	for _, key := range keys {
+		platformIDs = append(platformIDs, key.PlatformID)
+	}
+
+	// 构建密钥 ID 到密钥信息的映射
+	keyMap := make(map[uint]*types.APIKey, len(keys))
+	for i := range keys {
+		keyMap[keys[i].ID] = keys[i]
+	}
+
+	// 按照 pagedHealths 的顺序组装响应数据，保持排序
+	items := make([]APIKeyHealthItem, 0, len(pagedHealths))
+	for _, health := range pagedHealths {
+		key := keyMap[health.ResourceID]
+		if key != nil {
+			items = append(items, APIKeyHealthItem{
+				KeyID:         key.ID,
+				KeyValue:      key.Value,
+				Status:        health.Status,
+				RetryCount:    health.RetryCount,
+				LastError:     health.LastError,
+				LastCheckAt:   health.LastCheckAt,
+				LastSuccessAt: health.LastSuccessAt,
+				SuccessCount:  health.SuccessCount,
+				ErrorCount:    health.ErrorCount,
+			})
+		}
+	}
+
+	s.logger.Info("成功获取密钥健康列表",
+		"total", total,
+		"page", page,
+		"page_size", pageSize,
+		"returned_count", len(items))
+
+	return &APIKeyHealthListResponse{
+		Items:    items,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
 }
 
 // GetModelHealthList 获取模型健康列表
