@@ -109,3 +109,35 @@ func (h *Handler) EnableModel(c *fiber.Ctx) error {
 		"status":   "unknown",
 	})
 }
+
+// DisableModel 禁用指定模型的健康状态
+//
+// 路径参数：
+//
+//	modelId - 模型 ID
+//
+// 返回值：
+//
+//	成功 - 操作成功消息
+//	失败 - 错误信息
+func (h *Handler) DisableModel(c *fiber.Ctx) error {
+	modelId, err := strconv.ParseUint(c.Params("modelId"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无效的模型 ID",
+		})
+	}
+
+	// 禁用健康状态
+	if err := h.healthService.DisableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("禁用模型健康状态失败: %v", err),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":  "模型已禁用",
+		"model_id": modelId,
+		"status":   "unavailable",
+	})
+}

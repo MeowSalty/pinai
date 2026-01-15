@@ -14,4 +14,5 @@ func SetupHealthRoutes(router fiber.Router, healthService health.Service) {
 	healthGroup.Get("/summary", handler.GetHealthSummary)
 	healthGroup.Get("/models", handler.GetModelHealthList)
 	healthGroup.Post("/models/:modelId/enable", handler.EnableModel)
+	healthGroup.Post("/models/:modelId/disable", handler.DisableModel)
 }
