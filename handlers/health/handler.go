@@ -339,3 +339,18 @@ func (h *Handler) DisableModel(c *fiber.Ctx) error {
 		"status":   "unavailable",
 	})
 }
+
+// GetIssues 获取异常资源列表
+//
+// 返回值：
+//
+//	成功 - 异常资源列表数据
+//	失败 - 错误信息
+func (h *Handler) GetIssues(c *fiber.Ctx) error {
+	result, err := h.healthService.GetIssues(c.Context())
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "获取异常资源列表失败："+err.Error())
+	}
+
+	return c.JSON(result)
+}

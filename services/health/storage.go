@@ -291,3 +291,32 @@ func (s *Storage) GetByResourceType(resourceType types.ResourceType) []*types.He
 
 	return results
 }
+
+// GetByStatus 获取指定状态的所有健康状态记录
+//
+// 从内存缓存中获取指定状态的所有健康状态记录
+//
+// 参数：
+//
+//	status - 健康状态
+//
+// 返回值：
+//
+//	[]*types.Health - 健康状态列表
+func (s *Storage) GetByStatus(status types.HealthStatus) []*types.Health {
+	var results []*types.Health
+
+	s.cache.Range(func(key, value interface{}) bool {
+		h := value.(*types.Health)
+		if h.Status == status {
+			results = append(results, h)
+		}
+		return true
+	})
+
+	s.logger.Debug("获取指定状态的健康状态列表完成",
+		"status", status,
+		"count", len(results))
+
+	return results
+}

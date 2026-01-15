@@ -13,6 +13,9 @@ func SetupHealthRoutes(router fiber.Router, healthService health.Service) {
 	healthGroup := router.Group("/health")
 	healthGroup.Get("/summary", handler.GetHealthSummary)
 
+	// 异常资源端点
+	healthGroup.Get("/issues", handler.GetIssues)
+
 	// 平台健康端点
 	healthGroup.Get("/platforms", handler.GetPlatformHealthList)
 	healthGroup.Post("/platforms/:platformId/enable", handler.EnablePlatform)

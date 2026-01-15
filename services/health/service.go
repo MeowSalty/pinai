@@ -91,6 +91,21 @@ type ModelHealthListResponse struct {
 	PageSize int               `json:"page_size"` // 每页大小
 }
 
+// IssueItem 单个异常资源项
+type IssueItem struct {
+	ResourceType types.ResourceType `json:"resource_type"` // 资源类型
+	ResourceID   uint               `json:"resource_id"`   // 资源 ID
+	ResourceName string             `json:"resource_name"` // 资源名称
+	Status       types.HealthStatus `json:"status"`        // 资源状态
+	LastCheckAt  time.Time          `json:"last_check_at"` // 最后检查
+	LastError    string             `json:"last_error"`    // 最后错误
+}
+
+// IssuesListResponse 异常资源列表响应
+type IssuesListResponse struct {
+	Items []IssueItem `json:"items"` // 异常资源列表
+}
+
 // Service 定义健康服务接口
 type Service interface {
 	GetStorage() *Storage
@@ -100,6 +115,7 @@ type Service interface {
 	GetPlatformHealthList(ctx context.Context, page, pageSize int) (*PlatformHealthListResponse, error)
 	GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (*APIKeyHealthListResponse, error)
 	GetModelHealthList(ctx context.Context, page, pageSize int) (*ModelHealthListResponse, error)
+	GetIssues(ctx context.Context) (*IssuesListResponse, error)
 }
 
 // service 健康服务实现
@@ -645,5 +661,139 @@ func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*
 		Total:    total,
 		Page:     page,
 		PageSize: pageSize,
+	}, nil
+}
+
+// GetIssues 获取所有异常资源列表（状态为 unavailable）
+//
+// 该方法返回所有状态为 Unavailable 的资源列表，包括资源类型、ID、名称、状态、最后检查时间和最后错误信息。
+//
+// 参数：
+//
+//	ctx - 上下文
+//
+// 返回值：
+//
+//	*IssuesListResponse - 异常资源列表响应
+//	error - 操作错误
+func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
+	s.logger.Debug("开始获取异常资源列表")
+
+	// 从存储中获取所有 Unavailable 状态的健康记录
+	unavailableHealths := s.storage.GetByStatus(types.HealthStatusUnavailable)
+
+	// 如果没有异常记录，返回空列表
+	if len(unavailableHealths) == 0 {
+		s.logger.Info("没有找到任何异常资源")
+		return &IssuesListResponse{
+			Items: []IssueItem{},
+		}, nil
+	}
+
+	// 按最后检查时间降序排序
+	sort.Slice(unavailableHealths, func(i, j int) bool {
+		return unavailableHealths[i].LastCheckAt.After(unavailableHealths[j].LastCheckAt)
+	})
+
+	// 按资源类型分组
+	platformIDs := make([]uint, 0)
+	keyIDs := make([]uint, 0)
+	modelIDs := make([]uint, 0)
+	healthMap := make(map[string]*types.Health)
+
+	for _, health := range unavailableHealths {
+		key := fmt.Sprintf("%d:%d", health.ResourceType, health.ResourceID)
+		healthMap[key] = health
+
+		switch health.ResourceType {
+		case types.ResourceTypePlatform:
+			platformIDs = append(platformIDs, health.ResourceID)
+		case types.ResourceTypeAPIKey:
+			keyIDs = append(keyIDs, health.ResourceID)
+		case types.ResourceTypeModel:
+			modelIDs = append(modelIDs, health.ResourceID)
+		}
+	}
+
+	q := query.Q
+
+	// 查询平台信息
+	platformMap := make(map[uint]string)
+	if len(platformIDs) > 0 {
+		platforms, err := q.Platform.WithContext(ctx).
+			Select(q.Platform.ID, q.Platform.Name).
+			Where(q.Platform.ID.In(platformIDs...)).
+			Find()
+		if err != nil {
+			s.logger.Error("查询平台信息失败", "error", err)
+			return nil, fmt.Errorf("查询平台信息失败：%w", err)
+		}
+		for _, platform := range platforms {
+			platformMap[platform.ID] = platform.Name
+		}
+	}
+
+	// 查询密钥信息
+	keyMap := make(map[uint]string)
+	if len(keyIDs) > 0 {
+		keys, err := q.APIKey.WithContext(ctx).
+			Select(q.APIKey.ID, q.APIKey.Value).
+			Where(q.APIKey.ID.In(keyIDs...)).
+			Find()
+		if err != nil {
+			s.logger.Error("查询密钥信息失败", "error", err)
+			return nil, fmt.Errorf("查询密钥信息失败：%w", err)
+		}
+		for _, key := range keys {
+			keyMap[key.ID] = key.Value
+		}
+	}
+
+	// 查询模型信息
+	modelMap := make(map[uint]string)
+	if len(modelIDs) > 0 {
+		models, err := q.Model.WithContext(ctx).
+			Select(q.Model.ID, q.Model.Name).
+			Where(q.Model.ID.In(modelIDs...)).
+			Find()
+		if err != nil {
+			s.logger.Error("查询模型信息失败", "error", err)
+			return nil, fmt.Errorf("查询模型信息失败：%w", err)
+		}
+		for _, model := range models {
+			modelMap[model.ID] = model.Name
+		}
+	}
+
+	// 组装响应数据
+	items := make([]IssueItem, 0, len(unavailableHealths))
+	for _, health := range unavailableHealths {
+		var resourceName string
+		switch health.ResourceType {
+		case types.ResourceTypePlatform:
+			resourceName = platformMap[health.ResourceID]
+		case types.ResourceTypeAPIKey:
+			resourceName = keyMap[health.ResourceID]
+		case types.ResourceTypeModel:
+			resourceName = modelMap[health.ResourceID]
+		}
+
+		// 只添加能找到资源名称的项
+		if resourceName != "" {
+			items = append(items, IssueItem{
+				ResourceType: health.ResourceType,
+				ResourceID:   health.ResourceID,
+				ResourceName: resourceName,
+				Status:       health.Status,
+				LastCheckAt:  health.LastCheckAt,
+				LastError:    health.LastError,
+			})
+		}
+	}
+
+	s.logger.Info("成功获取异常资源列表", "count", len(items))
+
+	return &IssuesListResponse{
+		Items: items,
 	}, nil
 }
