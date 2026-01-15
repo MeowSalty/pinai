@@ -96,6 +96,7 @@ type IssueItem struct {
 	ResourceType types.ResourceType `json:"resource_type"` // 资源类型
 	ResourceID   uint               `json:"resource_id"`   // 资源 ID
 	ResourceName string             `json:"resource_name"` // 资源名称
+	PlatformName *string            `json:"platform_name"` // 所属平台名称（仅密钥和模型类型）
 	Status       types.HealthStatus `json:"status"`        // 资源状态
 	LastCheckAt  time.Time          `json:"last_check_at"` // 最后检查
 	LastError    string             `json:"last_error"`    // 最后错误
@@ -717,12 +718,66 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 
 	q := query.Q
 
+	// 查询密钥信息及其 PlatformID
+	keyMap := make(map[uint]string)
+	keyPlatformMap := make(map[uint]uint) // 存储密钥 ID -> 平台 ID 的映射
+	if len(keyIDs) > 0 {
+		keys, err := q.APIKey.WithContext(ctx).
+			Select(q.APIKey.ID, q.APIKey.Value, q.APIKey.PlatformID).
+			Where(q.APIKey.ID.In(keyIDs...)).
+			Find()
+		if err != nil {
+			s.logger.Error("查询密钥信息失败", "error", err)
+			return nil, fmt.Errorf("查询密钥信息失败：%w", err)
+		}
+		for _, key := range keys {
+			keyMap[key.ID] = key.Value
+			keyPlatformMap[key.ID] = key.PlatformID
+		}
+	}
+
+	// 查询模型信息及其 PlatformID
+	modelMap := make(map[uint]string)
+	modelPlatformMap := make(map[uint]uint) // 存储模型 ID -> 平台 ID 的映射
+	if len(modelIDs) > 0 {
+		models, err := q.Model.WithContext(ctx).
+			Select(q.Model.ID, q.Model.Name, q.Model.PlatformID).
+			Where(q.Model.ID.In(modelIDs...)).
+			Find()
+		if err != nil {
+			s.logger.Error("查询模型信息失败", "error", err)
+			return nil, fmt.Errorf("查询模型信息失败：%w", err)
+		}
+		for _, model := range models {
+			modelMap[model.ID] = model.Name
+			modelPlatformMap[model.ID] = model.PlatformID
+		}
+	}
+
+	// 收集所有需要查询的平台 ID
+	allPlatformIDs := make(map[uint]bool)
+	for _, pid := range platformIDs {
+		allPlatformIDs[pid] = true
+	}
+	for _, pid := range keyPlatformMap {
+		allPlatformIDs[pid] = true
+	}
+	for _, pid := range modelPlatformMap {
+		allPlatformIDs[pid] = true
+	}
+
+	// 转换为切片用于查询
+	needQueryPlatformIDs := make([]uint, 0, len(allPlatformIDs))
+	for pid := range allPlatformIDs {
+		needQueryPlatformIDs = append(needQueryPlatformIDs, pid)
+	}
+
 	// 查询平台信息
 	platformMap := make(map[uint]string)
-	if len(platformIDs) > 0 {
+	if len(needQueryPlatformIDs) > 0 {
 		platforms, err := q.Platform.WithContext(ctx).
 			Select(q.Platform.ID, q.Platform.Name).
-			Where(q.Platform.ID.In(platformIDs...)).
+			Where(q.Platform.ID.In(needQueryPlatformIDs...)).
 			Find()
 		if err != nil {
 			s.logger.Error("查询平台信息失败", "error", err)
@@ -733,49 +788,27 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 		}
 	}
 
-	// 查询密钥信息
-	keyMap := make(map[uint]string)
-	if len(keyIDs) > 0 {
-		keys, err := q.APIKey.WithContext(ctx).
-			Select(q.APIKey.ID, q.APIKey.Value).
-			Where(q.APIKey.ID.In(keyIDs...)).
-			Find()
-		if err != nil {
-			s.logger.Error("查询密钥信息失败", "error", err)
-			return nil, fmt.Errorf("查询密钥信息失败：%w", err)
-		}
-		for _, key := range keys {
-			keyMap[key.ID] = key.Value
-		}
-	}
-
-	// 查询模型信息
-	modelMap := make(map[uint]string)
-	if len(modelIDs) > 0 {
-		models, err := q.Model.WithContext(ctx).
-			Select(q.Model.ID, q.Model.Name).
-			Where(q.Model.ID.In(modelIDs...)).
-			Find()
-		if err != nil {
-			s.logger.Error("查询模型信息失败", "error", err)
-			return nil, fmt.Errorf("查询模型信息失败：%w", err)
-		}
-		for _, model := range models {
-			modelMap[model.ID] = model.Name
-		}
-	}
-
 	// 组装响应数据
 	items := make([]IssueItem, 0, len(unavailableHealths))
 	for _, health := range unavailableHealths {
 		var resourceName string
+		var platformName string // 平台名称变量
+
 		switch health.ResourceType {
 		case types.ResourceTypePlatform:
 			resourceName = platformMap[health.ResourceID]
 		case types.ResourceTypeAPIKey:
 			resourceName = keyMap[health.ResourceID]
+			// 获取密钥所属的平台名称
+			if platformID, exists := keyPlatformMap[health.ResourceID]; exists {
+				platformName = platformMap[platformID]
+			}
 		case types.ResourceTypeModel:
 			resourceName = modelMap[health.ResourceID]
+			// 获取模型所属的平台名称
+			if platformID, exists := modelPlatformMap[health.ResourceID]; exists {
+				platformName = platformMap[platformID]
+			}
 		}
 
 		// 只添加能找到资源名称的项
@@ -784,6 +817,7 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 				ResourceType: health.ResourceType,
 				ResourceID:   health.ResourceID,
 				ResourceName: resourceName,
+				PlatformName: &platformName, // 填充平台名称
 				Status:       health.Status,
 				LastCheckAt:  health.LastCheckAt,
 				LastError:    health.LastError,
