@@ -332,11 +332,17 @@ func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*
 		return nil, fmt.Errorf("查询模型信息失败：%w", err)
 	}
 
-	// 组装响应数据
-	items := make([]ModelHealthItem, 0, len(models))
-	for _, model := range models {
-		health := healthMap[model.ID]
-		if health != nil {
+	// 构建模型 ID 到模型信息的映射
+	modelMap := make(map[uint]*types.Model, len(models))
+	for i := range models {
+		modelMap[models[i].ID] = models[i]
+	}
+
+	// 按照 pagedHealths 的顺序组装响应数据，保持排序
+	items := make([]ModelHealthItem, 0, len(pagedHealths))
+	for _, health := range pagedHealths {
+		model := modelMap[health.ResourceID]
+		if model != nil {
 			items = append(items, ModelHealthItem{
 				ModelID:       model.ID,
 				ModelName:     model.Name,
