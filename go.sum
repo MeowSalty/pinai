@@ -4,6 +4,8 @@ github.com/MeowSalty/portal v0.6.0 h1:foq7pmlRy+fXhLlGLQSqquigra6gfruKwhA9xMx9t8
 github.com/MeowSalty/portal v0.6.0/go.mod h1:H6C1h2TzbWEw7l9Jol1Zup9rgZ4mcdEmATStzABbOeI=
 github.com/MeowSalty/portal v0.6.1-0.20260111162132-f98d32e6de04 h1:HV00w11dsjRlvqJUXlg7d+Es1SD984Nk+0ff/Mzhkz4=
 github.com/MeowSalty/portal v0.6.1-0.20260111162132-f98d32e6de04/go.mod h1:H6C1h2TzbWEw7l9Jol1Zup9rgZ4mcdEmATStzABbOeI=
+github.com/MeowSalty/portal v0.6.1 h1:5jLZ6xcviJmo3lQw6P7YNvkzCNJrE7k6E4KvV/gC6Bs=
+github.com/MeowSalty/portal v0.6.1/go.mod h1:H6C1h2TzbWEw7l9Jol1Zup9rgZ4mcdEmATStzABbOeI=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
