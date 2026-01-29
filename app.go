@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -19,6 +22,268 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	slogfiber "github.com/samber/slog-fiber"
 )
+
+// plainTextHandler 实现普通文本格式的日志处理器
+type plainTextHandler struct {
+	opts slog.HandlerOptions
+	mu   sync.Mutex
+	out  io.Writer
+}
+
+// newPlainTextHandler 创建普通文本格式的日志处理器
+func newPlainTextHandler(out io.Writer, opts *slog.HandlerOptions) *plainTextHandler {
+	if opts == nil {
+		opts = &slog.HandlerOptions{}
+	}
+	return &plainTextHandler{
+		opts: *opts,
+		out:  out,
+	}
+}
+
+// Enabled 检查日志级别是否启用
+func (h *plainTextHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return level >= h.opts.Level.Level()
+}
+
+// Handle 处理日志记录
+func (h *plainTextHandler) Handle(ctx context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	var buf bytes.Buffer
+
+	// 格式：[时间] [级别] [组] 消息
+	buf.WriteString(r.Time.Format("2006/01/02 15:04:05.000"))
+
+	// 日志级别
+	levelStr := "INFO"
+	switch r.Level {
+	case slog.LevelDebug:
+		levelStr = "DEBUG"
+	case slog.LevelInfo:
+		levelStr = "INFO"
+	case slog.LevelWarn:
+		levelStr = "WARN"
+	case slog.LevelError:
+		levelStr = "ERROR"
+	}
+	buf.WriteString(" ")
+	buf.WriteString(levelStr)
+	buf.WriteString(" ")
+
+	// 消息
+	buf.WriteString(r.Message)
+
+	// 属性
+	r.Attrs(func(a slog.Attr) bool {
+		buf.WriteString(" ")
+		buf.WriteString(a.Key)
+		buf.WriteString("=")
+		buf.WriteString(a.Value.String())
+		return true
+	})
+
+	buf.WriteString("\n")
+
+	_, err := h.out.Write(buf.Bytes())
+	return err
+}
+
+// WithAttrs 返回带有额外属性的处理器
+func (h *plainTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &plainTextHandler{
+		opts: h.opts,
+		out:  h.out,
+	}
+}
+
+// WithGroup 返回带有组的处理器
+func (h *plainTextHandler) WithGroup(name string) slog.Handler {
+	return &plainTextHandler{
+		opts: h.opts,
+		out:  h.out,
+	}
+}
+
+// multiHandler 实现多输出日志处理器
+type multiHandler struct {
+	handlers []slog.Handler
+}
+
+// newMultiHandler 创建多输出日志处理器
+func newMultiHandler(handlers ...slog.Handler) slog.Handler {
+	return &multiHandler{handlers: handlers}
+}
+
+// Enabled 检查日志级别是否启用
+func (h *multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	for _, handler := range h.handlers {
+		if handler.Enabled(ctx, level) {
+			return true
+		}
+	}
+	return false
+}
+
+// Handle 处理日志记录
+func (h *multiHandler) Handle(ctx context.Context, r slog.Record) error {
+	for _, handler := range h.handlers {
+		if handler.Enabled(ctx, r.Level) {
+			// 复制记录以避免修改原始记录
+			r := r
+			if err := handler.Handle(ctx, r); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// WithAttrs 返回带有额外属性的处理器
+func (h *multiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	handlers := make([]slog.Handler, len(h.handlers))
+	for i, handler := range h.handlers {
+		handlers[i] = handler.WithAttrs(attrs)
+	}
+	return &multiHandler{handlers: handlers}
+}
+
+// WithGroup 返回带有组的处理器
+func (h *multiHandler) WithGroup(name string) slog.Handler {
+	handlers := make([]slog.Handler, len(h.handlers))
+	for i, handler := range h.handlers {
+		handlers[i] = handler.WithGroup(name)
+	}
+	return &multiHandler{handlers: handlers}
+}
+
+// dailyRotateHandler 实现按日期分割的日志文件处理器
+type dailyRotateHandler struct {
+	logDir      string
+	baseName    string
+	level       slog.Level
+	mu          sync.Mutex
+	currentDate string
+	file        *os.File
+	handler     slog.Handler
+}
+
+// newDailyRotateHandler 创建按日期分割的日志文件处理器
+func newDailyRotateHandler(logDir, baseName string, level slog.Level) (*dailyRotateHandler, error) {
+	h := &dailyRotateHandler{
+		logDir:   logDir,
+		baseName: baseName,
+		level:    level,
+	}
+	if err := h.rotate(); err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
+// rotate 检查并轮转日志文件
+func (h *dailyRotateHandler) rotate() error {
+	currentDate := time.Now().Format("2006-01-02")
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// 如果日期未变化，无需轮转
+	if h.currentDate == currentDate && h.file != nil {
+		return nil
+	}
+
+	// 关闭旧文件
+	if h.file != nil {
+		h.file.Close()
+	}
+
+	// 创建新文件
+	fileName := h.baseName + "-" + currentDate + ".log"
+	filePath := h.logDir + "/" + fileName
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+
+	h.currentDate = currentDate
+	h.file = file
+	h.handler = slog.NewJSONHandler(file, &slog.HandlerOptions{
+		Level: h.level,
+	})
+
+	return nil
+}
+
+// Enabled 检查日志级别是否启用
+func (h *dailyRotateHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.handler == nil {
+		return false
+	}
+	return h.handler.Enabled(ctx, level)
+}
+
+// Handle 处理日志记录
+func (h *dailyRotateHandler) Handle(ctx context.Context, r slog.Record) error {
+	// 检查是否需要轮转
+	if err := h.rotate(); err != nil {
+		return err
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.handler == nil {
+		return nil
+	}
+	return h.handler.Handle(ctx, r)
+}
+
+// WithAttrs 返回带有额外属性的处理器
+func (h *dailyRotateHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.handler == nil {
+		return h
+	}
+	return &dailyRotateHandler{
+		logDir:      h.logDir,
+		baseName:    h.baseName,
+		level:       h.level,
+		currentDate: h.currentDate,
+		file:        h.file,
+		handler:     h.handler.WithAttrs(attrs),
+	}
+}
+
+// WithGroup 返回带有组的处理器
+func (h *dailyRotateHandler) WithGroup(name string) slog.Handler {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.handler == nil {
+		return h
+	}
+	return &dailyRotateHandler{
+		logDir:      h.logDir,
+		baseName:    h.baseName,
+		level:       h.level,
+		currentDate: h.currentDate,
+		file:        h.file,
+		handler:     h.handler.WithGroup(name),
+	}
+}
+
+// Close 关闭日志文件
+func (h *dailyRotateHandler) Close() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.file != nil {
+		return h.file.Close()
+	}
+	return nil
+}
 
 var (
 	port *string
@@ -111,10 +376,37 @@ func main() {
 		level = slog.LevelInfo
 	}
 
-	// 创建日志记录器
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	// 创建 log 目录
+	if err := os.MkdirAll("log", 0755); err != nil {
+		// 创建临时日志记录器用于输出错误
+		tempLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level: level,
+		}))
+		tempLogger.Error("创建日志目录失败", "error", err)
+	}
+
+	// 创建终端处理器（普通文本格式）
+	consoleHandler := newPlainTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: level,
-	}))
+	})
+
+	// 创建按日期分割的日志文件处理器（JSON 格式）
+	fileHandler, err := newDailyRotateHandler("log", "pinai", level)
+	if err != nil {
+		// 如果无法创建日志文件，仅使用终端输出
+		tempLogger := slog.New(consoleHandler)
+		tempLogger.Error("无法创建日志文件，将仅输出到终端", "error", err)
+		fileHandler = nil
+	}
+
+	// 创建多输出日志记录器
+	var logger *slog.Logger
+	if fileHandler != nil {
+		logger = slog.New(newMultiHandler(consoleHandler, fileHandler))
+		defer fileHandler.Close()
+	} else {
+		logger = slog.New(consoleHandler)
+	}
 
 	// 创建日志组
 	appLogger := logger.WithGroup("app")
