@@ -2,6 +2,7 @@ package router
 
 import (
 	"crypto/subtle"
+	"log/slog"
 	"strings"
 
 	"github.com/MeowSalty/pinai/handlers/anthropic"
@@ -15,8 +16,16 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
+type Config struct {
+	EnableWeb  bool
+	WebDir     string
+	ApiToken   string
+	AdminToken string
+	UserAgent  string
+}
+
 // SetupRoutes 配置 API 路由
-func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir string, apiToken string, adminToken string, userAgent string) error {
+func SetupRoutes(web *fiber.App, svcs *services.Services, config Config, logger *slog.Logger) error {
 	web.Use(cors.New())
 	webAPI := web.Group("/api")
 	openaiAPI := web.Group("/openai/v1")
@@ -27,14 +36,14 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir
 	anthropicAPI.Use(createStatsCollectorMiddleware())
 
 	// 如果设置了 token，为业务 API 端点添加身份验证
-	if apiToken != "" {
-		openaiAPI.Use(createOpenAIAuthMiddleware(apiToken))
-		anthropicAPI.Use(createAnthropicAuthMiddleware(apiToken))
+	if config.ApiToken != "" {
+		openaiAPI.Use(createOpenAIAuthMiddleware(config.ApiToken))
+		anthropicAPI.Use(createAnthropicAuthMiddleware(config.ApiToken))
 	}
 
 	// 如果设置了管理 token，为管理 API 端点添加身份验证
-	if adminToken != "" {
-		webAPI.Use(createOpenAIAuthMiddleware(adminToken))
+	if config.AdminToken != "" {
+		webAPI.Use(createOpenAIAuthMiddleware(config.AdminToken))
 	}
 
 	webAPI.Get("/ping", func(c *fiber.Ctx) error {
@@ -43,19 +52,19 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, enableWeb bool, webDir
 		})
 	})
 
-	openai.SetupOpenAIRoutes(openaiAPI, svcs.PortalService, userAgent)
-	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.PortalService, userAgent)
+	openai.SetupOpenAIRoutes(openaiAPI, svcs.PortalService, config.UserAgent)
+	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.PortalService, config.UserAgent)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
 	health.SetupHealthRoutes(webAPI, svcs.HealthService)
 
 	// 如果启用了前端支持，则设置前端路由
-	if enableWeb {
+	if config.EnableWeb {
 		// 静态文件服务
-		web.Static("/", webDir)
+		web.Static("/", config.WebDir)
 		// 添加一个兜底路由，将未匹配的路径都指向 index.html 以支持 SPA
 		web.Get("*", func(c *fiber.Ctx) error {
-			return c.SendFile(webDir + "/index.html")
+			return c.SendFile(config.WebDir + "/index.html")
 		})
 	}
 

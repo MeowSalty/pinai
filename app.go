@@ -413,6 +413,7 @@ func main() {
 	fiberLogger := logger.WithGroup("fiber")
 	gormLogger := logger.WithGroup("gorm")
 	frontendLogger := logger.WithGroup("frontend")
+	routerLogger := logger.WithGroup("router")
 
 	slog.SetDefault(appLogger)
 
@@ -482,7 +483,14 @@ func main() {
 	}
 
 	// 设置路由
-	if err := router.SetupRoutes(fiberApp, svcs, *enableWeb, *webDir, *apiToken, effectiveAdminToken, *userAgent); err != nil {
+	routerConfig := router.Config{
+		AdminToken: effectiveAdminToken,
+		ApiToken:   *apiToken,
+		EnableWeb:  *enableWeb,
+		UserAgent:  *userAgent,
+		WebDir:     *webDir,
+	}
+	if err := router.SetupRoutes(fiberApp, svcs, routerConfig, routerLogger); err != nil {
 		appLogger.Error("路由设置失败", "error", err)
 		os.Exit(1)
 	}
