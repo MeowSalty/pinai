@@ -202,6 +202,29 @@ docker run -d \
 
 PinAI 提供以下平台兼容的 API 接口：
 
+### 代理接口
+
+基础路径：`/api`
+
+- `POST /api/proxy` - 通过后端代理访问任意上游端点
+
+**认证方式**：当配置了 `ADMIN_TOKEN` 时，使用 `Authorization: Bearer <ADMIN_TOKEN>` 头进行身份验证
+
+**使用示例**（获取 OpenAI 模型列表）：
+
+```bash
+curl https://your-domain.com/api/proxy \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://api.openai.com/v1/models",
+    "method": "GET",
+    "headers": {
+      "Authorization": "Bearer YOUR_UPSTREAM_TOKEN"
+    }
+  }'
+```
+
 ### OpenAI 兼容接口
 
 基础路径：`/openai/v1`

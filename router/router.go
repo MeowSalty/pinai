@@ -9,6 +9,7 @@ import (
 	"github.com/MeowSalty/pinai/handlers/health"
 	"github.com/MeowSalty/pinai/handlers/openai"
 	"github.com/MeowSalty/pinai/handlers/provider"
+	"github.com/MeowSalty/pinai/handlers/proxy"
 	"github.com/MeowSalty/pinai/handlers/stats"
 	"github.com/MeowSalty/pinai/services"
 	statsService "github.com/MeowSalty/pinai/services/stats"
@@ -28,6 +29,7 @@ type Config struct {
 func SetupRoutes(web *fiber.App, svcs *services.Services, config Config, logger *slog.Logger) error {
 	web.Use(cors.New())
 	webAPI := web.Group("/api")
+	proxyAPI := webAPI.Group("/proxy")
 	openaiAPI := web.Group("/openai/v1")
 	anthropicAPI := web.Group("/anthropic/v1")
 
@@ -44,6 +46,7 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, config Config, logger 
 	// 如果设置了管理 token，为管理 API 端点添加身份验证
 	if config.AdminToken != "" {
 		webAPI.Use(createOpenAIAuthMiddleware(config.AdminToken))
+		proxyAPI.Use(createOpenAIAuthMiddleware(config.AdminToken))
 	}
 
 	webAPI.Get("/ping", func(c *fiber.Ctx) error {
@@ -54,6 +57,7 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, config Config, logger 
 
 	openai.SetupOpenAIRoutes(openaiAPI, svcs.PortalService, config.UserAgent)
 	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.PortalService, config.UserAgent)
+	proxy.SetupProxyRoutes(proxyAPI, config.ApiToken, config.UserAgent, logger)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
 	health.SetupHealthRoutes(webAPI, svcs.HealthService)
