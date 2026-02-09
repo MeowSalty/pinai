@@ -9,8 +9,8 @@ import (
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/pinai/services/health"
 	"github.com/MeowSalty/portal"
+	adapterTypes "github.com/MeowSalty/portal/request/adapter/types"
 	coreHealth "github.com/MeowSalty/portal/routing/health"
-	coreTypes "github.com/MeowSalty/portal/types"
 )
 
 // Service Portal 服务接口
@@ -18,13 +18,13 @@ import (
 // 封装所有与 Portal 相关的业务逻辑
 type Service interface {
 	// ChatCompletion 处理聊天完成请求
-	ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error)
+	ChatCompletion(ctx context.Context, req *adapterTypes.RequestContract) (*adapterTypes.ResponseContract, error)
 
 	// Close 优雅关闭服务
 	Close(timeout time.Duration) error
 
 	// ChatCompletionStream 处理流式聊天完成请求
-	ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error)
+	ChatCompletionStream(ctx context.Context, req *adapterTypes.RequestContract) (<-chan *adapterTypes.StreamEventContract, error)
 }
 
 // healthStorageAdapter 适配器，将内部 health.Storage 转换为 portal 需要的 health.Storage 接口
@@ -166,7 +166,7 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healt
 // ChatCompletion 处理聊天完成请求
 //
 // 提供统一的聊天完成处理入口，包含日志记录和错误处理
-func (s *service) ChatCompletion(ctx context.Context, req *coreTypes.Request) (*coreTypes.Response, error) {
+func (s *service) ChatCompletion(ctx context.Context, req *adapterTypes.RequestContract) (*adapterTypes.ResponseContract, error) {
 	requestLogger := s.logger.WithGroup("chat_completion")
 	requestLogger.Info("开始处理聊天完成请求", "model", req.Model)
 
@@ -204,7 +204,7 @@ func (s *service) ChatCompletion(ctx context.Context, req *coreTypes.Request) (*
 }
 
 // ChatCompletionStream 处理流式聊天完成请求
-func (s *service) ChatCompletionStream(ctx context.Context, req *coreTypes.Request) (<-chan *coreTypes.Response, error) {
+func (s *service) ChatCompletionStream(ctx context.Context, req *adapterTypes.RequestContract) (<-chan *adapterTypes.StreamEventContract, error) {
 	streamLogger := s.logger.WithGroup("chat_completion_stream")
 	streamLogger.Info("开始处理流式聊天完成请求", "model", req.Model)
 
