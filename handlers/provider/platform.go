@@ -35,13 +35,6 @@ func (h *Handler) CreatePlatform(c *fiber.Ctx) error {
 		})
 	}
 
-	// 检查 Variant 是否为 responses，目前不支持该格式
-	if platform.Variant == "responses" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "不支持 responses 格式的平台变体",
-		})
-	}
-
 	ctx := context.Background()
 	createdPlatform, err := h.service.CreatePlatform(ctx, platform)
 	if err != nil {
@@ -152,13 +145,6 @@ func (h *Handler) UpdatePlatform(c *fiber.Ctx) error {
 	if err := c.BodyParser(&platform); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
-	}
-
-	// 检查 Variant 是否为 responses，目前不支持该格式
-	if platform.Variant == "responses" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "不支持 responses 格式的平台变体",
 		})
 	}
 
