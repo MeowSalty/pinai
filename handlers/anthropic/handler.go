@@ -11,10 +11,11 @@ import (
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/services/portal"
-	statsService "github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/portal/logger"
 	"github.com/MeowSalty/portal/request/adapter/anthropic/converter"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
-	portalTypes "github.com/MeowSalty/portal/types"
+	portalTypes "github.com/MeowSalty/portal/request/adapter/types"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -107,7 +108,7 @@ func (h *AnthropicHandler) Messages(c *fiber.Ctx) error {
 	}
 
 	// 转换请求格式
-	portalReq := req.ConvertCoreRequest()
+	portalReq, err := converter.RequestToContract(&req)
 
 	// 处理 User-Agent 头部
 	if portalReq.Headers == nil {
@@ -143,13 +144,13 @@ func (h *AnthropicHandler) Messages(c *fiber.Ctx) error {
 	}
 
 	// 转换响应格式
-	anthropicResp := converter.ConvertResponse(resp)
+	anthropicResp, err := converter.ResponseFromContract(resp, logger.Default())
 
 	return c.JSON(anthropicResp)
 }
 
 // handleStreamResponse 处理流式响应
-func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.Request) error {
+func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.RequestContract) error {
 	// 设置流式响应头
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
@@ -160,7 +161,7 @@ func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.R
 	ctx, cancel := context.WithCancel(c.Context())
 
 	// 获取流式响应通道
-	responseChan, err := h.portal.ChatCompletionStream(ctx, req)
+	eventChan, err := h.portal.ChatCompletionStream(ctx, req)
 	if err != nil {
 		cancel()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -169,7 +170,7 @@ func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.R
 	}
 
 	// 使用流式跟踪包装器，确保在流结束时减少连接数
-	collector := statsService.GetCollector()
+	collector := stats.GetCollector()
 	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
 		// 添加 defer recover 来捕获流式处理中的 panic
 		defer func() {
@@ -199,30 +200,21 @@ func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.R
 		}()
 
 		isErr := false
-		converterTool := converter.NewStreamEventConverter()
-		for resp := range responseChan {
+		for event := range eventChan {
 			// 检查是否有错误字段
-			if len(resp.Choices) > 0 && resp.Choices[0].Error != nil {
+			if event.Error != nil {
 				isErr = true
-				// 构造并发送错误事件给客户端
-				errorEvent := map[string]any{
-					"type": "error",
-					"error": map[string]any{
-						"type":    "stream_error",
-						"message": resp.Choices[0].Error.Message,
-					},
-				}
 
 				// 序列化错误事件
-				jsonBytes, marshalErr := json.Marshal(errorEvent)
+				jsonBytes, marshalErr := json.Marshal(event.Error)
 				if marshalErr != nil {
-					slog.Error("无法序列化错误事件", "error", marshalErr)
+					// logger.Error("无法序列化错误事件", "error", marshalErr)
 					break
 				}
 
 				// 发送错误事件
 				if _, err := fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes)); err != nil {
-					slog.Error("无法发送错误事件，写入流失败", "error", err)
+					// logger.Error("无法发送错误事件，写入流失败", "error", err)
 					break
 				}
 				w.Flush()
@@ -230,14 +222,17 @@ func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.R
 			}
 
 			// 转换为 Anthropic 格式
-			anthropicResp := converterTool.ConvertStreamEvents(resp)
-
-			var err error
-			for _, resp := range anthropicResp {
-				// 发送事件
-				data, _ := json.Marshal(resp)
-				_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", resp.Type, data)
+			anthropicEvent, err := converter.StreamEventFromContract(event, nil)
+			if err != nil {
+				cancel()
+				slog.Error("无法转换流式响应", "error", err)
+				break
 			}
+
+			// 发送事件
+			data, _ := json.Marshal(anthropicEvent)
+			_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, data)
+
 			if err != nil {
 				cancel()
 				slog.Error("写入流式响应失败", "error", err)
