@@ -55,7 +55,7 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, config Config, logger 
 		})
 	})
 
-	openai.SetupOpenAIRoutes(openaiAPI, svcs.PortalService, config.UserAgent)
+	openai.SetupOpenAIRoutes(openaiAPI, svcs.PortalService, config.UserAgent, logger)
 	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.PortalService, config.UserAgent)
 	proxy.SetupProxyRoutes(proxyAPI, config.ApiToken, config.UserAgent, logger)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
