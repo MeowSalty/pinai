@@ -231,6 +231,7 @@ curl https://your-domain.com/api/proxy \
 
 - `GET /openai/v1/models` - 获取可用模型列表
 - `POST /openai/v1/chat/completions` - 聊天补全接口（支持流式和非流式）
+- `POST /openai/v1/responses` - Responses 接口（支持流式和非流式）
 
 **认证方式**：使用 `Authorization: Bearer <API_TOKEN>` 头进行身份验证
 
@@ -274,6 +275,22 @@ curl https://your-domain.com/anthropic/v1/messages \
 > - OpenAI 和 Anthropic 接口使用相同的 API Token（通过 `API_TOKEN` 环境变量或 `-api-token` 参数配置）
 > - 两种接口格式的请求会被统一转换为内部格式处理，然后转发到相应的 AI 服务提供商
 > - 模型映射功能对两种接口格式均有效
+
+### Multi 兼容接口
+
+基础路径：`/multi/v1`
+
+- `GET /multi/v1/models` - 获取可用模型列表（根据请求头自动返回 OpenAI 或 Anthropic 格式）
+- `POST /multi/v1/chat/completions` - OpenAI 聊天补全接口（支持流式和非流式）
+- `POST /multi/v1/responses` - OpenAI Responses 接口（支持流式和非流式）
+- `POST /multi/v1/messages` - Anthropic 消息补全接口（支持流式和非流式）
+
+**认证方式**：
+
+- `/multi/v1/messages` 使用 `x-api-key: <API_TOKEN>`
+- `/multi/v1/chat/completions`、`/multi/v1/responses`、`/multi/v1/models` 使用 `Authorization: Bearer <API_TOKEN>`
+
+**模型列表自动识别规则**：当请求同时携带 `x-api-key` 与 `anthropic-version` 头时，`/multi/v1/models` 返回 Anthropic 格式，否则返回 OpenAI 格式。
 
 ## 🏗️ 开发指南
 
