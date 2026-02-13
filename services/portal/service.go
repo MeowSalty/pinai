@@ -6,11 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/pinai/services/health"
 	"github.com/MeowSalty/portal"
 	adapterTypes "github.com/MeowSalty/portal/request/adapter/types"
-	coreHealth "github.com/MeowSalty/portal/routing/health"
 )
 
 // Service Portal 服务接口
@@ -25,75 +23,6 @@ type Service interface {
 
 	// ChatCompletionStream 处理流式聊天完成请求
 	ChatCompletionStream(ctx context.Context, req *adapterTypes.RequestContract) (<-chan *adapterTypes.StreamEventContract, error)
-}
-
-// healthStorageAdapter 适配器，将内部 health.Storage 转换为 portal 需要的 health.Storage 接口
-type healthStorageAdapter struct {
-	storage *health.Storage
-}
-
-// Get 实现 portal health.Storage 接口的 Get 方法
-func (a *healthStorageAdapter) Get(resourceType coreHealth.ResourceType, resourceID uint) (*coreHealth.Health, error) {
-	// 将 portal 库的 ResourceType 转换为内部 health 包的 ResourceType
-	internalResourceType := convertResourceTypeToInternal(resourceType)
-	internalResult, err := a.storage.Get(internalResourceType, resourceID)
-	if err != nil || internalResult == nil {
-		return nil, err
-	}
-
-	// 将内部 health.Health 转换为 portal 库的 health.Health
-	return &coreHealth.Health{
-		ResourceType:    resourceType,
-		ResourceID:      internalResult.ResourceID,
-		Status:          coreHealth.HealthStatus(internalResult.Status),
-		RetryCount:      internalResult.RetryCount,
-		NextAvailableAt: internalResult.NextAvailableAt,
-		BackoffDuration: internalResult.BackoffDuration,
-		LastError:       internalResult.LastError,
-		LastErrorCode:   internalResult.LastErrorCode,
-		LastCheckAt:     internalResult.LastCheckAt,
-		LastSuccessAt:   internalResult.LastSuccessAt,
-		SuccessCount:    internalResult.SuccessCount,
-		ErrorCount:      internalResult.ErrorCount,
-		CreatedAt:       internalResult.CreatedAt,
-		UpdatedAt:       internalResult.UpdatedAt,
-	}, nil
-}
-
-// Set 实现 portal health.Storage 接口的 Set 方法
-func (a *healthStorageAdapter) Set(status *coreHealth.Health) error {
-	// 将 portal 库的 health.Health 转换为内部 health 包的 health.Health 类型
-	internalStatus := &types.Health{
-		ResourceType:    convertResourceTypeToInternal(status.ResourceType),
-		ResourceID:      status.ResourceID,
-		Status:          types.HealthStatus(status.Status),
-		RetryCount:      status.RetryCount,
-		NextAvailableAt: status.NextAvailableAt,
-		BackoffDuration: status.BackoffDuration,
-		LastError:       status.LastError,
-		LastErrorCode:   status.LastErrorCode,
-		LastCheckAt:     status.LastCheckAt,
-		LastSuccessAt:   status.LastSuccessAt,
-		SuccessCount:    status.SuccessCount,
-		ErrorCount:      status.ErrorCount,
-		CreatedAt:       status.CreatedAt,
-		UpdatedAt:       status.UpdatedAt,
-	}
-
-	return a.storage.Set(internalStatus)
-}
-
-// Delete 实现 portal health.Storage 接口的 Delete 方法
-func (a *healthStorageAdapter) Delete(resourceType coreHealth.ResourceType, resourceID uint) error {
-	// 将 portal 库的 ResourceType 转换为内部 health 包的 ResourceType
-	internalResourceType := convertResourceTypeToInternal(resourceType)
-	return a.storage.Delete(internalResourceType, resourceID)
-}
-
-// convertResourceTypeToInternal 将 portal 库的 ResourceType 转换为内部 health 包的 ResourceType
-func convertResourceTypeToInternal(portalType coreHealth.ResourceType) types.ResourceType {
-	// 直接类型转换，因为它们应该有相同的值定义
-	return types.ResourceType(portalType)
 }
 
 // service Portal 服务实现
@@ -161,81 +90,4 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healt
 		modelMappingRule: modelMappingRule,
 		logger:           logger,
 	}, nil
-}
-
-// ChatCompletion 处理聊天完成请求
-//
-// 提供统一的聊天完成处理入口，包含日志记录和错误处理
-func (s *service) ChatCompletion(ctx context.Context, req *adapterTypes.RequestContract) (*adapterTypes.ResponseContract, error) {
-	requestLogger := s.logger.WithGroup("chat_completion")
-	requestLogger.Info("开始处理聊天完成请求", "model", req.Model)
-
-	originalModel := req.Model
-
-	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
-		requestLogger.Debug("应用模型映射规则",
-			"original_model", originalModel,
-			"mapped_model", mappedModel)
-		req.Model = mappedModel
-	}
-
-	startTime := time.Now()
-
-	resp, err := s.portal.ChatCompletion(ctx, req)
-	duration := time.Since(startTime)
-
-	if err != nil {
-		requestLogger.Error("聊天完成处理失败",
-			"error", err,
-			"duration", duration,
-			"model", req.Model,
-			"original_model", originalModel)
-		return nil, fmt.Errorf("聊天完成处理失败：%w", err)
-	}
-
-	requestLogger.Info("聊天完成请求处理成功",
-		"duration", duration,
-		"model", req.Model,
-		"original_model", originalModel,
-		"response_id", resp.ID,
-		"usage", resp.Usage)
-
-	return resp, nil
-}
-
-// ChatCompletionStream 处理流式聊天完成请求
-func (s *service) ChatCompletionStream(ctx context.Context, req *adapterTypes.RequestContract) (<-chan *adapterTypes.StreamEventContract, error) {
-	streamLogger := s.logger.WithGroup("chat_completion_stream")
-	streamLogger.Info("开始处理流式聊天完成请求", "model", req.Model)
-
-	originalModel := req.Model
-
-	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
-		streamLogger.Debug("应用模型映射规则",
-			"original_model", originalModel,
-			"mapped_model", mappedModel)
-		req.Model = mappedModel
-	}
-
-	streamLogger.Debug("正在启动流式处理")
-	stream := s.portal.ChatCompletionStream(ctx, req)
-
-	streamLogger.Info("聊天完成流启动成功", "model", req.Model)
-	return stream, nil
-}
-
-// Close 优雅关闭服务
-//
-// 停止健康管理器和取消所有相关的上下文
-func (s *service) Close(timeout time.Duration) error {
-	s.logger.Info("开始优雅关闭服务", "timeout", timeout)
-
-	err := s.portal.Close(timeout)
-	if err != nil {
-		s.logger.Error("服务关闭失败", "error", err, "timeout", timeout)
-		return err
-	}
-
-	s.logger.Info("服务关闭成功")
-	return nil
 }
