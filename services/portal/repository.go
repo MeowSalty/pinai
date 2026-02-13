@@ -98,6 +98,54 @@ func (r *Repository) FindModelsByNameOrAlias(ctx context.Context, name string) (
 	return models, nil
 }
 
+// FindModelsByNameOrAliasAndProvider 根据名称或别名以及提供商和变体查找模型
+func (r *Repository) FindModelsByNameOrAliasAndProvider(ctx context.Context, name, provider, variant string) ([]routing.Model, error) {
+	repoLogger := r.logger.WithGroup("model_repository")
+	repoLogger.Debug("根据名称或别名以及提供商和变体查找模型", "name", name, "provider", provider, "variant", variant)
+
+	q := query.Q
+
+	// 使用 GORM 查询模型（按名称或别名查找，并关联平台约束提供商和变体），预加载 APIKeys 关联数据
+	dbModels, err := q.WithContext(ctx).Model.Preload(q.Model.APIKeys).Joins(q.Model.Platform).Where(
+		q.Model.Name.Eq(name),
+	).Or(
+		q.Model.Alias_.Eq(name),
+	).Where(
+		q.Platform.Provider.Eq(provider),
+	).Where(
+		q.Platform.Variant.Eq(variant),
+	).Find()
+
+	if err != nil {
+		repoLogger.Error("查询模型失败", "error", err, "name", name, "provider", provider, "variant", variant)
+		return nil, fmt.Errorf("查询模型失败：%w", err)
+	}
+
+	// 转换为 routing.Model 类型
+	models := make([]routing.Model, len(dbModels))
+	for i, dbModel := range dbModels {
+		// 转换 APIKeys
+		apiKeys := make([]routing.APIKey, len(dbModel.APIKeys))
+		for j, dbKey := range dbModel.APIKeys {
+			apiKeys[j] = routing.APIKey{
+				ID:    dbKey.ID,
+				Value: dbKey.Value,
+			}
+		}
+
+		models[i] = routing.Model{
+			ID:         dbModel.ID,
+			PlatformID: dbModel.PlatformID,
+			Name:       dbModel.Name,
+			Alias:      dbModel.Alias,
+			APIKeys:    apiKeys,
+		}
+	}
+
+	repoLogger.Debug("模型查询成功", "name", name, "provider", provider, "variant", variant, "found_count", len(models))
+	return models, nil
+}
+
 // GetPlatformByID 根据 ID 获取平台信息
 func (r *Repository) GetPlatformByID(ctx context.Context, id uint) (*routing.Platform, error) {
 	repoLogger := r.logger.WithGroup("platform_repository")

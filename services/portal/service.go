@@ -8,6 +8,10 @@ import (
 
 	"github.com/MeowSalty/pinai/services/health"
 	"github.com/MeowSalty/portal"
+	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
+	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
+	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
+	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
 	adapterTypes "github.com/MeowSalty/portal/request/adapter/types"
 )
 
@@ -23,6 +27,22 @@ type Service interface {
 
 	// ChatCompletionStream 处理流式聊天完成请求
 	ChatCompletionStream(ctx context.Context, req *adapterTypes.RequestContract) (<-chan *adapterTypes.StreamEventContract, error)
+
+	// === Native ===
+
+	// Anthropic
+	NativeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error)
+	NativeAnthropicMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent
+
+	// Gemini
+	NativeGeminiGenerateContent(ctx context.Context, req *geminiTypes.Request) (*geminiTypes.Response, error)
+	NativeGeminiStreamGenerateContent(ctx context.Context, req *geminiTypes.Request) <-chan *geminiTypes.StreamEvent
+
+	// OpenAI
+	NativeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
+	NativeOpenAIChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent
+	NativeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
+	NativeOpenAIResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent
 }
 
 // service Portal 服务实现
