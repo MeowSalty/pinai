@@ -34,7 +34,6 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, config Config, logger 
 	openaiAPI := web.Group("/openai/v1")
 	anthropicAPI := web.Group("/anthropic/v1")
 	multiAPI := web.Group("/multi")
-	multiV1API := multiAPI.Group("/v1")
 
 	// 为业务 API 添加统计采集中间件
 	openaiAPI.Use(createStatsCollectorMiddleware())
@@ -62,13 +61,7 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, config Config, logger 
 	openai.SetupOpenAIRoutes(openaiAPI, svcs.PortalService, config.UserAgent, logger)
 	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.PortalService, config.UserAgent)
 
-	multiOpenAIAPI := multiV1API
-	multiAnthropicAPI := multiV1API
-	if config.ApiToken != "" {
-		multiOpenAIAPI = multiV1API.Group("", createOpenAIAuthMiddleware(config.ApiToken))
-		multiAnthropicAPI = multiV1API.Group("", createAnthropicAuthMiddleware(config.ApiToken))
-	}
-	multi.SetupMultiRoutes(multiOpenAIAPI, multiAnthropicAPI, multiV1API, svcs.PortalService, config.UserAgent, logger, config.ApiToken)
+	multi.SetupMultiRoutes(multiAPI, svcs.PortalService, config.UserAgent, logger, config.ApiToken)
 
 	proxy.SetupProxyRoutes(proxyAPI, config.ApiToken, config.UserAgent, logger)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
