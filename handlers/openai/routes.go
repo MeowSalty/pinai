@@ -1,3 +1,4 @@
+// Deprecated: 不再维护，逐步迁移到 github.com/MeowSalty/pinai/handlers/multi 包。
 package openai
 
 import (
