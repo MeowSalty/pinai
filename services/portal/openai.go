@@ -23,7 +23,7 @@ func (s *service) NativeOpenAIChatCompletion(ctx context.Context, req *openaiCha
 	}
 
 	startTime := time.Now()
-	resp, err := s.portal.RawOpenAIChatCompletion(ctx, req)
+	resp, err := s.portal.NativeOpenAIChatCompletion(ctx, req)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *service) NativeOpenAIChatCompletionStream(ctx context.Context, req *ope
 		req.Model = mappedModel
 	}
 
-	stream := s.portal.RawOpenAIChatCompletionStream(ctx, req)
+	stream := s.portal.NativeOpenAIChatCompletionStream(ctx, req)
 	streamLogger.Info("OpenAI Chat 原生流启动成功", "model", req.Model, "original_model", originalModel)
 	return stream
 }
@@ -83,7 +83,7 @@ func (s *service) NativeOpenAIResponses(ctx context.Context, req *openaiResponse
 	}
 
 	startTime := time.Now()
-	resp, err := s.portal.RawOpenAIResponses(ctx, req)
+	resp, err := s.portal.NativeOpenAIResponses(ctx, req)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -124,7 +124,7 @@ func (s *service) NativeOpenAIResponsesStream(ctx context.Context, req *openaiRe
 		}
 	}
 
-	stream := s.portal.RawOpenAIResponsesStream(ctx, req)
+	stream := s.portal.NativeOpenAIResponsesStream(ctx, req)
 	streamLogger.Info("OpenAI Responses 原生流启动成功", "model", modelName, "original_model", originalModel)
 	return stream
 }

@@ -22,7 +22,7 @@ func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTyp
 	}
 
 	startTime := time.Now()
-	resp, err := s.portal.RawAnthropicMessages(ctx, req)
+	resp, err := s.portal.NativeAnthropicMessages(ctx, req)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -55,7 +55,7 @@ func (s *service) NativeAnthropicMessagesStream(ctx context.Context, req *anthro
 		req.Model = mappedModel
 	}
 
-	stream := s.portal.RawAnthropicMessagesStream(ctx, req)
+	stream := s.portal.NativeAnthropicMessagesStream(ctx, req)
 	streamLogger.Info("Anthropic 原生流启动成功", "model", req.Model, "original_model", originalModel)
 	return stream
 }

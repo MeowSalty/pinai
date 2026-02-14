@@ -22,7 +22,7 @@ func (s *service) NativeGeminiGenerateContent(ctx context.Context, req *geminiTy
 	}
 
 	startTime := time.Now()
-	resp, err := s.portal.RawGeminiGenerateContent(ctx, req)
+	resp, err := s.portal.NativeGeminiGenerateContent(ctx, req)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -55,7 +55,7 @@ func (s *service) NativeGeminiStreamGenerateContent(ctx context.Context, req *ge
 		req.Model = mappedModel
 	}
 
-	stream := s.portal.RawGeminiStreamGenerateContent(ctx, req)
+	stream := s.portal.NativeGeminiStreamGenerateContent(ctx, req)
 	streamLogger.Info("Gemini 原生流启动成功", "model", req.Model, "original_model", originalModel)
 	return stream
 }
