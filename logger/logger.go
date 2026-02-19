@@ -26,7 +26,7 @@ func InitLogger(logLevel string) (*slog.Logger, *dailyRotateHandler) {
 	}
 
 	// 创建 log 目录
-	if err := os.MkdirAll("log", 0755); err != nil {
+	if err := os.MkdirAll("data/log", 0755); err != nil {
 		// 创建临时日志记录器用于输出错误
 		tempLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 			Level: level,
@@ -40,7 +40,7 @@ func InitLogger(logLevel string) (*slog.Logger, *dailyRotateHandler) {
 	})
 
 	// 创建按日期分割的日志文件处理器（JSON 格式）
-	fileHandler, err := newDailyRotateHandler("log", "pinai", level)
+	fileHandler, err := newDailyRotateHandler("data/log", "pinai", level)
 	if err != nil {
 		// 如果无法创建日志文件，仅使用终端输出
 		tempLogger := slog.New(consoleHandler)
