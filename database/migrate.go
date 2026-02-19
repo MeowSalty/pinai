@@ -33,5 +33,9 @@ func autoMigrate(db *gorm.DB) error {
 	if err := migrateModelAPIKeysToAssociations(db); err != nil {
 		return err
 	}
+	// 迁移端点配置
+	if err := migrateEndpoints(db); err != nil {
+		return err
+	}
 	return nil
 }
