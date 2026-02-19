@@ -106,15 +106,14 @@ func (r *Repository) FindModelsByNameOrAliasAndProvider(ctx context.Context, nam
 	q := query.Q
 
 	// 使用 GORM 查询模型（按名称或别名查找，并关联平台约束提供商和变体），预加载 APIKeys 关联数据
-	dbModels, err := q.WithContext(ctx).Model.Preload(q.Model.APIKeys).Joins(q.Model.Platform).Where(
-		q.Model.Name.Eq(name),
-	).Or(
-		q.Model.Alias_.Eq(name),
-	).Where(
-		q.Platform.Provider.Eq(provider),
-	).Where(
-		q.Platform.Variant.Eq(variant),
-	).Find()
+	dbModels, err := q.Model.
+		LeftJoin(q.Platform, q.Platform.ID.EqCol(q.Model.PlatformID)).
+		// Where(q.Platform.Provider.Eq(provider)).
+		Where(q.Platform.Variant.Eq(variant)).
+		Where(q.Model.Name.Eq(name)).
+		Or(q.Model.Alias_.Eq(name)).
+		Preload(q.Model.APIKeys).
+		Find()
 
 	if err != nil {
 		repoLogger.Error("查询模型失败", "error", err, "name", name, "provider", provider, "variant", variant)
