@@ -9,6 +9,7 @@ var Types = []interface{}{
 	Platform{},
 	APIKey{},
 	Model{},
+	Endpoint{},
 
 	// Stats
 	RequestLog{},
