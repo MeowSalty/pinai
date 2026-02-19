@@ -6,15 +6,25 @@ type RateLimitConfig struct {
 	TPM int `json:"tpm"` // 每分钟 Token 数限制
 }
 
+// Endpoint 表示平台端点配置。
+// 端点用于存储不同平台的各种服务端点的路径和配置信息。
+type Endpoint struct {
+	ID              int64             `gorm:"primaryKey" json:"id"`                                                                                                                                                         // 端点 ID
+	PlatformID      int64             `gorm:"index:idx_endpoints_platform_default,priority:1;index:idx_endpoints_platform_type_variant,priority:1;uniqueIndex:uq_endpoints_platform_default,priority:1" json:"platform_id"` // 平台 ID（外键）
+	EndpointType    string            `gorm:"index:idx_endpoints_platform_type_variant,priority:2" json:"endpoint_type"`                                                                                                    // 端点类型
+	EndpointVariant string            `gorm:"index:idx_endpoints_platform_type_variant,priority:3" json:"endpoint_variant"`                                                                                                 // 端点变体
+	Path            string            `json:"path"`                                                                                                                                                                         // 端点路径
+	CustomHeaders   map[string]string `gorm:"serializer:json" json:"custom_headers"`                                                                                                                                        // 自定义请求头
+	IsDefault       bool              `gorm:"index:idx_endpoints_platform_default,priority:2;uniqueIndex:uq_endpoints_platform_default,priority:2" json:"is_default"`                                                       // 是否为默认端点
+}
+
 // 平台表 (platforms)
 type Platform struct {
-	ID            uint              `gorm:"primaryKey" json:"id"`                  // 平台 ID
-	Name          string            `gorm:"index" json:"name"`                     // 平台名称
-	Provider      string            `json:"provider"`                              // 平台类型
-	Variant       string            `json:"variant"`                               // 平台变体
-	BaseURL       string            `json:"base_url"`                              // 基础 URL
-	CustomHeaders map[string]string `gorm:"serializer:json" json:"custom_headers"` // 自定义请求头
-	RateLimit     RateLimitConfig   `gorm:"serializer:json" json:"rate_limit"`     // 限流配置
+	ID        uint            `gorm:"primaryKey" json:"id"`              // 平台 ID
+	Name      string          `gorm:"index" json:"name"`                 // 平台名称
+	BaseURL   string          `json:"base_url"`                          // 基础 URL
+	RateLimit RateLimitConfig `gorm:"serializer:json" json:"rate_limit"` // 限流配置
+	Endpoints []Endpoint      `json:"endpoints,omitempty"`               // 平台端点列表
 }
 
 // 模型表 (models)
