@@ -224,6 +224,7 @@ func (h *Handler) streamOpenAIResponses(c *fiber.Ctx, req *openaiResponsesTypes.
 				break
 			}
 
+			logger.Debug("写入流事件成功")
 			w.Flush()
 		}
 
