@@ -30,11 +30,13 @@ func newPlatform(db *gorm.DB, opts ...gen.DOOption) platform {
 	_platform.ALL = field.NewAsterisk(tableName)
 	_platform.ID = field.NewUint(tableName, "id")
 	_platform.Name = field.NewString(tableName, "name")
-	_platform.Provider = field.NewString(tableName, "provider")
-	_platform.Variant = field.NewString(tableName, "variant")
 	_platform.BaseURL = field.NewString(tableName, "base_url")
-	_platform.CustomHeaders = field.NewField(tableName, "custom_headers")
 	_platform.RateLimit = field.NewField(tableName, "rate_limit")
+	_platform.Endpoints = platformHasManyEndpoints{
+		db: db.Session(&gorm.Session{}),
+
+		RelationField: field.NewRelation("Endpoints", "types.Endpoint"),
+	}
 
 	_platform.fillFieldMap()
 
@@ -44,14 +46,12 @@ func newPlatform(db *gorm.DB, opts ...gen.DOOption) platform {
 type platform struct {
 	platformDo
 
-	ALL           field.Asterisk
-	ID            field.Uint
-	Name          field.String
-	Provider      field.String
-	Variant       field.String
-	BaseURL       field.String
-	CustomHeaders field.Field
-	RateLimit     field.Field
+	ALL       field.Asterisk
+	ID        field.Uint
+	Name      field.String
+	BaseURL   field.String
+	RateLimit field.Field
+	Endpoints platformHasManyEndpoints
 
 	fieldMap map[string]field.Expr
 }
@@ -70,10 +70,7 @@ func (p *platform) updateTableName(table string) *platform {
 	p.ALL = field.NewAsterisk(table)
 	p.ID = field.NewUint(table, "id")
 	p.Name = field.NewString(table, "name")
-	p.Provider = field.NewString(table, "provider")
-	p.Variant = field.NewString(table, "variant")
 	p.BaseURL = field.NewString(table, "base_url")
-	p.CustomHeaders = field.NewField(table, "custom_headers")
 	p.RateLimit = field.NewField(table, "rate_limit")
 
 	p.fillFieldMap()
@@ -91,24 +88,106 @@ func (p *platform) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (p *platform) fillFieldMap() {
-	p.fieldMap = make(map[string]field.Expr, 7)
+	p.fieldMap = make(map[string]field.Expr, 5)
 	p.fieldMap["id"] = p.ID
 	p.fieldMap["name"] = p.Name
-	p.fieldMap["provider"] = p.Provider
-	p.fieldMap["variant"] = p.Variant
 	p.fieldMap["base_url"] = p.BaseURL
-	p.fieldMap["custom_headers"] = p.CustomHeaders
 	p.fieldMap["rate_limit"] = p.RateLimit
+
 }
 
 func (p platform) clone(db *gorm.DB) platform {
 	p.platformDo.ReplaceConnPool(db.Statement.ConnPool)
+	p.Endpoints.db = db.Session(&gorm.Session{Initialized: true})
+	p.Endpoints.db.Statement.ConnPool = db.Statement.ConnPool
 	return p
 }
 
 func (p platform) replaceDB(db *gorm.DB) platform {
 	p.platformDo.ReplaceDB(db)
+	p.Endpoints.db = db.Session(&gorm.Session{})
 	return p
+}
+
+type platformHasManyEndpoints struct {
+	db *gorm.DB
+
+	field.RelationField
+}
+
+func (a platformHasManyEndpoints) Where(conds ...field.Expr) *platformHasManyEndpoints {
+	if len(conds) == 0 {
+		return &a
+	}
+
+	exprs := make([]clause.Expression, 0, len(conds))
+	for _, cond := range conds {
+		exprs = append(exprs, cond.BeCond().(clause.Expression))
+	}
+	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
+	return &a
+}
+
+func (a platformHasManyEndpoints) WithContext(ctx context.Context) *platformHasManyEndpoints {
+	a.db = a.db.WithContext(ctx)
+	return &a
+}
+
+func (a platformHasManyEndpoints) Session(session *gorm.Session) *platformHasManyEndpoints {
+	a.db = a.db.Session(session)
+	return &a
+}
+
+func (a platformHasManyEndpoints) Model(m *types.Platform) *platformHasManyEndpointsTx {
+	return &platformHasManyEndpointsTx{a.db.Model(m).Association(a.Name())}
+}
+
+func (a platformHasManyEndpoints) Unscoped() *platformHasManyEndpoints {
+	a.db = a.db.Unscoped()
+	return &a
+}
+
+type platformHasManyEndpointsTx struct{ tx *gorm.Association }
+
+func (a platformHasManyEndpointsTx) Find() (result []*types.Endpoint, err error) {
+	return result, a.tx.Find(&result)
+}
+
+func (a platformHasManyEndpointsTx) Append(values ...*types.Endpoint) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Append(targetValues...)
+}
+
+func (a platformHasManyEndpointsTx) Replace(values ...*types.Endpoint) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Replace(targetValues...)
+}
+
+func (a platformHasManyEndpointsTx) Delete(values ...*types.Endpoint) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Delete(targetValues...)
+}
+
+func (a platformHasManyEndpointsTx) Clear() error {
+	return a.tx.Clear()
+}
+
+func (a platformHasManyEndpointsTx) Count() int64 {
+	return a.tx.Count()
+}
+
+func (a platformHasManyEndpointsTx) Unscoped() *platformHasManyEndpointsTx {
+	a.tx = a.tx.Unscoped()
+	return &a
 }
 
 type platformDo struct{ gen.DO }

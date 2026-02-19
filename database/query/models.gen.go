@@ -36,6 +36,11 @@ func newModel(db *gorm.DB, opts ...gen.DOOption) model {
 		db: db.Session(&gorm.Session{}),
 
 		RelationField: field.NewRelation("Platform", "types.Platform"),
+		Endpoints: struct {
+			field.RelationField
+		}{
+			RelationField: field.NewRelation("Platform.Endpoints", "types.Endpoint"),
+		},
 	}
 
 	_model.APIKeys = modelManyToManyAPIKeys{
@@ -150,6 +155,10 @@ type modelBelongsToPlatform struct {
 	db *gorm.DB
 
 	field.RelationField
+
+	Endpoints struct {
+		field.RelationField
+	}
 }
 
 func (a modelBelongsToPlatform) Where(conds ...field.Expr) *modelBelongsToPlatform {
