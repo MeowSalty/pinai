@@ -98,25 +98,35 @@ func (r *Repository) FindModelsByNameOrAlias(ctx context.Context, name string) (
 	return models, nil
 }
 
-// FindModelsByNameOrAliasAndProvider 根据名称或别名以及提供商和变体查找模型
+// FindModelsByNameOrAliasAndProvider 根据名称或别名以及端点类型和变体查找模型
+//
+// 参数：
+//   - ctx: 上下文
+//   - name: 模型名称或别名
+//   - provider: 端点类型（endpoint_type）
+//   - variant: 端点变体（endpoint_variant）
+//
+// 返回值：
+//   - []routing.Model: 匹配的模型列表
+//   - error: 错误信息
 func (r *Repository) FindModelsByNameOrAliasAndProvider(ctx context.Context, name, provider, variant string) ([]routing.Model, error) {
 	repoLogger := r.logger.WithGroup("model_repository")
-	repoLogger.Debug("根据名称或别名以及提供商和变体查找模型", "name", name, "provider", provider, "variant", variant)
+	repoLogger.Debug("根据名称或别名以及端点类型和变体查找模型", "name", name, "endpoint_type", provider, "endpoint_variant", variant)
 
 	q := query.Q
 
-	// 使用 GORM 查询模型（按名称或别名查找，并关联平台约束提供商和变体），预加载 APIKeys 关联数据
-	dbModels, err := q.Model.
-		LeftJoin(q.Platform, q.Platform.ID.EqCol(q.Model.PlatformID)).
-		// Where(q.Platform.Provider.Eq(provider)).
-		Where(q.Platform.Variant.Eq(variant)).
+	// 使用 JOIN 查询模型，通过端点类型和变体约束平台，同时按名称或别名查找，预加载 APIKeys 关联数据
+	dbModels, err := q.WithContext(ctx).Model.
+		Join(q.Endpoint, q.Model.PlatformID.EqCol(q.Endpoint.PlatformID)).
+		Where(q.Endpoint.EndpointType.Eq(provider)).
+		Where(q.Endpoint.EndpointVariant.Eq(variant)).
 		Where(q.Model.Name.Eq(name)).
 		Or(q.Model.Alias_.Eq(name)).
 		Preload(q.Model.APIKeys).
 		Find()
 
 	if err != nil {
-		repoLogger.Error("查询模型失败", "error", err, "name", name, "provider", provider, "variant", variant)
+		repoLogger.Error("查询模型失败", "error", err, "name", name, "endpoint_type", provider, "endpoint_variant", variant)
 		return nil, fmt.Errorf("查询模型失败：%w", err)
 	}
 
@@ -141,31 +151,52 @@ func (r *Repository) FindModelsByNameOrAliasAndProvider(ctx context.Context, nam
 		}
 	}
 
-	repoLogger.Debug("模型查询成功", "name", name, "provider", provider, "variant", variant, "found_count", len(models))
+	repoLogger.Debug("模型查询成功", "name", name, "endpoint_type", provider, "endpoint_variant", variant, "found_count", len(models))
 	return models, nil
 }
 
 // GetPlatformByID 根据 ID 获取平台信息
+//
+// 参数：
+//   - ctx: 上下文
+//   - id: 平台 ID
+//
+// 返回值：
+//   - *routing.Platform: 平台信息
+//   - error: 错误信息
 func (r *Repository) GetPlatformByID(ctx context.Context, id uint) (*routing.Platform, error) {
 	repoLogger := r.logger.WithGroup("platform_repository")
 	repoLogger.Debug("根据 ID 获取平台信息", "platform_id", id)
 
 	q := query.Q
 
-	dbPlatform, err := q.WithContext(ctx).Platform.Where(q.Platform.ID.Eq(id)).First()
+	// 预加载 Endpoints 关联数据
+	dbPlatform, err := q.WithContext(ctx).Platform.Preload(q.Platform.Endpoints).Where(q.Platform.ID.Eq(id)).First()
 	if err != nil {
 		repoLogger.Error("获取平台失败", "error", err, "platform_id", id)
 		return nil, fmt.Errorf("获取平台失败：%w", err)
 	}
 
-	// 转换为 core.Platform 类型
+	// 查找默认端点
+	var defaultEndpoint *types.Endpoint
+	for i := range dbPlatform.Endpoints {
+		if dbPlatform.Endpoints[i].IsDefault {
+			defaultEndpoint = &dbPlatform.Endpoints[i]
+			break
+		}
+	}
+
+	// 如果没有默认端点，使用第一个端点
+	if defaultEndpoint == nil && len(dbPlatform.Endpoints) > 0 {
+		defaultEndpoint = &dbPlatform.Endpoints[0]
+		repoLogger.Warn("未找到默认端点，使用第一个端点", "platform_id", id)
+	}
+
+	// 转换为 routing.Platform 类型
 	platform := &routing.Platform{
-		ID:            dbPlatform.ID,
-		Name:          dbPlatform.Name,
-		Provider:      dbPlatform.Provider,
-		Variant:       dbPlatform.Variant,
-		BaseURL:       dbPlatform.BaseURL,
-		CustomHeaders: dbPlatform.CustomHeaders,
+		ID:      dbPlatform.ID,
+		Name:    dbPlatform.Name,
+		BaseURL: dbPlatform.BaseURL,
 		RateLimit: routing.RateLimitConfig{
 			RPM: dbPlatform.RateLimit.RPM,
 			TPM: dbPlatform.RateLimit.TPM,
