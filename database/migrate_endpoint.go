@@ -73,7 +73,7 @@ func migrateEndpoints(db *gorm.DB) error {
 	for _, platform := range platforms {
 		// 创建默认端点
 		endpoint := types.Endpoint{
-			PlatformID:      int64(platform.ID),
+			PlatformID:      platform.ID,
 			EndpointType:    platform.Provider,
 			EndpointVariant: platform.Variant,
 			Path:            "",

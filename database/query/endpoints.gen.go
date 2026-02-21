@@ -28,8 +28,8 @@ func newEndpoint(db *gorm.DB, opts ...gen.DOOption) endpoint {
 
 	tableName := _endpoint.endpointDo.TableName()
 	_endpoint.ALL = field.NewAsterisk(tableName)
-	_endpoint.ID = field.NewInt64(tableName, "id")
-	_endpoint.PlatformID = field.NewInt64(tableName, "platform_id")
+	_endpoint.ID = field.NewUint(tableName, "id")
+	_endpoint.PlatformID = field.NewUint(tableName, "platform_id")
 	_endpoint.EndpointType = field.NewString(tableName, "endpoint_type")
 	_endpoint.EndpointVariant = field.NewString(tableName, "endpoint_variant")
 	_endpoint.Path = field.NewString(tableName, "path")
@@ -45,8 +45,8 @@ type endpoint struct {
 	endpointDo
 
 	ALL             field.Asterisk
-	ID              field.Int64
-	PlatformID      field.Int64
+	ID              field.Uint
+	PlatformID      field.Uint
 	EndpointType    field.String
 	EndpointVariant field.String
 	Path            field.String
@@ -68,8 +68,8 @@ func (e endpoint) As(alias string) *endpoint {
 
 func (e *endpoint) updateTableName(table string) *endpoint {
 	e.ALL = field.NewAsterisk(table)
-	e.ID = field.NewInt64(table, "id")
-	e.PlatformID = field.NewInt64(table, "platform_id")
+	e.ID = field.NewUint(table, "id")
+	e.PlatformID = field.NewUint(table, "platform_id")
 	e.EndpointType = field.NewString(table, "endpoint_type")
 	e.EndpointVariant = field.NewString(table, "endpoint_variant")
 	e.Path = field.NewString(table, "path")
