@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/MeowSalty/pinai/database/types"
 
@@ -71,10 +72,16 @@ func migrateEndpoints(db *gorm.DB) error {
 
 	// 步骤：为每个平台回填默认端点到 endpoints 表
 	for _, platform := range platforms {
+		// 转换平台类型：转为小写，并将 Gemini 映射为 google
+		endpointType := strings.ToLower(platform.Provider)
+		if endpointType == "gemini" {
+			endpointType = "google"
+		}
+
 		// 创建默认端点
 		endpoint := types.Endpoint{
 			PlatformID:      platform.ID,
-			EndpointType:    platform.Provider,
+			EndpointType:    endpointType,
 			EndpointVariant: platform.Variant,
 			Path:            "",
 			CustomHeaders:   platform.CustomHeaders,
