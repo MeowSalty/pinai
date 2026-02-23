@@ -9,13 +9,13 @@ type RateLimitConfig struct {
 // Endpoint 表示平台端点配置。
 // 端点用于存储不同平台的各种服务端点的路径和配置信息。
 type Endpoint struct {
-	ID              uint              `gorm:"primaryKey" json:"id"`                                                                                                                                                         // 端点 ID
-	PlatformID      uint              `gorm:"index:idx_endpoints_platform_default,priority:1;index:idx_endpoints_platform_type_variant,priority:1;uniqueIndex:uq_endpoints_platform_default,priority:1" json:"platform_id"` // 平台 ID（外键）
-	EndpointType    string            `gorm:"index:idx_endpoints_platform_type_variant,priority:2" json:"endpoint_type"`                                                                                                    // 端点类型
-	EndpointVariant string            `gorm:"index:idx_endpoints_platform_type_variant,priority:3" json:"endpoint_variant"`                                                                                                 // 端点变体
-	Path            string            `json:"path"`                                                                                                                                                                         // 端点路径
-	CustomHeaders   map[string]string `gorm:"serializer:json" json:"custom_headers"`                                                                                                                                        // 自定义请求头
-	IsDefault       bool              `gorm:"index:idx_endpoints_platform_default,priority:2;uniqueIndex:uq_endpoints_platform_default,priority:2" json:"is_default"`                                                       // 是否为默认端点
+	ID              uint              `gorm:"primaryKey" json:"id"`                                                                                                    // 端点 ID
+	PlatformID      uint              `gorm:"index:idx_endpoints_platform_default,priority:1;index:idx_endpoints_platform_type_variant,priority:1" json:"platform_id"` // 平台 ID（外键）
+	EndpointType    string            `gorm:"index:idx_endpoints_platform_type_variant,priority:2" json:"endpoint_type"`                                               // 端点类型
+	EndpointVariant string            `gorm:"index:idx_endpoints_platform_type_variant,priority:3" json:"endpoint_variant"`                                            // 端点变体
+	Path            string            `json:"path"`                                                                                                                    // 端点路径
+	CustomHeaders   map[string]string `gorm:"serializer:json" json:"custom_headers"`                                                                                   // 自定义请求头
+	IsDefault       bool              `gorm:"index:idx_endpoints_platform_default,priority:2" json:"is_default"`                                                       // 是否为默认端点
 }
 
 // 平台表 (platforms)
