@@ -60,3 +60,37 @@ type BatchDeleteModelsResponse struct {
 	TotalCount   int `json:"total_count"`   // 请求删除的模型总数
 	DeletedCount int `json:"deleted_count"` // 实际删除的模型数
 }
+
+// BatchCreateEndpointsRequest 批量创建端点的请求体
+type BatchCreateEndpointsRequest struct {
+	Endpoints []types.Endpoint `json:"endpoints" binding:"required,min=1,dive"`
+}
+
+// BatchCreateEndpointsResponse 批量创建端点的响应体
+type BatchCreateEndpointsResponse struct {
+	Endpoints    []*types.Endpoint `json:"endpoints"`
+	TotalCount   int               `json:"total_count"`
+	CreatedCount int               `json:"created_count"`
+}
+
+// EndpointUpdateItem 单个端点的更新项
+type EndpointUpdateItem struct {
+	ID              uint               `json:"id" binding:"required"`
+	EndpointType    *string            `json:"endpoint_type,omitempty"`
+	EndpointVariant *string            `json:"endpoint_variant,omitempty"`
+	Path            *string            `json:"path,omitempty"`
+	CustomHeaders   *map[string]string `json:"custom_headers,omitempty"`
+	IsDefault       *bool              `json:"is_default,omitempty"`
+}
+
+// BatchUpdateEndpointsRequest 批量更新端点的请求体
+type BatchUpdateEndpointsRequest struct {
+	Endpoints []EndpointUpdateItem `json:"endpoints" binding:"required,min=1,dive"`
+}
+
+// BatchUpdateEndpointsResponse 批量更新端点的响应体
+type BatchUpdateEndpointsResponse struct {
+	Endpoints    []*types.Endpoint `json:"endpoints"`
+	TotalCount   int               `json:"total_count"`
+	UpdatedCount int               `json:"updated_count"`
+}

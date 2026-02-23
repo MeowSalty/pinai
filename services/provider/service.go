@@ -67,6 +67,27 @@ type Service interface {
 	// DeleteKey 删除指定密钥
 	DeleteKey(ctx context.Context, keyId uint) error
 
+	// AddEndpointToPlatform 为指定平台添加新端点
+	AddEndpointToPlatform(ctx context.Context, platformId uint, endpoint types.Endpoint) (*types.Endpoint, error)
+
+	// BatchAddEndpointsToPlatform 批量为指定平台添加端点（原子性操作）
+	BatchAddEndpointsToPlatform(ctx context.Context, platformId uint, endpoints []types.Endpoint) ([]*types.Endpoint, error)
+
+	// GetEndpointsByPlatform 获取指定平台的所有端点列表
+	GetEndpointsByPlatform(ctx context.Context, platformId uint) ([]*types.Endpoint, error)
+
+	// GetEndpoint 获取指定端点详情
+	GetEndpoint(ctx context.Context, endpointId uint) (*types.Endpoint, error)
+
+	// UpdateEndpoint 更新指定端点
+	UpdateEndpoint(ctx context.Context, endpointId uint, endpoint types.Endpoint) (*types.Endpoint, error)
+
+	// BatchUpdateEndpoints 批量更新指定平台的端点（原子性操作）
+	BatchUpdateEndpoints(ctx context.Context, platformId uint, updateItems []EndpointUpdateItem) ([]*types.Endpoint, error)
+
+	// DeleteEndpoint 删除指定端点
+	DeleteEndpoint(ctx context.Context, endpointId uint) error
+
 	// GetModel 获取指定模型详情
 	GetModel(ctx context.Context, modelId uint) (*types.Model, error)
 }

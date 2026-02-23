@@ -13,7 +13,10 @@ import (
 // getPlatformByID 辅助函数：根据 ID 查询平台
 // 如果未找到或查询失败会返回相应错误
 func (s *service) getPlatformByID(ctx context.Context, platformId uint) (*types.Platform, error) {
-	platform, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(platformId)).First()
+	platform, err := query.Q.Platform.WithContext(ctx).
+		Preload(query.Q.Platform.Endpoints).
+		Where(query.Q.Platform.ID.Eq(platformId)).
+		First()
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("未找到 ID 为 %d 的平台", platformId)
@@ -88,6 +91,19 @@ func (s *service) getAPIKeyByID(ctx context.Context, keyId uint) (*types.APIKey,
 	return apiKey, nil
 }
 
+// getEndpointByID 辅助函数：根据 ID 查询端点
+// 如果未找到或查询失败会返回相应错误
+func (s *service) getEndpointByID(ctx context.Context, endpointId uint) (*types.Endpoint, error) {
+	endpoint, err := query.Q.Endpoint.WithContext(ctx).Where(query.Q.Endpoint.ID.Eq(endpointId)).First()
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("未找到 ID 为 %d 的端点", endpointId)
+		}
+		return nil, fmt.Errorf("查询端点失败：%w", err)
+	}
+	return endpoint, nil
+}
+
 // extractAPIKeyIDs 辅助函数：从 APIKey 切片中提取 ID
 func extractAPIKeyIDs(apiKeys []types.APIKey) []uint {
 	apiKeyIDs := make([]uint, len(apiKeys))
@@ -125,6 +141,50 @@ func (s *service) validateAndGetAPIKeys(ctx context.Context, platformId uint, ap
 	}
 
 	return validKeys, nil
+}
+
+func (s *service) validatePlatformDefaultUniqueWithQuery(ctx context.Context, q *query.Query, platformId uint) error {
+	count, err := q.Endpoint.WithContext(ctx).
+		Where(q.Endpoint.PlatformID.Eq(platformId), q.Endpoint.IsDefault.Is(true)).
+		Count()
+	if err != nil {
+		return fmt.Errorf("查询默认端点失败：%w", err)
+	}
+	if count > 1 {
+		return fmt.Errorf("平台 ID %d 存在多个默认端点", platformId)
+	}
+	return nil
+}
+
+func (s *service) ensurePlatformDefaultExists(ctx context.Context, platformId uint) error {
+	count, err := query.Q.Endpoint.WithContext(ctx).
+		Where(query.Q.Endpoint.PlatformID.Eq(platformId), query.Q.Endpoint.IsDefault.Is(true)).
+		Count()
+	if err != nil {
+		return fmt.Errorf("查询默认端点失败：%w", err)
+	}
+	if count > 0 {
+		return nil
+	}
+
+	endpoint, err := query.Q.Endpoint.WithContext(ctx).
+		Where(query.Q.Endpoint.PlatformID.Eq(platformId)).
+		Order(query.Q.Endpoint.ID.Desc()).
+		First()
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil
+		}
+		return fmt.Errorf("查询端点失败：%w", err)
+	}
+
+	if _, err := query.Q.Endpoint.WithContext(ctx).
+		Where(query.Q.Endpoint.ID.Eq(endpoint.ID)).
+		Updates(types.Endpoint{IsDefault: true}); err != nil {
+		return fmt.Errorf("设置默认端点失败：%w", err)
+	}
+
+	return nil
 }
 
 // getModelByID 辅助函数：根据 ID 查询模型

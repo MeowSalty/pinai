@@ -28,7 +28,9 @@ func (s *service) CreatePlatform(ctx context.Context, platform types.Platform) (
 func (s *service) GetPlatforms(ctx context.Context) ([]*types.Platform, error) {
 	s.logger.Debug("开始获取平台列表")
 
-	platforms, err := query.Q.Platform.WithContext(ctx).Find()
+	platforms, err := query.Q.Platform.WithContext(ctx).
+		Preload(query.Q.Platform.Endpoints).
+		Find()
 	if err != nil {
 		s.logger.Error("获取平台列表失败", slog.Any("error", err))
 		return nil, fmt.Errorf("获取平台列表失败：%w", err)
