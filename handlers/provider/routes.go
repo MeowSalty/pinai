@@ -45,4 +45,13 @@ func SetupProviderRoutes(router fiber.Router, llmService provider.Service, healt
 	// 密钥健康状态管理路由
 	router.Post("/platforms/:platformId/keys/:keyId/health/enable", handler.EnableKeyHealth)
 	router.Post("/platforms/:platformId/keys/:keyId/health/disable", handler.DisableKeyHealth)
+
+	// 端点 (Endpoints) 相关路由 (嵌套在平台下)
+	router.Post("/platforms/:platformId/endpoints", handler.AddEndpointToPlatform)
+	router.Post("/platforms/:platformId/endpoints/batch", handler.BatchAddEndpointsToPlatform)
+	router.Get("/platforms/:platformId/endpoints", handler.GetEndpointsByPlatform)
+	router.Get("/platforms/:platformId/endpoints/:endpointId", handler.GetEndpoint)
+	router.Put("/platforms/:platformId/endpoints/batch", handler.BatchUpdateEndpoints)
+	router.Put("/platforms/:platformId/endpoints/:endpointId", handler.UpdateEndpoint)
+	router.Delete("/platforms/:platformId/endpoints/:endpointId", handler.DeleteEndpoint)
 }
