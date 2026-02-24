@@ -85,7 +85,6 @@ PinAI 支持多种配置选项，可以通过命令行参数或环境变量进�
 #### 数据库 TLS 配置说明
 
 - PostgreSQL 使用 `-db-ssl-mode` 参数：
-
   - `disable`: 禁用 SSL
   - `require`: 要求 SSL（不验证证书）
   - `verify-ca`: 验证证书颁发机构
@@ -225,7 +224,11 @@ curl https://your-domain.com/api/proxy \
   }'
 ```
 
-### OpenAI 兼容接口
+### OpenAI 兼容接口（已弃用）
+
+> [!WARNING]
+>
+> 此接口已弃用，将在未来版本中移除。请迁移至 [Multi 接口](#multi-接口)，使用 `/multi/v1/chat/completions` 替代。
 
 基础路径：`/openai/v1`
 
@@ -247,7 +250,11 @@ curl https://your-domain.com/openai/v1/chat/completions \
   }'
 ```
 
-### Anthropic 兼容接口
+### Anthropic 兼容接口（已弃用）
+
+> [!WARNING]
+>
+> 此接口已弃用，将在未来版本中移除。请迁移至 [Multi 接口](#multi-接口)，使用 `/multi/v1/messages` 替代。
 
 基础路径：`/anthropic/v1`
 
@@ -276,21 +283,113 @@ curl https://your-domain.com/anthropic/v1/messages \
 > - 两种接口格式的请求会被统一转换为内部格式处理，然后转发到相应的 AI 服务提供商
 > - 模型映射功能对两种接口格式均有效
 
-### Multi 兼容接口
+### Multi 接口
 
-基础路径：`/multi/v1`
+Multi 接口是一个统一的 API 网关，支持 OpenAI、Anthropic 和 Gemini 三种 API 格式。系统根据请求路径、查询参数或请求头自动识别所需格式。
 
-- `GET /multi/v1/models` - 获取可用模型列表（根据请求头自动返回 OpenAI 或 Anthropic 格式）
-- `POST /multi/v1/chat/completions` - OpenAI 聊天补全接口（支持流式和非流式）
-- `POST /multi/v1/responses` - OpenAI Responses 接口（支持流式和非流式）
-- `POST /multi/v1/messages` - Anthropic 消息补全接口（支持流式和非流式）
+提供两种接口模式：
 
-**认证方式**：
+| 模式     | 路径前缀                                   | 说明                                            |
+| -------- | ------------------------------------------ | ----------------------------------------------- |
+| 兼容接口 | `/multi/v1`、`/multi/v1beta`               | 自动转换请求/响应格式，适合跨平台调用           |
+| 原生接口 | `/multi/native/v1`、`/multi/native/v1beta` | 直接透传请求，不进行格式转换，保留原始 API 响应 |
 
-- `/multi/v1/messages` 使用 `x-api-key: <API_TOKEN>`
-- `/multi/v1/chat/completions`、`/multi/v1/responses`、`/multi/v1/models` 使用 `Authorization: Bearer <API_TOKEN>`
+#### 接口列表
 
-**模型列表自动识别规则**：当请求同时携带 `x-api-key` 与 `anthropic-version` 头时，`/multi/v1/models` 返回 Anthropic 格式，否则返回 OpenAI 格式。
+**OpenAI 格式**：
+
+- `GET /multi/v1/models` 或 `GET /multi/native/v1/models` - 获取模型列表
+- `POST /multi/v1/chat/completions` 或 `POST /multi/native/v1/chat/completions` - 聊天补全
+- `POST /multi/v1/responses` 或 `POST /multi/native/v1/responses` - Responses API
+
+**Anthropic 格式**：
+
+- `GET /multi/v1/models` 或 `GET /multi/native/v1/models` - 获取模型列表
+- `POST /multi/v1/messages` 或 `POST /multi/native/v1/messages` - 消息补全
+
+**Gemini 格式**：
+
+- `GET /multi/v1beta/models` 或 `GET /multi/native/v1beta/models` - 获取模型列表
+- `POST /multi/v1beta/models/{model}:generateContent` 或 `POST /multi/native/v1beta/models/{model}:generateContent` - 生成内容
+- `POST /multi/v1beta/models/{model}:streamGenerateContent` 或 `POST /multi/native/v1beta/models/{model}:streamGenerateContent` - 流式生成
+
+#### 认证方式
+
+| 接口类型  | 认证方式                                            | 说明                              |
+| --------- | --------------------------------------------------- | --------------------------------- |
+| OpenAI    | `Authorization: Bearer <API_TOKEN>`                 | Bearer Token 认证                 |
+| Anthropic | `x-api-key: <API_TOKEN>`                            | 需同时携带 `anthropic-version` 头 |
+| Gemini    | `x-goog-api-key: <API_TOKEN>` 或 `?key=<API_TOKEN>` | 请求头或查询参数                  |
+
+#### Provider 识别规则
+
+系统按以下优先级识别请求的 Provider：
+
+1. **路径识别**：根据请求路径自动识别
+   - `/chat/completions`、`/responses` → OpenAI
+   - `/messages` → Anthropic
+   - `/generateContent`、`/streamGenerateContent`、`/v1beta/models` → Gemini
+
+2. **查询参数**：`?provider=openai|anthropic|gemini`
+
+3. **请求头识别**：
+   - 同时携带 `x-api-key` 和 `anthropic-version` → Anthropic
+   - 携带 `x-goog-api-key` 或 `key` 查询参数 → Gemini
+   - 默认 → OpenAI
+
+#### 使用示例
+
+**OpenAI 格式**：
+
+```bash
+curl https://your-domain.com/multi/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+**Anthropic 格式**：
+
+```bash
+curl https://your-domain.com/multi/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_TOKEN" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-3-opus-20240229",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+**Gemini 格式**：
+
+```bash
+# 使用请求头认证
+curl https://your-domain.com/multi/v1beta/models/gemini-pro:generateContent \
+  -H "Content-Type: application/json" \
+  -H "x-goog-api-key: YOUR_API_TOKEN" \
+  -d '{
+    "contents": [{"parts": [{"text": "Hello!"}]}]
+  }'
+
+# 使用查询参数认证
+curl "https://your-domain.com/multi/v1beta/models/gemini-pro:generateContent?key=YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contents": [{"parts": [{"text": "Hello!"}]}]
+  }'
+```
+
+> [!NOTE]
+>
+> - 所有接口使用相同的 API Token（通过 `API_TOKEN` 环境变量或 `-api-token` 参数配置）
+> - 模型映射功能对所有格式的接口均有效
+> - Gemini 接口路径中的 `{model}` 需替换为实际的模型名称
+> - 原生接口只需在路径中添加 `/native` 前缀即可，如 `/multi/v1/chat/completions` → `/multi/native/v1/chat/completions`
 
 ## 🏗️ 开发指南
 
