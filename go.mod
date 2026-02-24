@@ -32,7 +32,7 @@ require (
 )
 
 require (
-	github.com/MeowSalty/portal v0.6.2-0.20260224033407-1acc76b20b51
+	github.com/MeowSalty/portal v0.6.2-0.20260224172152-41b6a9f3e9b9
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
