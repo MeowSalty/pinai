@@ -44,13 +44,13 @@ func migratePlatformFormatToProvider(db *gorm.DB) error {
 
 	slog.Info("检测到旧平台表 Format 列，开始迁移")
 
-	type oldPlatform struct {
+	type Platform struct {
 		ID       uint
 		Format   sql.NullString
 		Provider sql.NullString
 	}
 
-	var platforms []oldPlatform
+	var platforms []Platform
 	if err := db.Table("platforms").Select("id, format, provider").Find(&platforms).Error; err != nil {
 		return fmt.Errorf("读取平台旧数据失败：%w", err)
 	}
@@ -84,7 +84,7 @@ func migratePlatformFormatToProvider(db *gorm.DB) error {
 	}
 
 	// 删除旧的 Format 列
-	if err := db.Migrator().DropColumn("platforms", "format"); err != nil {
+	if err := db.Migrator().DropColumn(&Platform{}, "format"); err != nil {
 		return fmt.Errorf("删除平台表 Format 列失败：%w", err)
 	}
 	slog.Info("已删除平台表 Format 列")
