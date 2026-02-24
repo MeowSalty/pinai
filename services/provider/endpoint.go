@@ -9,6 +9,7 @@ import (
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
+	"gorm.io/gen/field"
 )
 
 // AddEndpointToPlatform 实现为指定平台添加新端点
@@ -156,24 +157,40 @@ func (s *service) UpdateEndpoint(ctx context.Context, endpointId uint, endpoint 
 		}
 
 		updates := make(map[string]interface{})
+		selectFields := make([]string, 0, 5)
+		payload := types.Endpoint{}
 		if endpoint.EndpointType != "" {
 			updates["endpoint_type"] = endpoint.EndpointType
+			payload.EndpointType = endpoint.EndpointType
+			selectFields = append(selectFields, "endpoint_type")
 		}
 		if endpoint.EndpointVariant != "" {
 			updates["endpoint_variant"] = endpoint.EndpointVariant
+			payload.EndpointVariant = endpoint.EndpointVariant
+			selectFields = append(selectFields, "endpoint_variant")
 		}
 		if endpoint.Path != "" {
 			updates["path"] = endpoint.Path
+			payload.Path = endpoint.Path
+			selectFields = append(selectFields, "path")
 		}
 		if endpoint.CustomHeaders != nil {
 			updates["custom_headers"] = endpoint.CustomHeaders
+			payload.CustomHeaders = endpoint.CustomHeaders
+			selectFields = append(selectFields, "custom_headers")
 		}
 		if endpoint.IsDefault {
 			updates["is_default"] = true
+			payload.IsDefault = true
+			selectFields = append(selectFields, "is_default")
 		}
 
 		if len(updates) > 0 {
-			result, err := tx.Endpoint.WithContext(ctx).Where(tx.Endpoint.ID.Eq(endpointId)).Updates(updates)
+			selectExprs := endpointSelectFields(selectFields)
+			result, err := tx.Endpoint.WithContext(ctx).
+				Select(selectExprs...).
+				Where(tx.Endpoint.ID.Eq(endpointId)).
+				Updates(payload)
 			if err != nil {
 				logger.Error("更新端点失败", slog.Any("error", err))
 				return fmt.Errorf("更新 ID 为 %d 的端点失败：%w", endpointId, err)
@@ -263,26 +280,38 @@ func (s *service) BatchUpdateEndpoints(ctx context.Context, platformId uint, upd
 	}
 
 	var updatedEndpoints []*types.Endpoint
-	groups := make(map[string]map[string]interface{})
+	groups := make(map[string]endpointUpdateGroup)
 	groupIDs := make(map[string][]uint)
 	containsDefault := false
 	for _, endpoint := range existingEndpoints {
 		item := itemByID[endpoint.ID]
 		updates := make(map[string]interface{})
+		selectFields := make([]string, 0, 5)
+		payload := types.Endpoint{}
 		if item.EndpointType != nil {
 			updates["endpoint_type"] = *item.EndpointType
+			payload.EndpointType = *item.EndpointType
+			selectFields = append(selectFields, "endpoint_type")
 		}
 		if item.EndpointVariant != nil {
 			updates["endpoint_variant"] = *item.EndpointVariant
+			payload.EndpointVariant = *item.EndpointVariant
+			selectFields = append(selectFields, "endpoint_variant")
 		}
 		if item.Path != nil {
 			updates["path"] = *item.Path
+			payload.Path = *item.Path
+			selectFields = append(selectFields, "path")
 		}
 		if item.CustomHeaders != nil {
 			updates["custom_headers"] = *item.CustomHeaders
+			payload.CustomHeaders = *item.CustomHeaders
+			selectFields = append(selectFields, "custom_headers")
 		}
 		if item.IsDefault != nil {
 			updates["is_default"] = *item.IsDefault
+			payload.IsDefault = *item.IsDefault
+			selectFields = append(selectFields, "is_default")
 			containsDefault = true
 		}
 		if len(updates) == 0 {
@@ -293,20 +322,22 @@ func (s *service) BatchUpdateEndpoints(ctx context.Context, platformId uint, upd
 			return nil, err
 		}
 		if _, exists := groups[signature]; !exists {
-			groups[signature] = updates
+			groups[signature] = endpointUpdateGroup{payload: payload, selectFields: selectFields}
 		}
 		groupIDs[signature] = append(groupIDs[signature], endpoint.ID)
 	}
 
 	err = query.Q.Transaction(func(tx *query.Query) error {
-		for signature, updates := range groups {
+		for signature, group := range groups {
 			ids := groupIDs[signature]
 			if len(ids) == 0 {
 				continue
 			}
+			selectExprs := endpointSelectFields(group.selectFields)
 			if _, err := tx.Endpoint.WithContext(ctx).
+				Select(selectExprs...).
 				Where(tx.Endpoint.ID.In(ids...)).
-				Updates(updates); err != nil {
+				Updates(group.payload); err != nil {
 				return fmt.Errorf("批量更新端点失败：%w", err)
 			}
 		}
@@ -335,6 +366,24 @@ func (s *service) BatchUpdateEndpoints(ctx context.Context, platformId uint, upd
 
 	logger.Info("成功批量更新端点", slog.Int("updated_count", len(updatedEndpoints)))
 	return updatedEndpoints, nil
+}
+
+type endpointUpdateGroup struct {
+	payload      types.Endpoint
+	selectFields []string
+}
+
+func endpointSelectFields(names []string) []field.Expr {
+	if len(names) == 0 {
+		return nil
+	}
+	selects := make([]field.Expr, 0, len(names))
+	for _, name := range names {
+		if expr, ok := query.Q.Endpoint.GetFieldByName(name); ok {
+			selects = append(selects, expr)
+		}
+	}
+	return selects
 }
 
 func buildEndpointUpdateSignature(updates map[string]interface{}) (string, error) {
