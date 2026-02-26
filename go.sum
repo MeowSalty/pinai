@@ -1,7 +1,7 @@
 filippo.io/edwards25519 v1.1.1 h1:YpjwWWlNmGIDyXOn8zLzqiD+9TyIlPhGFG96P39uBpw=
 filippo.io/edwards25519 v1.1.1/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
-github.com/MeowSalty/portal v0.6.2-0.20260225165512-50cc4b303309 h1:FyLKrW0Tzvi+67jn4xVtysSu/qBCLdJbDtKUWQYCY7U=
-github.com/MeowSalty/portal v0.6.2-0.20260225165512-50cc4b303309/go.mod h1:EBPIhHT77gPghOoip946aPRn6dCGTy355RBql9f8Ka0=
+github.com/MeowSalty/portal v0.6.2-0.20260226101911-52ab6867ce85 h1:luYm3UnHhepaPZoAzWZkGeiQdaCQwEuQg4ZIy/rDw7Y=
+github.com/MeowSalty/portal v0.6.2-0.20260226101911-52ab6867ce85/go.mod h1:EBPIhHT77gPghOoip946aPRn6dCGTy355RBql9f8Ka0=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
