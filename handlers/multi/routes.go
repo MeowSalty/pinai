@@ -39,8 +39,8 @@ func SetupMultiRoutes(
 	v1Router.Post("/messages", handler.Messages)
 
 	// 注册 Gemini 兼容路由
-	v1betaRouter.Post("/models/:model<[^:]+>:generateContent", handler.GeminiGenerateContent)
-	v1betaRouter.Post("/models/:model<[^:]+>:streamGenerateContent", handler.GeminiStreamGenerateContent)
+	v1betaRouter.Post("/models/:model<[^:]+>\\:generateContent", handler.GeminiGenerateContent)
+	v1betaRouter.Post("/models/:model<[^:]+>\\:streamGenerateContent", handler.GeminiStreamGenerateContent)
 
 	// 模型列表
 	v1Router.Get("/models", handler.SelectModels())

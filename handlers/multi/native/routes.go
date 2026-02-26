@@ -28,8 +28,8 @@ func SetupNativeRoutes(
 	v1Router.Post("/messages", handler.AnthropicMessages)
 
 	// 注册 Gemini 原生路由
-	v1betaRouter.Post("/models/:model<[^:]+>:generateContent", handler.GeminiGenerateContent)
-	v1betaRouter.Post("/models/:model<[^:]+>:streamGenerateContent", handler.GeminiStreamGenerateContent)
+	v1betaRouter.Post("/models/:model<[^:]+>\\:generateContent", handler.GeminiGenerateContent)
+	v1betaRouter.Post("/models/:model<[^:]+>\\:streamGenerateContent", handler.GeminiStreamGenerateContent)
 
 	// 模型列表
 	v1Router.Get("/models", SelectModels())
