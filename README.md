@@ -224,6 +224,97 @@ curl https://your-domain.com/api/proxy \
   }'
 ```
 
+### Provider 管理接口
+
+Provider 管理接口用于管理 LLM 供应商的平台、模型、密钥和端点。
+
+**认证方式**：使用 `Authorization: Bearer <ADMIN_TOKEN>` 头进行身份验证
+
+#### 平台管理
+
+| 方法   | 路径                                | 说明             |
+| ------ | ----------------------------------- | ---------------- |
+| POST   | `/api/platforms`                    | 创建平台         |
+| GET    | `/api/platforms`                    | 获取平台列表     |
+| GET    | `/api/platforms/:id`                | 获取平台详情     |
+| PUT    | `/api/platforms/:id`                | 更新平台         |
+| DELETE | `/api/platforms/:id`                | 删除平台         |
+| POST   | `/api/platforms/:id/health/enable`  | 启用平台健康检查 |
+| POST   | `/api/platforms/:id/health/disable` | 禁用平台健康检查 |
+
+#### 模型管理
+
+| 方法   | 路径                                                        | 说明             |
+| ------ | ----------------------------------------------------------- | ---------------- |
+| POST   | `/api/platforms/:platformId/models`                         | 添加模型         |
+| POST   | `/api/platforms/:platformId/models/batch`                   | 批量添加模型     |
+| GET    | `/api/platforms/:platformId/models`                         | 获取平台模型列表 |
+| PUT    | `/api/platforms/:platformId/models/batch`                   | 批量更新模型     |
+| PUT    | `/api/platforms/:platformId/models/:modelId`                | 更新模型         |
+| DELETE | `/api/platforms/:platformId/models/batch`                   | 批量删除模型     |
+| DELETE | `/api/platforms/:platformId/models/:modelId`                | 删除模型         |
+| POST   | `/api/platforms/:platformId/models/:modelId/health/enable`  | 启用模型健康检查 |
+| POST   | `/api/platforms/:platformId/models/:modelId/health/disable` | 禁用模型健康检查 |
+
+#### 密钥管理
+
+| 方法   | 路径                                                    | 说明             |
+| ------ | ------------------------------------------------------- | ---------------- |
+| POST   | `/api/platforms/:platformId/keys`                       | 添加密钥         |
+| GET    | `/api/platforms/:platformId/keys`                       | 获取平台密钥列表 |
+| PUT    | `/api/platforms/:platformId/keys/:keyId`                | 更新密钥         |
+| DELETE | `/api/platforms/:platformId/keys/:keyId`                | 删除密钥         |
+| POST   | `/api/platforms/:platformId/keys/:keyId/health/enable`  | 启用密钥健康检查 |
+| POST   | `/api/platforms/:platformId/keys/:keyId/health/disable` | 禁用密钥健康检查 |
+
+#### 端点管理
+
+| 方法   | 路径                                               | 说明             |
+| ------ | -------------------------------------------------- | ---------------- |
+| POST   | `/api/platforms/:platformId/endpoints`             | 添加端点         |
+| POST   | `/api/platforms/:platformId/endpoints/batch`       | 批量添加端点     |
+| GET    | `/api/platforms/:platformId/endpoints`             | 获取平台端点列表 |
+| GET    | `/api/platforms/:platformId/endpoints/:endpointId` | 获取端点详情     |
+| PUT    | `/api/platforms/:platformId/endpoints/batch`       | 批量更新端点     |
+| PUT    | `/api/platforms/:platformId/endpoints/:endpointId` | 更新端点         |
+| DELETE | `/api/platforms/:platformId/endpoints/:endpointId` | 删除端点         |
+
+### 统计接口
+
+统计接口用于查看 API 使用情况和请求日志。
+
+**认证方式**：使用 `Authorization: Bearer <ADMIN_TOKEN>` 头进行身份验证
+
+| 方法 | 路径                              | 说明               |
+| ---- | --------------------------------- | ------------------ |
+| GET  | `/api/stats/overview`             | 获取统计概览       |
+| GET  | `/api/stats/requests`             | 获取请求日志列表   |
+| GET  | `/api/stats/realtime`             | 获取实时统计       |
+| GET  | `/api/stats/models/call-rank`     | 获取模型调用排名   |
+| GET  | `/api/stats/platforms/call-rank`  | 获取平台调用排名   |
+| GET  | `/api/stats/models/usage-rank`    | 获取模型使用量排名 |
+| GET  | `/api/stats/platforms/usage-rank` | 获取平台使用量排名 |
+
+### 健康状态接口
+
+健康状态接口用于监控和管理平台、密钥、模型的健康状态。
+
+**认证方式**：使用 `Authorization: Bearer <ADMIN_TOKEN>` 头进行身份验证
+
+| 方法 | 路径                                        | 说明                 |
+| ---- | ------------------------------------------- | -------------------- |
+| GET  | `/api/health/summary`                       | 获取健康状态摘要     |
+| GET  | `/api/health/issues`                        | 获取异常资源列表     |
+| GET  | `/api/health/platforms`                     | 获取平台健康状态列表 |
+| POST | `/api/health/platforms/:platformId/enable`  | 启用平台             |
+| POST | `/api/health/platforms/:platformId/disable` | 禁用平台             |
+| GET  | `/api/health/keys`                          | 获取密钥健康状态列表 |
+| POST | `/api/health/keys/:keyId/enable`            | 启用密钥             |
+| POST | `/api/health/keys/:keyId/disable`           | 禁用密钥             |
+| GET  | `/api/health/models`                        | 获取模型健康状态列表 |
+| POST | `/api/health/models/:modelId/enable`        | 启用模型             |
+| POST | `/api/health/models/:modelId/disable`       | 禁用模型             |
+
 ### OpenAI 兼容接口（已弃用）
 
 > [!WARNING]
