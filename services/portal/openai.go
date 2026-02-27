@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	portalTypes "github.com/MeowSalty/portal"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
 	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
 )
 
 // NativeOpenAIChatCompletion 处理 OpenAI 原生 Chat Completion 请求
-func (s *service) NativeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error) {
+func (s *service) NativeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request, opts ...portalTypes.NativeOption) (*openaiChatTypes.Response, error) {
 	requestLogger := s.logger.WithGroup("raw_openai_chat_completion")
 	requestLogger.Info("开始处理 OpenAI Chat 原生请求", "model", req.Model)
 
@@ -23,7 +24,7 @@ func (s *service) NativeOpenAIChatCompletion(ctx context.Context, req *openaiCha
 	}
 
 	startTime := time.Now()
-	resp, err := s.portal.NativeOpenAIChatCompletion(ctx, req)
+	resp, err := s.portal.NativeOpenAIChatCompletion(ctx, req, opts...)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -44,7 +45,7 @@ func (s *service) NativeOpenAIChatCompletion(ctx context.Context, req *openaiCha
 }
 
 // NativeOpenAIChatCompletionStream 处理 OpenAI 原生 Chat Completion 流式请求
-func (s *service) NativeOpenAIChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent {
+func (s *service) NativeOpenAIChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request, opts ...portalTypes.NativeOption) <-chan *openaiChatTypes.StreamEvent {
 	streamLogger := s.logger.WithGroup("raw_openai_chat_completion_stream")
 	streamLogger.Info("开始处理 OpenAI Chat 原生流式请求", "model", req.Model)
 
@@ -56,13 +57,13 @@ func (s *service) NativeOpenAIChatCompletionStream(ctx context.Context, req *ope
 		req.Model = mappedModel
 	}
 
-	stream := s.portal.NativeOpenAIChatCompletionStream(ctx, req)
+	stream := s.portal.NativeOpenAIChatCompletionStream(ctx, req, opts...)
 	streamLogger.Info("OpenAI Chat 原生流启动成功", "model", req.Model, "original_model", originalModel)
 	return stream
 }
 
 // NativeOpenAIResponses 处理 OpenAI 原生 Responses 请求
-func (s *service) NativeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error) {
+func (s *service) NativeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request, opts ...portalTypes.NativeOption) (*openaiResponsesTypes.Response, error) {
 	requestLogger := s.logger.WithGroup("raw_openai_responses")
 
 	modelName := ""
@@ -83,7 +84,7 @@ func (s *service) NativeOpenAIResponses(ctx context.Context, req *openaiResponse
 	}
 
 	startTime := time.Now()
-	resp, err := s.portal.NativeOpenAIResponses(ctx, req)
+	resp, err := s.portal.NativeOpenAIResponses(ctx, req, opts...)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -104,7 +105,7 @@ func (s *service) NativeOpenAIResponses(ctx context.Context, req *openaiResponse
 }
 
 // NativeOpenAIResponsesStream 处理 OpenAI 原生 Responses 流式请求
-func (s *service) NativeOpenAIResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent {
+func (s *service) NativeOpenAIResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request, opts ...portalTypes.NativeOption) <-chan *openaiResponsesTypes.StreamEvent {
 	streamLogger := s.logger.WithGroup("raw_openai_responses_stream")
 
 	modelName := ""
@@ -124,7 +125,7 @@ func (s *service) NativeOpenAIResponsesStream(ctx context.Context, req *openaiRe
 		}
 	}
 
-	stream := s.portal.NativeOpenAIResponsesStream(ctx, req)
+	stream := s.portal.NativeOpenAIResponsesStream(ctx, req, opts...)
 	streamLogger.Info("OpenAI Responses 原生流启动成功", "model", modelName, "original_model", originalModel)
 	return stream
 }

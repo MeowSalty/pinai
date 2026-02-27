@@ -20,29 +20,33 @@ import (
 // 封装所有与 Portal 相关的业务逻辑
 type Service interface {
 	// ChatCompletion 处理聊天完成请求
+	//
+	// Deprecated: 将在未来的版本中被移除，使用 Native* 方法替代
 	ChatCompletion(ctx context.Context, req *adapterTypes.RequestContract) (*adapterTypes.ResponseContract, error)
 
 	// Close 优雅关闭服务
 	Close(timeout time.Duration) error
 
 	// ChatCompletionStream 处理流式聊天完成请求
+	//
+	// Deprecated: 将在未来的版本中被移除，使用 Native* 方法替代
 	ChatCompletionStream(ctx context.Context, req *adapterTypes.RequestContract) (<-chan *adapterTypes.StreamEventContract, error)
 
 	// === Native ===
 
 	// Anthropic
-	NativeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error)
-	NativeAnthropicMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent
+	NativeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request, opts ...portal.NativeOption) (*anthropicTypes.Response, error)
+	NativeAnthropicMessagesStream(ctx context.Context, req *anthropicTypes.Request, opts ...portal.NativeOption) <-chan *anthropicTypes.StreamEvent
 
 	// Gemini
-	NativeGeminiGenerateContent(ctx context.Context, req *geminiTypes.Request) (*geminiTypes.Response, error)
-	NativeGeminiStreamGenerateContent(ctx context.Context, req *geminiTypes.Request) <-chan *geminiTypes.StreamEvent
+	NativeGeminiGenerateContent(ctx context.Context, req *geminiTypes.Request, opts ...portal.NativeOption) (*geminiTypes.Response, error)
+	NativeGeminiStreamGenerateContent(ctx context.Context, req *geminiTypes.Request, opts ...portal.NativeOption) <-chan *geminiTypes.StreamEvent
 
 	// OpenAI
-	NativeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
-	NativeOpenAIChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent
-	NativeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
-	NativeOpenAIResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent
+	NativeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request, opts ...portal.NativeOption) (*openaiChatTypes.Response, error)
+	NativeOpenAIChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request, opts ...portal.NativeOption) <-chan *openaiChatTypes.StreamEvent
+	NativeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request, opts ...portal.NativeOption) (*openaiResponsesTypes.Response, error)
+	NativeOpenAIResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request, opts ...portal.NativeOption) <-chan *openaiResponsesTypes.StreamEvent
 }
 
 // service Portal 服务实现

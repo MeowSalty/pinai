@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	portalTypes "github.com/MeowSalty/portal"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
 )
 
 // NativeGeminiGenerateContent 处理 Gemini 原生 GenerateContent 请求
-func (s *service) NativeGeminiGenerateContent(ctx context.Context, req *geminiTypes.Request) (*geminiTypes.Response, error) {
+func (s *service) NativeGeminiGenerateContent(ctx context.Context, req *geminiTypes.Request, opts ...portalTypes.NativeOption) (*geminiTypes.Response, error) {
 	requestLogger := s.logger.WithGroup("raw_gemini_generate_content")
 	requestLogger.Info("开始处理 Gemini 原生请求", "model", req.Model)
 
@@ -22,7 +23,7 @@ func (s *service) NativeGeminiGenerateContent(ctx context.Context, req *geminiTy
 	}
 
 	startTime := time.Now()
-	resp, err := s.portal.NativeGeminiGenerateContent(ctx, req)
+	resp, err := s.portal.NativeGeminiGenerateContent(ctx, req, opts...)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -43,7 +44,7 @@ func (s *service) NativeGeminiGenerateContent(ctx context.Context, req *geminiTy
 }
 
 // NativeGeminiStreamGenerateContent 处理 Gemini 原生流式 StreamGenerateContent 请求
-func (s *service) NativeGeminiStreamGenerateContent(ctx context.Context, req *geminiTypes.Request) <-chan *geminiTypes.StreamEvent {
+func (s *service) NativeGeminiStreamGenerateContent(ctx context.Context, req *geminiTypes.Request, opts ...portalTypes.NativeOption) <-chan *geminiTypes.StreamEvent {
 	streamLogger := s.logger.WithGroup("raw_gemini_stream_generate_content")
 	streamLogger.Info("开始处理 Gemini 原生流式请求", "model", req.Model)
 
@@ -55,7 +56,7 @@ func (s *service) NativeGeminiStreamGenerateContent(ctx context.Context, req *ge
 		req.Model = mappedModel
 	}
 
-	stream := s.portal.NativeGeminiStreamGenerateContent(ctx, req)
+	stream := s.portal.NativeGeminiStreamGenerateContent(ctx, req, opts...)
 	streamLogger.Info("Gemini 原生流启动成功", "model", req.Model, "original_model", originalModel)
 	return stream
 }

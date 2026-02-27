@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	portalTypes "github.com/MeowSalty/portal"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 )
 
 // NativeAnthropicMessages 处理 Anthropic 原生 Messages 请求
-func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error) {
+func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request, opts ...portalTypes.NativeOption) (*anthropicTypes.Response, error) {
 	requestLogger := s.logger.WithGroup("raw_anthropic_messages")
 	requestLogger.Info("开始处理 Anthropic 原生请求", "model", req.Model)
 
@@ -22,7 +23,7 @@ func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTyp
 	}
 
 	startTime := time.Now()
-	resp, err := s.portal.NativeAnthropicMessages(ctx, req)
+	resp, err := s.portal.NativeAnthropicMessages(ctx, req, opts...)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -43,7 +44,7 @@ func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTyp
 }
 
 // NativeAnthropicMessagesStream 处理 Anthropic 原生流式 Messages 请求
-func (s *service) NativeAnthropicMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent {
+func (s *service) NativeAnthropicMessagesStream(ctx context.Context, req *anthropicTypes.Request, opts ...portalTypes.NativeOption) <-chan *anthropicTypes.StreamEvent {
 	streamLogger := s.logger.WithGroup("raw_anthropic_messages_stream")
 	streamLogger.Info("开始处理 Anthropic 原生流式请求", "model", req.Model)
 
@@ -55,7 +56,7 @@ func (s *service) NativeAnthropicMessagesStream(ctx context.Context, req *anthro
 		req.Model = mappedModel
 	}
 
-	stream := s.portal.NativeAnthropicMessagesStream(ctx, req)
+	stream := s.portal.NativeAnthropicMessagesStream(ctx, req, opts...)
 	streamLogger.Info("Anthropic 原生流启动成功", "model", req.Model, "original_model", originalModel)
 	return stream
 }
