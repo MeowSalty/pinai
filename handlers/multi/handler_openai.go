@@ -8,14 +8,10 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/MeowSalty/pinai/services/portal"
 	"github.com/MeowSalty/pinai/services/stats"
-	"github.com/MeowSalty/portal/logger"
-	openaiChatConverter "github.com/MeowSalty/portal/request/adapter/openai/converter/chat"
-	openaiResponsesConverter "github.com/MeowSalty/portal/request/adapter/openai/converter/responses"
+	portalLib "github.com/MeowSalty/portal"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
 	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
-	portalTypes "github.com/MeowSalty/portal/request/adapter/types"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -44,42 +40,26 @@ func (h *Handler) ChatCompletions(c *fiber.Ctx) error {
 		})
 	}
 
-	// 转换请求格式
-	portalReq, err := openaiChatConverter.RequestToContract(&req)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("请求转换失败：%v", err),
-		})
-	}
-
 	// 处理 User-Agent 头部
-	if portalReq.Headers == nil {
-		portalReq.Headers = make(map[string]string)
+	if req.Headers == nil {
+		req.Headers = make(map[string]string)
 	}
-	applyUserAgent(portalReq.Headers, h.userAgent, c)
+	applyUserAgent(req.Headers, h.userAgent, c)
 
-	if portalReq.Stream != nil && *portalReq.Stream {
+	if req.Stream != nil && *req.Stream {
 		// 流式响应
-		return h.handleStreamResponse(c, portalReq)
+		return h.streamOpenAIChat(c, &req, true)
 	}
 
 	// 非流式响应
-	resp, err := h.portalService.ChatCompletion(c.Context(), portalReq)
+	resp, err := h.portalService.NativeOpenAIChatCompletion(c.Context(), &req, portalLib.WithCompatMode())
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("处理请求时出错：%v", err),
 		})
 	}
 
-	// 转换响应格式
-	openaiResp, err := openaiChatConverter.ResponseFromContract(resp, logger.Default())
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("响应转换失败：%v", err),
-		})
-	}
-
-	return c.JSON(openaiResp)
+	return c.JSON(resp)
 }
 
 // Responses 处理 OpenAI Responses API 请求，路径为 POST /multi/v1/responses。
@@ -106,69 +86,40 @@ func (h *Handler) Responses(c *fiber.Ctx) error {
 		})
 	}
 
-	portalReq, err := openaiResponsesConverter.RequestToContract(&req)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("请求转换失败：%v", err),
-		})
+	if req.Headers == nil {
+		req.Headers = make(map[string]string)
+	}
+	applyUserAgent(req.Headers, h.userAgent, c)
+
+	if req.Stream != nil && *req.Stream {
+		return h.streamOpenAIResponses(c, &req, true)
 	}
 
-	if portalReq.Headers == nil {
-		portalReq.Headers = make(map[string]string)
-	}
-	applyUserAgent(portalReq.Headers, h.userAgent, c)
-
-	if portalReq.Stream != nil && *portalReq.Stream {
-		return h.handleResponsesStream(c, portalReq)
-	}
-
-	resp, err := h.portalService.ChatCompletion(c.Context(), portalReq)
+	resp, err := h.portalService.NativeOpenAIResponses(c.Context(), &req, portalLib.WithCompatMode())
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("处理请求时出错：%v", err),
 		})
 	}
 
-	openaiResp, err := openaiResponsesConverter.ResponseFromContract(resp, logger.Default())
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("响应转换失败：%v", err),
-		})
-	}
-	return c.JSON(openaiResp)
+	return c.JSON(resp)
 }
 
-// handleStreamResponse 处理 OpenAI ChatCompletions 流式响应。
-// 设置 SSE 头部，通过 ChatCompletionStream 获取事件通道，将流式事件转换为 OpenAI 格式并写入响应流。
-// 包含 panic 恢复机制，发生错误时发送错误事件并记录日志。
-func (h *Handler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.RequestContract) error {
+func (h *Handler) streamOpenAIChat(c *fiber.Ctx, req *openaiChatTypes.Request, sendDone bool) error {
 	setSSEHeaders(c)
 
-	// 创建可取消的上下文
 	ctx, cancel := context.WithCancel(c.Context())
+	eventChan := h.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
 
-	// 获取流式响应通道
-	eventChan, err := h.portalService.ChatCompletionStream(ctx, req)
-	if err != nil {
-		cancel()
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("启动流式传输时出错：%v", err),
-		})
-	}
-
-	// 使用流式跟踪包装器，确保在流结束时减少连接数
 	collector := stats.GetCollector()
 	path := c.Path()
 	method := c.Method()
 	body := append([]byte(nil), c.Body()...)
 	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
-		// 创建日志记录器
 		logger := h.logger.With("path", path, "method", method, "body", string(body))
-		// 添加 defer recover 来捕获流式处理中的 panic
 		defer func() {
 			if r := recover(); r != nil {
 				stack := debug.Stack()
-				// 将堆栈信息按行分割，以数组形式记录，提高 JSON 日志可读性
 				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
 				logger.Error("流式响应处理发生 panic",
 					"panic", r,
@@ -181,28 +132,8 @@ func (h *Handler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.RequestCon
 			}
 		}()
 
-		isErr := false
 		for event := range eventChan {
-			// 检查是否有错误字段
-			if event.Error != nil {
-				isErr = true
-
-				// 序列化错误事件
-				message := fmt.Sprintf("%v", event.Error)
-				sendStreamError(w, "internal_error", message, "internal_error")
-				break
-			}
-
-			// 转换为 OpenAI 格式
-			openaiEvent, err := openaiChatConverter.StreamEventFormContract(event, portal.NewSlogAdapter(logger))
-			if err != nil {
-				cancel()
-				logger.Error("无法转换事件", "error", err)
-				break
-			}
-
-			// 序列化事件
-			data, err := json.Marshal(openaiEvent)
+			data, err := json.Marshal(event)
 			if err != nil {
 				cancel()
 				logger.Error("无法序列化事件", "error", err)
@@ -210,51 +141,35 @@ func (h *Handler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.RequestCon
 				break
 			}
 
-			// 发送事件
-			_, err = fmt.Fprintf(w, "data: %s\n\n", data)
-			if err != nil {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
 				cancel()
 				logger.Error("写入流式响应失败", "error", err)
 				sendStreamError(w, "internal_error", fmt.Sprintf("写入流式响应失败: %v", err), "internal_error")
 				break
 			}
 
-			// 刷新缓冲区
 			w.Flush()
 		}
-		if isErr {
-			return nil
+
+		if sendDone {
+			if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
+				cancel()
+				logger.Error("写入流结束标记失败", "error", err)
+			}
+			w.Flush()
 		}
 
-		// 发送流结束标记
-		_, err = fmt.Fprintf(w, "data: [DONE]\n\n")
-		if err != nil {
-			cancel()
-			logger.Error("写入流结束标记失败", "error", err)
-		}
-
-		w.Flush()
 		return nil
 	}))
 
 	return nil
 }
 
-// handleResponsesStream 处理 OpenAI Responses API 流式响应。
-// 设置 SSE 头部，通过 ChatCompletionStream 获取事件通道，将流式事件转换为 Responses API 格式并写入响应流。
-// 包含 panic 恢复机制，发生错误时发送错误事件并记录日志。
-func (h *Handler) handleResponsesStream(c *fiber.Ctx, req *portalTypes.RequestContract) error {
+func (h *Handler) streamOpenAIResponses(c *fiber.Ctx, req *openaiResponsesTypes.Request, sendDone bool) error {
 	setSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Context())
-
-	eventChan, err := h.portalService.ChatCompletionStream(ctx, req)
-	if err != nil {
-		cancel()
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("启动流式传输时出错：%v", err),
-		})
-	}
+	eventChan := h.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
 
 	collector := stats.GetCollector()
 	path := c.Path()
@@ -268,60 +183,42 @@ func (h *Handler) handleResponsesStream(c *fiber.Ctx, req *portalTypes.RequestCo
 				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
 				logger.Error("流式响应处理发生 panic",
 					"panic", r,
-					"path", c.Path(),
-					"method", c.Method(),
-					"body", string(c.Body()),
+					"path", path,
+					"method", method,
+					"body", string(body),
 					"stack", stackLines,
 				)
-				sendStreamError(w, "internal_error", fmt.Sprintf("流式响应处理错误: %v", r), "internal_error")
+				sendStreamError(w, "internal_error", fmt.Sprintf("服务器内部错误: %v", r), "internal_error")
 			}
 		}()
 
-		isErr := false
-		streamCtx := portalTypes.NewStreamIndexContext()
 		for event := range eventChan {
-			if event.Error != nil {
-				isErr = true
-
-				message := fmt.Sprintf("%v", event.Error)
-				sendStreamError(w, "internal_error", message, "internal_error")
-				break
-			}
-
-			openaiEvents, err := openaiResponsesConverter.StreamEventFormContract(event, portal.NewSlogAdapter(logger), streamCtx)
+			data, err := json.Marshal(event)
 			if err != nil {
 				cancel()
-				logger.Error("无法转换事件", "error", err)
+				logger.Error("无法序列化事件", "error", err)
+				sendStreamError(w, "internal_error", fmt.Sprintf("无法序列化事件: %v", err), "internal_error")
 				break
 			}
 
-			for _, openaiEvent := range openaiEvents {
-				data, err := json.Marshal(openaiEvent)
-				if err != nil {
-					cancel()
-					logger.Error("无法序列化事件", "error", err)
-					sendStreamError(w, "internal_error", fmt.Sprintf("无法序列化事件: %v", err), "internal_error")
-					break
-				}
-				if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-					cancel()
-					logger.Error("写入流式响应失败", "error", err)
-					sendStreamError(w, "internal_error", fmt.Sprintf("写入流式响应失败: %v", err), "internal_error")
-					break
-				}
-				w.Flush()
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+				cancel()
+				logger.Error("写入流式响应失败", "error", err)
+				sendStreamError(w, "internal_error", fmt.Sprintf("写入流式响应失败: %v", err), "internal_error")
+				break
 			}
-		}
-		if isErr {
-			return nil
+
+			w.Flush()
 		}
 
-		if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
-			cancel()
-			logger.Error("写入流结束标记失败", "error", err)
+		if sendDone {
+			if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
+				cancel()
+				logger.Error("写入流结束标记失败", "error", err)
+			}
+			w.Flush()
 		}
 
-		w.Flush()
 		return nil
 	}))
 

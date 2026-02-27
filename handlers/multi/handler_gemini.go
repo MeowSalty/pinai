@@ -9,9 +9,8 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/services/stats"
-	geminiConverter "github.com/MeowSalty/portal/request/adapter/gemini/converter"
+	"github.com/MeowSalty/portal"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
-	portalTypes "github.com/MeowSalty/portal/request/adapter/types"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -52,33 +51,19 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 		})
 	}
 
-	portalReq, err := geminiConverter.RequestToContract(&req)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("请求转换失败：%v", err),
-		})
+	if req.Headers == nil {
+		req.Headers = make(map[string]string)
 	}
+	applyUserAgent(req.Headers, h.userAgent, c)
 
-	if portalReq.Headers == nil {
-		portalReq.Headers = make(map[string]string)
-	}
-	applyUserAgent(portalReq.Headers, h.userAgent, c)
-
-	resp, err := h.portalService.ChatCompletion(c.Context(), portalReq)
+	resp, err := h.portalService.NativeGeminiGenerateContent(c.Context(), &req, portal.WithCompatMode())
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("处理请求时出错：%v", err),
 		})
 	}
 
-	geminiResp, err := geminiConverter.ResponseFromContract(resp)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("响应转换失败：%v", err),
-		})
-	}
-
-	return c.JSON(geminiResp)
+	return c.JSON(resp)
 }
 
 // GeminiStreamGenerateContent 处理 Gemini streamGenerateContent 请求，路径为 POST /multi/v1beta/models/{model}:streamGenerateContent。
@@ -118,35 +103,22 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 		})
 	}
 
-	portalReq, err := geminiConverter.RequestToContract(&req)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("请求转换失败：%v", err),
-		})
+	if req.Headers == nil {
+		req.Headers = make(map[string]string)
 	}
+	applyUserAgent(req.Headers, h.userAgent, c)
 
-	if portalReq.Headers == nil {
-		portalReq.Headers = make(map[string]string)
-	}
-	applyUserAgent(portalReq.Headers, h.userAgent, c)
-
-	return h.handleGeminiStreamResponse(c, portalReq)
+	return h.handleGeminiStreamResponse(c, &req)
 }
 
 // handleGeminiStreamResponse 处理 Gemini 流式响应。
 // 设置 SSE 头部，通过 ChatCompletionStream 获取事件通道，将流式事件转换为 Gemini 格式并写入响应流。
 // 包含 panic 恢复机制，发生错误时发送错误事件并记录日志。
-func (h *Handler) handleGeminiStreamResponse(c *fiber.Ctx, req *portalTypes.RequestContract) error {
+func (h *Handler) handleGeminiStreamResponse(c *fiber.Ctx, req *geminiTypes.Request) error {
 	setSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Context())
-	eventChan, err := h.portalService.ChatCompletionStream(ctx, req)
-	if err != nil {
-		cancel()
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("启动流式传输时出错：%v", err),
-		})
-	}
+	eventChan := h.portalService.NativeGeminiStreamGenerateContent(ctx, req, portal.WithCompatMode())
 
 	collector := stats.GetCollector()
 	path := c.Path()
@@ -163,24 +135,8 @@ func (h *Handler) handleGeminiStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 			}
 		}()
 
-		isErr := false
 		for event := range eventChan {
-			if event.Error != nil {
-				isErr = true
-				message := fmt.Sprintf("%v", event.Error)
-				sendStreamError(w, "internal_error", message, "internal_error")
-				break
-			}
-
-			geminiEvent, err := geminiConverter.StreamEventFromContract(event)
-			if err != nil {
-				cancel()
-				logger.Error("无法转换流式响应", "error", err)
-				sendStreamError(w, "internal_error", fmt.Sprintf("无法转换流式响应: %v", err), "internal_error")
-				break
-			}
-
-			data, err := json.Marshal(geminiEvent)
+			data, err := json.Marshal(event)
 			if err != nil {
 				cancel()
 				logger.Error("无法序列化事件", "error", err)
@@ -196,10 +152,6 @@ func (h *Handler) handleGeminiStreamResponse(c *fiber.Ctx, req *portalTypes.Requ
 			}
 
 			w.Flush()
-		}
-
-		if isErr {
-			return nil
 		}
 
 		if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
