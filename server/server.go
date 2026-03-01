@@ -104,11 +104,12 @@ func Run(cfg *config.Config) {
 
 	// 设置路由
 	routerConfig := router.Config{
-		AdminToken: effectiveAdminToken,
-		ApiToken:   cfg.APIToken,
-		EnableWeb:  cfg.EnableWeb,
-		UserAgent:  cfg.UserAgent,
-		WebDir:     cfg.WebDir,
+		AdminToken:         effectiveAdminToken,
+		ApiToken:           cfg.APIToken,
+		EnableWeb:          cfg.EnableWeb,
+		PassthroughHeaders: cfg.PassthroughHeaders,
+		UserAgent:          cfg.UserAgent,
+		WebDir:             cfg.WebDir,
 	}
 	if err := router.SetupRoutes(fiberApp, svcs, routerConfig, routerLogger); err != nil {
 		appLogger.Error("路由设置失败", "error", err)
