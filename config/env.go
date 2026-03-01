@@ -9,6 +9,7 @@ type Env struct {
 	EnableWeb            bool
 	WebDir               string
 	EnableFrontendUpdate bool
+	PassthroughHeaders   bool
 	DBType               string
 	DBHost               string
 	DBPort               string
@@ -33,6 +34,7 @@ func LoadEnv() *Env {
 		EnableWeb:            getEnvOrDefault("ENABLE_WEB", "") == "true",
 		WebDir:               getEnvOrDefault("WEB_DIR", "web"),
 		EnableFrontendUpdate: getEnvOrDefault("ENABLE_FRONTEND_UPDATE", "true") == "true",
+		PassthroughHeaders:   getEnvOrDefault("PASSTHROUGH_HEADERS", "true") == "true",
 		DBType:               getEnvOrDefault("DB_TYPE", "sqlite"),
 		DBHost:               getEnvOrDefault("DB_HOST", ""),
 		DBPort:               getEnvOrDefault("DB_PORT", ""),

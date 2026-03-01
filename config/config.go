@@ -14,6 +14,7 @@ type Config struct {
 	EnableWeb            bool
 	WebDir               string
 	EnableFrontendUpdate bool
+	PassthroughHeaders   bool
 
 	// 数据库配置
 	DBType      string
@@ -53,6 +54,7 @@ func LoadConfig() *Config {
 		EnableWeb:            env.EnableWeb,
 		WebDir:               env.WebDir,
 		EnableFrontendUpdate: env.EnableFrontendUpdate,
+		PassthroughHeaders:   env.PassthroughHeaders,
 		DBType:               env.DBType,
 		DBHost:               env.DBHost,
 		DBPort:               env.DBPort,
@@ -84,6 +86,7 @@ func (c *Config) loadFlags() {
 	flag.BoolVar(&c.EnableWeb, "enable-web", c.EnableWeb, "启用前端支持")
 	flag.StringVar(&c.WebDir, "web-dir", c.WebDir, "前端文件目录")
 	flag.BoolVar(&c.EnableFrontendUpdate, "enable-frontend-update", c.EnableFrontendUpdate, "启用前端更新检查")
+	flag.BoolVar(&c.PassthroughHeaders, "passthrough-headers", c.PassthroughHeaders, "是否透传 HTTP 请求头到 portal 请求 headers")
 
 	// 数据库相关参数
 	flag.StringVar(&c.DBType, "db-type", c.DBType, "数据库类型 (sqlite, mysql, postgres)")
