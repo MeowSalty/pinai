@@ -19,11 +19,12 @@ import (
 )
 
 type Config struct {
-	EnableWeb  bool
-	WebDir     string
-	ApiToken   string
-	AdminToken string
-	UserAgent  string
+	EnableWeb          bool
+	WebDir             string
+	ApiToken           string
+	AdminToken         string
+	UserAgent          string
+	PassthroughHeaders bool
 }
 
 // SetupRoutes 配置 API 路由
@@ -61,7 +62,7 @@ func SetupRoutes(web *fiber.App, svcs *services.Services, config Config, logger 
 	openai.SetupOpenAIRoutes(openaiAPI, svcs.PortalService, config.UserAgent, logger)
 	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.PortalService, config.UserAgent)
 
-	multi.SetupMultiRoutes(multiAPI, svcs.PortalService, config.UserAgent, logger, config.ApiToken)
+	multi.SetupMultiRoutes(multiAPI, svcs.PortalService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
 
 	proxy.SetupProxyRoutes(proxyAPI, config.ApiToken, config.UserAgent, logger)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
