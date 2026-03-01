@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
 	"github.com/MeowSalty/portal"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
@@ -43,7 +44,7 @@ func (h *Handler) Messages(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
+	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
 		// 流式响应
@@ -65,7 +66,7 @@ func (h *Handler) Messages(c *fiber.Ctx) error {
 // 设置 SSE 头部，通过 ChatCompletionStream 获取事件通道，将流式事件转换为 Anthropic 格式并写入响应流。
 // 包含 panic 恢复机制，发生错误时发送错误事件并记录日志。
 func (h *Handler) handleAnthropicStreamResponse(c *fiber.Ctx, req *anthropicTypes.Request) error {
-	setSSEHeaders(c)
+	common.SetBaseSSEHeaders(c)
 
 	// 创建可取消的上下文
 	ctx, cancel := context.WithCancel(c.Context())

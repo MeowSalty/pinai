@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
 	portalLib "github.com/MeowSalty/portal"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
@@ -44,7 +45,7 @@ func (h *Handler) ChatCompletions(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
+	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
 		// 流式响应
@@ -89,7 +90,7 @@ func (h *Handler) Responses(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
+	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
 		return h.streamOpenAIResponses(c, &req, true)
@@ -106,7 +107,7 @@ func (h *Handler) Responses(c *fiber.Ctx) error {
 }
 
 func (h *Handler) streamOpenAIChat(c *fiber.Ctx, req *openaiChatTypes.Request, sendDone bool) error {
-	setSSEHeaders(c)
+	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Context())
 	eventChan := h.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
@@ -166,7 +167,7 @@ func (h *Handler) streamOpenAIChat(c *fiber.Ctx, req *openaiChatTypes.Request, s
 }
 
 func (h *Handler) streamOpenAIResponses(c *fiber.Ctx, req *openaiResponsesTypes.Request, sendDone bool) error {
-	setSSEHeaders(c)
+	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Context())
 	eventChan := h.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())

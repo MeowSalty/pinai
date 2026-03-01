@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	"github.com/gofiber/fiber/v2"
@@ -40,7 +41,7 @@ func (h *Handler) AnthropicMessages(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
+	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
 		return h.streamAnthropic(c, &req)
@@ -57,7 +58,7 @@ func (h *Handler) AnthropicMessages(c *fiber.Ctx) error {
 }
 
 func (h *Handler) streamAnthropic(c *fiber.Ctx, req *anthropicTypes.Request) error {
-	setSSEHeaders(c)
+	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Context())
 	eventChan := h.portalService.NativeAnthropicMessagesStream(ctx, req)

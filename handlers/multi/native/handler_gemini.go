@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
 	"github.com/gofiber/fiber/v2"
@@ -41,7 +42,7 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
+	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Model == "" {
 		req.Model = strings.TrimSpace(c.Params("model"))
@@ -92,7 +93,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
+	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Model == "" {
 		req.Model = strings.TrimSpace(c.Params("model"))
@@ -110,7 +111,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 }
 
 func (h *Handler) streamGemini(c *fiber.Ctx, req *geminiTypes.Request) error {
-	setSSEHeaders(c)
+	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Context())
 	eventChan := h.portalService.NativeGeminiStreamGenerateContent(ctx, req)

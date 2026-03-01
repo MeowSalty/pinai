@@ -1,4 +1,4 @@
-package native
+package common
 
 import (
 	"strings"
@@ -17,11 +17,10 @@ var skipHeaders = map[string]struct{}{
 	"x-forwarded-for": {}, "x-real-ip": {}, "x-forwarded-host": {},
 }
 
-// applyHTTPHeaders 将 HTTP 请求头透传到 req.Headers
+// ApplyHTTPHeaders 将 HTTP 请求头透传到 req.Headers。
 //
-// 由于 req.Headers 在 JSON 反序列化时被忽略，BodyParser 后始终为空 map，
-// 因此这里直接从 HTTP 请求头中提取需要透传的头部写入。
-func applyHTTPHeaders(headers map[string]string, configuredUA string, passthrough bool, c *fiber.Ctx) {
+// 从 HTTP 请求头中提取需要透传的头部写入。
+func ApplyHTTPHeaders(headers map[string]string, configuredUA string, passthrough bool, c *fiber.Ctx) {
 	if headers == nil {
 		return
 	}
@@ -50,10 +49,10 @@ func applyHTTPHeaders(headers map[string]string, configuredUA string, passthroug
 	}
 }
 
-// setSSEHeaders 设置服务器发送事件 (SSE) 的头部信息
-func setSSEHeaders(c *fiber.Ctx) {
+// SetBaseSSEHeaders 设置两种模式都通用的 SSE 响应头。
+func SetBaseSSEHeaders(c *fiber.Ctx) {
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
-	c.Set("Transfer-Encoding", "chunked")
+	c.Set("Access-Control-Allow-Origin", "*")
 }

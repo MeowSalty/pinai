@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
 	"github.com/MeowSalty/portal"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
@@ -54,7 +55,7 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
+	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	resp, err := h.portalService.NativeGeminiGenerateContent(c.Context(), &req, portal.WithCompatMode())
 	if err != nil {
@@ -106,7 +107,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
+	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	return h.handleGeminiStreamResponse(c, &req)
 }
@@ -115,7 +116,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 // 设置 SSE 头部，通过 ChatCompletionStream 获取事件通道，将流式事件转换为 Gemini 格式并写入响应流。
 // 包含 panic 恢复机制，发生错误时发送错误事件并记录日志。
 func (h *Handler) handleGeminiStreamResponse(c *fiber.Ctx, req *geminiTypes.Request) error {
-	setSSEHeaders(c)
+	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Context())
 	eventChan := h.portalService.NativeGeminiStreamGenerateContent(ctx, req, portal.WithCompatMode())
