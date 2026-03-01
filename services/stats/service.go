@@ -30,6 +30,9 @@ type Service interface {
 	// GetOverview 获取全局概览数据
 	GetOverview(ctx context.Context, duration time.Duration) (*StatsOverviewResponse, error)
 
+	// GetTrend 获取用量趋势数据
+	GetTrend(ctx context.Context, trendRange TrendRange) (*TrendResponse, error)
+
 	// GetRealtime 获取实时数据
 	GetRealtime(ctx context.Context) (*StatsRealtimeResponse, error)
 

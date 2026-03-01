@@ -84,6 +84,41 @@ type PlatformUsageRankResponse struct {
 	Platforms   []PlatformUsageRankItem `json:"platforms"`    // 平台用量排名列表
 }
 
+// TrendRange 定义趋势分析的时间范围类型
+type TrendRange string
+
+const (
+	// TrendRange24h 表示最近 24 小时
+	TrendRange24h TrendRange = "24h"
+	// TrendRange7d 表示最近 7 天
+	TrendRange7d TrendRange = "7d"
+	// TrendRange30d 表示最近 30 天
+	TrendRange30d TrendRange = "30d"
+)
+
+// TrendDataPoint 定义单个趋势数据点
+type TrendDataPoint struct {
+	Timestamp    time.Time `json:"timestamp"`     // 数据点时间戳
+	RequestCount int64     `json:"request_count"` // 请求数
+	TotalTokens  int64     `json:"total_tokens"`  // Token 用量
+}
+
+// TrendSummary 定义趋势汇总统计
+type TrendSummary struct {
+	TotalRequests       int64   `json:"total_requests"`         // 总请求数
+	TotalTokens         int64   `json:"total_tokens"`           // 总 Token 用量
+	AvgRequestsPerPoint float64 `json:"avg_requests_per_point"` // 平均每点请求数
+	AvgTokensPerPoint   float64 `json:"avg_tokens_per_point"`   // 平均每点 Token 用量
+}
+
+// TrendResponse 定义趋势分析响应结构
+type TrendResponse struct {
+	Range       string           `json:"range"`       // 时间范围
+	Granularity string           `json:"granularity"` // 颗粒度
+	DataPoints  []TrendDataPoint `json:"data_points"` // 数据点列表
+	Summary     TrendSummary     `json:"summary"`     // 汇总统计
+}
+
 // ListRequestLogsOptions 定义了获取请求状态列表的筛选选项
 type ListRequestLogsOptions struct {
 	// 时间范围筛选
