@@ -12,13 +12,14 @@ func SetupNativeRoutes(
 	rootRouter fiber.Router,
 	portalService portal.Service,
 	userAgent string,
+	passthroughHeaders bool,
 	logger *slog.Logger,
 ) {
 	// 配置子路由
 	v1Router := rootRouter.Group("/v1")
 	v1betaRouter := rootRouter.Group("/v1beta")
 
-	handler := New(portalService, userAgent, logger)
+	handler := New(portalService, userAgent, passthroughHeaders, logger)
 
 	// 注册 OpenAI 原生路由
 	v1Router.Post("/chat/completions", handler.OpenAIChatCompletions)

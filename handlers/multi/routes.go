@@ -14,6 +14,7 @@ func SetupMultiRoutes(
 	rootRouter fiber.Router,
 	portalService portal.Service,
 	userAgent string,
+	passthroughHeaders bool,
 	logger *slog.Logger,
 	apiToken string,
 ) {
@@ -28,8 +29,8 @@ func SetupMultiRoutes(
 	rootRouter.Use(auth.NewProviderMiddleware(authRegistry, apiToken))
 	nativeRouter.Use(auth.NewProviderMiddleware(authRegistry, apiToken))
 
-	// 创建 Handler 实例，传入 userAgent 配置
-	handler := New(portalService, userAgent, logger)
+	// 创建 Handler 实例，传入 userAgent 与 headers 透传配置
+	handler := New(portalService, userAgent, passthroughHeaders, logger)
 
 	// 注册 OpenAI 兼容路由
 	v1Router.Post("/chat/completions", handler.ChatCompletions)
@@ -47,5 +48,5 @@ func SetupMultiRoutes(
 	v1betaRouter.Get("/models", handler.SelectGeminiModels())
 
 	// 原生请求
-	native.SetupNativeRoutes(nativeRouter, portalService, userAgent, logger)
+	native.SetupNativeRoutes(nativeRouter, portalService, userAgent, passthroughHeaders, logger)
 }

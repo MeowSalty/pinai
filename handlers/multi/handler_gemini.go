@@ -54,7 +54,7 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyUserAgent(req.Headers, h.userAgent, c)
+	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	resp, err := h.portalService.NativeGeminiGenerateContent(c.Context(), &req, portal.WithCompatMode())
 	if err != nil {
@@ -106,7 +106,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyUserAgent(req.Headers, h.userAgent, c)
+	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	return h.handleGeminiStreamResponse(c, &req)
 }

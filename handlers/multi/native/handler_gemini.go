@@ -37,11 +37,11 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 		})
 	}
 
-	// 处理 User-Agent 头部
+	// 处理并透传 HTTP 头部
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyUserAgent(req.Headers, h.userAgent, c)
+	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Model == "" {
 		req.Model = strings.TrimSpace(c.Params("model"))
@@ -88,11 +88,11 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 		})
 	}
 
-	// 处理 User-Agent 头部
+	// 处理并透传 HTTP 头部
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
 	}
-	applyUserAgent(req.Headers, h.userAgent, c)
+	applyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Model == "" {
 		req.Model = strings.TrimSpace(c.Params("model"))
