@@ -11,6 +11,9 @@ import (
 
 // StatsHandlerInterface 定义统计处理器接口
 type StatsHandlerInterface interface {
+	// GetDashboard 获取仪表盘聚合数据
+	GetDashboard(c *fiber.Ctx) error
+
 	// GetOverview 获取全局概览数据
 	GetOverview(c *fiber.Ctx) error
 
@@ -49,6 +52,39 @@ func NewStatsHandler(statsService stats.Service) StatsHandlerInterface {
 	return &StatsHandler{
 		StatsService: statsService,
 	}
+}
+
+// GetDashboard 处理仪表盘数据请求，路径为 GET /api/stats/dashboard。
+// 通过单次查询获取所有仪表盘数据，包括概览、排名和趋势，避免多次数据库查询。
+// 成功时返回 200 和完整的仪表盘数据，参数无效时返回 400。
+//
+// @Summary      获取仪表盘数据
+// @Description  单次查询获取仪表盘所有数据，包括概览、排名（模型/平台调用和用量）、趋势分析
+// @Tags         统计
+// @Accept       json
+// @Produce      json
+// @Param        range      query     string  false  "时间范围"  Enums(24h, 7d, 30d)  default(24h)
+// @Success      200        {object}  stats.DashboardResponse
+// @Failure      400        {object}  fiber.Error  "无效的时间范围参数"
+// @Failure      500        {object}  fiber.Error  "服务器内部错误"
+// @Router       /api/stats/dashboard [get]
+func (h *StatsHandler) GetDashboard(c *fiber.Ctx) error {
+	rangeStr := c.Query("range", string(stats.TrendRange24h))
+	trendRange := stats.TrendRange(rangeStr)
+
+	switch trendRange {
+	case stats.TrendRange24h, stats.TrendRange7d, stats.TrendRange30d:
+		// 参数有效
+	default:
+		return fiber.NewError(fiber.StatusBadRequest, "无效的时间范围参数，可选值：24h, 7d, 30d")
+	}
+
+	dashboard, err := h.StatsService.GetDashboard(c.Context(), trendRange)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "获取仪表盘数据失败："+err.Error())
+	}
+
+	return c.JSON(dashboard)
 }
 
 // GetOverview 获取全局概览数据

@@ -27,6 +27,9 @@ func New(logger *slog.Logger) Service {
 
 // Service 定义统计服务接口
 type Service interface {
+	// GetDashboard 获取仪表盘所有数据（单次查询优化版本）
+	GetDashboard(ctx context.Context, trendRange TrendRange) (*DashboardResponse, error)
+
 	// GetOverview 获取全局概览数据
 	GetOverview(ctx context.Context, duration time.Duration) (*StatsOverviewResponse, error)
 

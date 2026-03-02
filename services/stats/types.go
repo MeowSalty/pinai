@@ -119,6 +119,37 @@ type TrendResponse struct {
 	Summary     TrendSummary     `json:"summary"`     // 汇总统计
 }
 
+// DashboardRequest 仪表盘数据请求参数
+type DashboardRequest struct {
+	Range TrendRange `json:"range"` // 时间范围：24h/7d/30d
+}
+
+// DashboardResponse 仪表盘数据响应
+type DashboardResponse struct {
+	Range    string            `json:"range"`    // 时间范围
+	Overview DashboardOverview `json:"overview"` // 概览数据
+	Ranks    DashboardRanks    `json:"ranks"`    // 排名数据
+	Trend    *TrendResponse    `json:"trend"`    // 趋势数据
+}
+
+// DashboardOverview 仪表盘概览数据
+type DashboardOverview struct {
+	TotalRequests         int64   `json:"total_requests"`          // 总请求量
+	SuccessRate           float64 `json:"success_rate"`            // 成功率
+	AvgFirstByteTime      float64 `json:"avg_first_byte"`          // 平均首字时间（微秒）
+	TotalPromptTokens     int64   `json:"total_prompt_tokens"`     // 总输入 Token
+	TotalCompletionTokens int64   `json:"total_completion_tokens"` // 总输出 Token
+	TotalTokens           int64   `json:"total_tokens"`            // 总 Token
+}
+
+// DashboardRanks 仪表盘排名数据
+type DashboardRanks struct {
+	ModelCall     []ModelCallRankItem     `json:"model_call"`     // 模型调用排名
+	PlatformCall  []PlatformCallRankItem  `json:"platform_call"`  // 平台调用排名
+	ModelUsage    []ModelUsageRankItem    `json:"model_usage"`    // 模型用量排名
+	PlatformUsage []PlatformUsageRankItem `json:"platform_usage"` // 平台用量排名
+}
+
 // ListRequestLogsOptions 定义了获取请求状态列表的筛选选项
 type ListRequestLogsOptions struct {
 	// 时间范围筛选

@@ -11,6 +11,7 @@ func SetupStatsRoutes(router fiber.Router, statsService stats.Service) {
 	handler := NewStatsHandler(statsService)
 
 	statsGroup := router.Group("/stats")
+	statsGroup.Get("/dashboard", handler.GetDashboard)
 	statsGroup.Get("/overview", handler.GetOverview)
 	statsGroup.Get("/requests", handler.ListRequestLogs)
 	statsGroup.Get("/realtime", handler.GetRealtime)
