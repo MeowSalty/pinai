@@ -15,6 +15,8 @@ type StatsHandlerInterface interface {
 	GetDashboard(c *fiber.Ctx) error
 
 	// GetOverview 获取全局概览数据
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetOverview(c *fiber.Ctx) error
 
 	// ListRequestLogs 获取请求状态列表
@@ -24,15 +26,23 @@ type StatsHandlerInterface interface {
 	GetRealtime(c *fiber.Ctx) error
 
 	// GetModelCallRank 获取模型调用排名前 5
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetModelCallRank(c *fiber.Ctx) error
 
 	// GetPlatformCallRank 获取平台调用排名前 5
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetPlatformCallRank(c *fiber.Ctx) error
 
 	// GetModelUsageRank 获取模型用量排名前 5
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetModelUsageRank(c *fiber.Ctx) error
 
 	// GetPlatformUsageRank 获取平台用量排名前 5
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetPlatformUsageRank(c *fiber.Ctx) error
 }
 

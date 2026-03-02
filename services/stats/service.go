@@ -31,9 +31,13 @@ type Service interface {
 	GetDashboard(ctx context.Context, trendRange TrendRange) (*DashboardResponse, error)
 
 	// GetOverview 获取全局概览数据
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetOverview(ctx context.Context, duration time.Duration) (*StatsOverviewResponse, error)
 
 	// GetTrend 获取用量趋势数据
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetTrend(ctx context.Context, trendRange TrendRange) (*TrendResponse, error)
 
 	// GetRealtime 获取实时数据
@@ -43,14 +47,22 @@ type Service interface {
 	ListRequestLogs(ctx context.Context, opts ListRequestLogsOptions) ([]*types.RequestLog, int64, error)
 
 	// GetModelCallRank 获取模型调用排名前 5
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetModelCallRank(ctx context.Context, duration time.Duration) (*ModelCallRankResponse, error)
 
 	// GetPlatformCallRank 获取平台调用排名前 5
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetPlatformCallRank(ctx context.Context, duration time.Duration) (*PlatformCallRankResponse, error)
 
 	// GetModelUsageRank 获取模型用量排名前 5
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetModelUsageRank(ctx context.Context, duration time.Duration) (*ModelUsageRankResponse, error)
 
 	// GetPlatformUsageRank 获取平台用量排名前 5
+	//
+	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetPlatformUsageRank(ctx context.Context, duration time.Duration) (*PlatformUsageRankResponse, error)
 }
