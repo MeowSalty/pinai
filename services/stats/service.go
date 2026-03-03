@@ -35,11 +35,6 @@ type Service interface {
 	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
 	GetOverview(ctx context.Context, duration time.Duration) (*StatsOverviewResponse, error)
 
-	// GetTrend 获取用量趋势数据
-	//
-	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetTrend(ctx context.Context, trendRange TrendRange) (*TrendResponse, error)
-
 	// GetRealtime 获取实时数据
 	GetRealtime(ctx context.Context) (*StatsRealtimeResponse, error)
 
