@@ -40,7 +40,7 @@ func (s *service) GetOverview(ctx context.Context, duration time.Duration) (*Sta
 		duration = defaultDuration
 	}
 
-	startTime := time.Now().Add(-duration)
+	startTime := time.Now().UTC().Add(-duration)
 
 	s.logger.InfoContext(ctx, "开始获取全局概览数据",
 		"duration", duration,
