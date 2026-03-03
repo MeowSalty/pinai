@@ -13,9 +13,9 @@ type trendRangeConfig struct {
 
 var trendRangeConfigs = map[TrendRange]trendRangeConfig{
 	TrendRange24h: {
-		Granularity: 4 * time.Hour,
-		Points:      7,
-		Label:       "4h",
+		Granularity: 1 * time.Hour,
+		Points:      24,
+		Label:       "1h",
 	},
 	TrendRange7d: {
 		Granularity: 24 * time.Hour,
