@@ -117,7 +117,7 @@ func (s *service) GetTrend(ctx context.Context, trendRange TrendRange) (*TrendRe
 
 // ceilToHour 将时间向上取整到整点（若已是整点则保持不变）
 func ceilToHour(t time.Time) time.Time {
-	u := t.UTC()
+	u := t
 	if u.Minute() == 0 && u.Second() == 0 && u.Nanosecond() == 0 {
 		return u
 	}

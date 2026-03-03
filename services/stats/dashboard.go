@@ -45,7 +45,7 @@ func (s *service) GetDashboard(ctx context.Context, trendRange TrendRange) (*Das
 		return nil, fmt.Errorf("无效的时间范围参数，可选值：24h, 7d, 30d")
 	}
 
-	now := time.Now().UTC()
+	now := time.Now()
 	bucketEnd := ceilToHour(now)
 	bucketStart := bucketEnd.Add(-cfg.Granularity * time.Duration(cfg.Points))
 
@@ -155,7 +155,7 @@ func (s *service) GetDashboard(ctx context.Context, trendRange TrendRange) (*Das
 			totalUsageTok += totalTokens
 		}
 
-		idx := int(row.Timestamp.UTC().Sub(bucketStart) / cfg.Granularity)
+		idx := int(row.Timestamp.Sub(bucketStart) / cfg.Granularity)
 		if idx >= 0 && idx < len(points) {
 			points[idx].RequestCount++
 			points[idx].TotalTokens += totalTokens
