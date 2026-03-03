@@ -164,6 +164,8 @@ func (s *service) GetDashboard(ctx context.Context, trendRange TrendRange) (*Das
 
 	overview.SuccessRate = s.calculateSuccessRate(overview.TotalRequests, successCount)
 	overview.AvgFirstByteTime = s.calculateAverageWithPercentile(firstByteDurations, percentileLower, percentileUpper)
+	overview.ActiveModels = len(modelCallAgg)
+	overview.ActivePlatforms = len(platformCallAgg)
 
 	for _, p := range points {
 		trendSummary.TotalRequests += p.RequestCount

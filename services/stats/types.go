@@ -137,6 +137,8 @@ type DashboardOverview struct {
 	TotalRequests         int64   `json:"total_requests"`          // 总请求量
 	SuccessRate           float64 `json:"success_rate"`            // 成功率
 	AvgFirstByteTime      float64 `json:"avg_first_byte"`          // 平均首字时间（微秒）
+	ActiveModels          int     `json:"active_models"`           // 活跃模型数（时间范围内有请求的去重模型）
+	ActivePlatforms       int     `json:"active_platforms"`        // 活跃平台数（时间范围内有请求的去重平台）
 	TotalPromptTokens     int64   `json:"total_prompt_tokens"`     // 总输入 Token
 	TotalCompletionTokens int64   `json:"total_completion_tokens"` // 总输出 Token
 	TotalTokens           int64   `json:"total_tokens"`            // 总 Token
