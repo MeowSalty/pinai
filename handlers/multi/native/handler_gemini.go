@@ -26,15 +26,19 @@ import (
 //	@Param        model    path      string                  true  "模型名称"
 //	@Param        request  body      geminiTypes.Request     true  "请求体"
 //	@Success      200      {object}  geminiTypes.Response    "成功"
-//	@Failure      400      {object}  map[string]string       "无效的请求体或缺少模型参数"
-//	@Failure      500      {object}  map[string]string       "请求失败"
+//	@Failure      400      {object}  geminiTypes.ErrorResponse  "无效的请求体或缺少模型参数"
+//	@Failure      500      {object}  geminiTypes.ErrorResponse  "请求失败"
 //	@Router       /multi/native/v1beta/models/{model}:generateContent [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 	var req geminiTypes.Request
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("无效的请求体: %v", err),
+		return c.Status(fiber.StatusBadRequest).JSON(geminiTypes.ErrorResponse{
+			Error: geminiTypes.ErrorDetail{
+				Code:    fiber.StatusBadRequest,
+				Message: fmt.Sprintf("无效的请求体: %v", err),
+				Status:  "INVALID_ARGUMENT",
+			},
 		})
 	}
 
@@ -51,15 +55,23 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "缺少模型查询参数",
+		return c.Status(fiber.StatusBadRequest).JSON(geminiTypes.ErrorResponse{
+			Error: geminiTypes.ErrorDetail{
+				Code:    fiber.StatusBadRequest,
+				Message: "缺少模型查询参数",
+				Status:  "INVALID_ARGUMENT",
+			},
 		})
 	}
 
 	resp, err := h.portalService.NativeGeminiGenerateContent(c.Context(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("请求失败: %v", err),
+		return c.Status(fiber.StatusInternalServerError).JSON(geminiTypes.ErrorResponse{
+			Error: geminiTypes.ErrorDetail{
+				Code:    fiber.StatusInternalServerError,
+				Message: fmt.Sprintf("请求失败: %v", err),
+				Status:  "INTERNAL",
+			},
 		})
 	}
 
@@ -78,14 +90,18 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 //	@Param        model    path      string              true  "模型名称"
 //	@Param        request  body      geminiTypes.Request true  "请求体"
 //	@Success      200      {string}  string              "流式事件数据"
-//	@Failure      400      {object}  map[string]string   "无效的请求体或缺少模型参数"
+//	@Failure      400      {object}  geminiTypes.ErrorResponse   "无效的请求体或缺少模型参数"
 //	@Router       /multi/native/v1beta/models/{model}:streamGenerateContent [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 	var req geminiTypes.Request
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("无效的请求体: %v", err),
+		return c.Status(fiber.StatusBadRequest).JSON(geminiTypes.ErrorResponse{
+			Error: geminiTypes.ErrorDetail{
+				Code:    fiber.StatusBadRequest,
+				Message: fmt.Sprintf("无效的请求体: %v", err),
+				Status:  "INVALID_ARGUMENT",
+			},
 		})
 	}
 
@@ -102,8 +118,12 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "缺少模型查询参数",
+		return c.Status(fiber.StatusBadRequest).JSON(geminiTypes.ErrorResponse{
+			Error: geminiTypes.ErrorDetail{
+				Code:    fiber.StatusBadRequest,
+				Message: "缺少模型查询参数",
+				Status:  "INVALID_ARGUMENT",
+			},
 		})
 	}
 

@@ -173,6 +173,24 @@ func (h *Handler) streamOpenAIChat(c *fiber.Ctx, req *openaiChatTypes.Request, s
 	return nil
 }
 
+// sendOpenAIResponsesStreamError 发送 OpenAI Responses 流式错误事件。
+func (h *Handler) sendOpenAIResponsesStreamError(w *bufio.Writer, code, message, param string) {
+	codePtr := &code
+	paramPtr := &param
+
+	errEvent := openaiResponsesTypes.ResponseErrorEvent{
+		Type:           openaiResponsesTypes.StreamEventError,
+		Code:           codePtr,
+		Message:        message,
+		Param:          paramPtr,
+		SequenceNumber: 0,
+	}
+
+	data, _ := json.Marshal(errEvent)
+	fmt.Fprintf(w, "data: %s\n\n", data)
+	w.Flush()
+}
+
 // sendOpenAIStreamError 发送流式错误响应
 func (h *Handler) sendOpenAIStreamError(w *bufio.Writer, errorType, message, code string) {
 	errResp := openaiSharedTypes.Error{
@@ -205,7 +223,7 @@ func (h *Handler) streamOpenAIResponses(c *fiber.Ctx, req *openaiResponsesTypes.
 				stack := debug.Stack()
 				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
 				logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
-				h.sendOpenAIStreamError(w, "internal_error", fmt.Sprintf("异常: %v", r), "internal_error")
+				h.sendOpenAIResponsesStreamError(w, "internal_error", fmt.Sprintf("异常: %v", r), "internal_error")
 			}
 		}()
 
@@ -214,14 +232,14 @@ func (h *Handler) streamOpenAIResponses(c *fiber.Ctx, req *openaiResponsesTypes.
 			if err != nil {
 				cancel()
 				logger.Error("序列化流事件失败", "error", err)
-				h.sendOpenAIStreamError(w, "internal_error", fmt.Sprintf("序列化流事件失败: %v", err), "internal_error")
+				h.sendOpenAIResponsesStreamError(w, "internal_error", fmt.Sprintf("序列化流事件失败: %v", err), "internal_error")
 				break
 			}
 
 			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
 				cancel()
 				logger.Error("写入流事件失败", "error", err)
-				h.sendOpenAIStreamError(w, "internal_error", fmt.Sprintf("写入流事件失败: %v", err), "internal_error")
+				h.sendOpenAIResponsesStreamError(w, "internal_error", fmt.Sprintf("写入流事件失败: %v", err), "internal_error")
 				break
 			}
 
@@ -233,7 +251,7 @@ func (h *Handler) streamOpenAIResponses(c *fiber.Ctx, req *openaiResponsesTypes.
 			if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
 				cancel()
 				logger.Error("写入流结束标识失败", "error", err)
-				h.sendOpenAIStreamError(w, "internal_error", fmt.Sprintf("写入流结束标识失败: %v", err), "internal_error")
+				h.sendOpenAIResponsesStreamError(w, "internal_error", fmt.Sprintf("写入流结束标识失败: %v", err), "internal_error")
 			}
 			w.Flush()
 		}

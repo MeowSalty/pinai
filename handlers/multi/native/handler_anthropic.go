@@ -32,8 +32,12 @@ import (
 func (h *Handler) AnthropicMessages(c *fiber.Ctx) error {
 	var req anthropicTypes.Request
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("无效的请求体: %v", err),
+		return c.Status(fiber.StatusBadRequest).JSON(anthropicTypes.ErrorResponse{
+			Type: "error",
+			Error: anthropicTypes.Error{
+				Type:    "invalid_request_error",
+				Message: fmt.Sprintf("无效的请求体: %v", err),
+			},
 		})
 	}
 
@@ -49,8 +53,12 @@ func (h *Handler) AnthropicMessages(c *fiber.Ctx) error {
 
 	resp, err := h.portalService.NativeAnthropicMessages(c.Context(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("请求失败: %v", err),
+		return c.Status(fiber.StatusInternalServerError).JSON(anthropicTypes.ErrorResponse{
+			Type: "error",
+			Error: anthropicTypes.Error{
+				Type:    "api_error",
+				Message: fmt.Sprintf("请求失败: %v", err),
+			},
 		})
 	}
 
