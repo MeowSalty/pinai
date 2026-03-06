@@ -140,7 +140,8 @@ func (h *StatsHandler) GetRealtime(c *fiber.Ctx) error {
 //   - start_time: 开始时间 (可选，支持 RFC3339 格式或 Unix 时间戳毫秒格式)
 //   - end_time: 结束时间 (可选，支持 RFC3339 格式或 Unix 时间戳毫秒格式)
 //   - success: 成功状态 (可选)
-//   - request_type: 请求类型 (可选)
+//   - is_stream: 是否流式请求 (可选)
+//   - is_native: 是否原生请求 (可选)
 //   - model_name: 模型名称 (可选)
 //   - platform_id: 平台 ID (可选)
 //   - page: 页码 (默认为 1)
@@ -149,6 +150,25 @@ func (h *StatsHandler) GetRealtime(c *fiber.Ctx) error {
 // 返回值：
 //   - 成功：请求状态列表和分页信息
 //   - 失败：错误信息
+//
+// @Summary      获取请求状态列表
+// @Description  支持按时间、成功状态、流式/原生类型筛选请求日志，并提供分页
+// @Tags         统计
+// @Accept       json
+// @Produce      json
+// @Param        start_time    query     string  false  "开始时间 (RFC3339 或 Unix 毫秒时间戳)"
+// @Param        end_time      query     string  false  "结束时间 (RFC3339 或 Unix 毫秒时间戳)"
+// @Param        success       query     bool    false  "成功状态"
+// @Param        is_stream     query     bool    false  "是否流式请求"
+// @Param        is_native     query     bool    false  "是否原生请求"
+// @Param        model_name    query     string  false  "模型名称"
+// @Param        platform_id   query     int     false  "平台 ID"
+// @Param        page          query     int     false  "页码"  default(1)
+// @Param        page_size     query     int     false  "每页大小"  default(10)
+// @Success      200           {object}  map[string]interface{}
+// @Failure      400           {object}  fiber.Error  "参数错误"
+// @Failure      500           {object}  fiber.Error  "服务器内部错误"
+// @Router       /api/stats/requests [get]
 func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 	// 解析查询参数
 	var opts stats.ListRequestLogsOptions
@@ -176,9 +196,18 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 		opts.Success = &success
 	}
 
-	// 解析请求类型参数
-	if requestType := c.Query("request_type"); requestType != "" {
-		opts.RequestType = &requestType
+	// 解析是否流式请求参数
+	if isStreamStr := c.Query("is_stream"); isStreamStr != "" {
+		if isStream, err := strconv.ParseBool(isStreamStr); err == nil {
+			opts.IsStream = &isStream
+		}
+	}
+
+	// 解析是否原生请求参数
+	if isNativeStr := c.Query("is_native"); isNativeStr != "" {
+		if isNative, err := strconv.ParseBool(isNativeStr); err == nil {
+			opts.IsNative = &isNative
+		}
 	}
 
 	// 解析模型名称参数
