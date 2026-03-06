@@ -16,6 +16,11 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// stringPtr 返回字符串指针
+func stringPtr(s string) *string {
+	return &s
+}
+
 // OpenAIChatCompletions 处理原生 OpenAI 聊天补全请求，路径为 POST /multi/native/v1/chat/completions。
 // 解析请求体，处理 User-Agent 头部，根据 stream 参数决定返回流式或非流式响应。
 // 成功时返回 200 和响应数据，失败时返回 400 或 500 错误。
@@ -27,18 +32,17 @@ import (
 //	@Produce      json
 //	@Param        request  body      openaiChatTypes.Request  true  "请求体"
 //	@Success      200      {object}  openaiChatTypes.Response  "成功"
-//	@Failure      400      {object}  openaiSharedTypes.Error    "无效的请求体"
-//	@Failure      500      {object}  openaiSharedTypes.Error    "请求失败"
+//	@Failure      400      {object}  openaiSharedTypes.HTTPError    "无效的请求体"
+//	@Failure      500      {object}  openaiSharedTypes.HTTPError    "请求失败"
 //	@Router       /multi/native/v1/chat/completions [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) OpenAIChatCompletions(c *fiber.Ctx) error {
 	var req openaiChatTypes.Request
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(openaiSharedTypes.Error{
+		return c.Status(fiber.StatusBadRequest).JSON(openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("无效的请求体: %v", err),
 				Type:    "invalid_request_error",
-				Code:    "invalid_request",
 			},
 		})
 	}
@@ -55,11 +59,10 @@ func (h *Handler) OpenAIChatCompletions(c *fiber.Ctx) error {
 
 	resp, err := h.portalService.NativeOpenAIChatCompletion(c.Context(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(openaiSharedTypes.Error{
+		return c.Status(fiber.StatusInternalServerError).JSON(openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("请求失败: %v", err),
 				Type:    "internal_error",
-				Code:    "internal_error",
 			},
 		})
 	}
@@ -78,18 +81,17 @@ func (h *Handler) OpenAIChatCompletions(c *fiber.Ctx) error {
 //	@Produce      json
 //	@Param        request  body      openaiResponsesTypes.Request  true  "请求体"
 //	@Success      200      {object}  openaiResponsesTypes.Response  "成功"
-//	@Failure      400      {object}  openaiSharedTypes.Error         "无效的请求体"
-//	@Failure      500      {object}  openaiSharedTypes.Error         "请求失败"
+//	@Failure      400      {object}  openaiSharedTypes.HTTPError         "无效的请求体"
+//	@Failure      500      {object}  openaiSharedTypes.HTTPError         "请求失败"
 //	@Router       /multi/native/v1/responses [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) OpenAIResponses(c *fiber.Ctx) error {
 	var req openaiResponsesTypes.Request
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(openaiSharedTypes.Error{
+		return c.Status(fiber.StatusBadRequest).JSON(openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("无效的请求体: %v", err),
 				Type:    "invalid_request_error",
-				Code:    "invalid_request",
 			},
 		})
 	}
@@ -106,11 +108,10 @@ func (h *Handler) OpenAIResponses(c *fiber.Ctx) error {
 
 	resp, err := h.portalService.NativeOpenAIResponses(c.Context(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(openaiSharedTypes.Error{
+		return c.Status(fiber.StatusInternalServerError).JSON(openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("请求失败: %v", err),
 				Type:    "internal_error",
-				Code:    "internal_error",
 			},
 		})
 	}
@@ -193,12 +194,12 @@ func (h *Handler) sendOpenAIResponsesStreamError(w *bufio.Writer, code, message,
 
 // sendOpenAIStreamError 发送流式错误响应
 func (h *Handler) sendOpenAIStreamError(w *bufio.Writer, errorType, message, code string) {
-	errResp := openaiSharedTypes.Error{
+	errResp := openaiSharedTypes.HTTPError{
 		Error: openaiSharedTypes.ErrorDetail{
 			Message: message,
 			Type:    errorType,
 			Param:   nil,
-			Code:    code,
+			Code:    stringPtr(code),
 		},
 	}
 	data, _ := json.Marshal(errResp)

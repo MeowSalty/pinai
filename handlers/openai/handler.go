@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"runtime/debug"
 	"strings"
 
@@ -361,7 +360,7 @@ func (h *OpenAIHandler) handleResponsesStream(c *fiber.Ctx, req *portalTypes.Req
 					"stack", stackLines,
 				)
 				errorEvent := openaiResponsesTypes.ResponseError{
-					Code:    fmt.Sprint(http.StatusInternalServerError),
+					Code:    openaiResponsesTypes.ResponseErrorCodeServerError,
 					Message: fmt.Sprintf("流式响应处理错误: %v", r),
 				}
 				if jsonBytes, err := json.Marshal(errorEvent); err == nil {
