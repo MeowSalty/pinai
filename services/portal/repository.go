@@ -333,7 +333,8 @@ func (r *Repository) CreateRequestLog(ctx context.Context, log *request.RequestL
 	// 记录审计日志
 	repoLogger.Info("创建请求日志",
 		"request_id", log.ID,
-		"request_type", log.RequestType,
+		"is_stream", log.IsStream,
+		"is_native", log.IsNative,
 		"model_name", log.ModelName,
 		"original_model_name", log.OriginalModelName,
 		"platform_id", log.PlatformID,
@@ -345,7 +346,8 @@ func (r *Repository) CreateRequestLog(ctx context.Context, log *request.RequestL
 	dbLog := &types.RequestLog{
 		ID:                log.ID,
 		Timestamp:         log.Timestamp,
-		RequestType:       log.RequestType,
+		IsStream:          log.IsStream,
+		IsNative:          log.IsNative,
 		ModelName:         log.ModelName,
 		OriginalModelName: log.OriginalModelName,
 		PlatformID:        log.PlatformID,

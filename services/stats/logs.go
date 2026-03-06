@@ -35,8 +35,11 @@ func (s *service) ListRequestLogs(ctx context.Context, opts ListRequestLogsOptio
 	}
 
 	// 请求类型筛选
-	if opts.RequestType != nil {
-		queryBuilder = queryBuilder.Where(r.RequestType.Eq(*opts.RequestType))
+	if opts.IsStream != nil {
+		queryBuilder = queryBuilder.Where(r.IsStream.Is(*opts.IsStream))
+	}
+	if opts.IsNative != nil {
+		queryBuilder = queryBuilder.Where(r.IsNative.Is(*opts.IsNative))
 	}
 
 	// 模型名称筛选

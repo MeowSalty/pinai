@@ -155,12 +155,13 @@ type DashboardRanks struct {
 // ListRequestLogsOptions 定义了获取请求状态列表的筛选选项
 type ListRequestLogsOptions struct {
 	// 时间范围筛选
-	StartTime   *time.Time `json:"start_time,omitempty"`
-	EndTime     *time.Time `json:"end_time,omitempty"`
-	Success     *bool      `json:"success,omitempty"`
-	RequestType *string    `json:"request_type,omitempty"`
-	ModelName   *string    `json:"model_name,omitempty"`
-	PlatformID  *uint      `json:"platform_id,omitempty"`
-	Page        int        `json:"page"`
-	PageSize    int        `json:"page_size"`
+	StartTime  *time.Time `json:"start_time,omitempty"`
+	EndTime    *time.Time `json:"end_time,omitempty"`
+	Success    *bool      `json:"success,omitempty"`
+	IsStream   *bool      `json:"is_stream,omitempty"`
+	IsNative   *bool      `json:"is_native,omitempty"`
+	ModelName  *string    `json:"model_name,omitempty"`
+	PlatformID *uint      `json:"platform_id,omitempty"`
+	Page       int        `json:"page"`
+	PageSize   int        `json:"page_size"`
 }
