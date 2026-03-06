@@ -10,9 +10,10 @@ type RequestLog struct {
 
 	// 请求基本信息
 	Timestamp         time.Time `gorm:"index" json:"timestamp"`                     // 请求时间
-	RequestType       string    `gorm:"index" json:"request_type"`                  // 请求类型：stream 或 non-stream
 	ModelName         string    `gorm:"index" json:"model_name"`                    // 模型名称
 	OriginalModelName string    `gorm:"index" json:"original_model_name,omitempty"` // 原始模型名称（用户请求中的模型名称）
+	IsStream          bool      `gorm:"index;default:false" json:"is_stream"`       // 是否为流式请求
+	IsNative          bool      `gorm:"index;default:false" json:"is_native"`       // 是否为原生（native）请求
 
 	// 通道信息
 	PlatformID uint `gorm:"index" json:"platform_id"` // 平台 ID

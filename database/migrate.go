@@ -37,5 +37,9 @@ func autoMigrate(db *gorm.DB) error {
 	if err := migrateEndpoints(db); err != nil {
 		return err
 	}
+	// 迁移 request_logs 的 RequestType 字段到 IsStream/IsNative
+	if err := migrateRequestLogFields(db); err != nil {
+		return err
+	}
 	return nil
 }

@@ -30,9 +30,10 @@ func newRequestLog(db *gorm.DB, opts ...gen.DOOption) requestLog {
 	_requestLog.ALL = field.NewAsterisk(tableName)
 	_requestLog.ID = field.NewUint(tableName, "id")
 	_requestLog.Timestamp = field.NewTime(tableName, "timestamp")
-	_requestLog.RequestType = field.NewString(tableName, "request_type")
 	_requestLog.ModelName = field.NewString(tableName, "model_name")
 	_requestLog.OriginalModelName = field.NewString(tableName, "original_model_name")
+	_requestLog.IsStream = field.NewBool(tableName, "is_stream")
+	_requestLog.IsNative = field.NewBool(tableName, "is_native")
 	_requestLog.PlatformID = field.NewUint(tableName, "platform_id")
 	_requestLog.APIKeyID = field.NewUint(tableName, "api_key_id")
 	_requestLog.ModelID = field.NewUint(tableName, "model_id")
@@ -55,9 +56,10 @@ type requestLog struct {
 	ALL               field.Asterisk
 	ID                field.Uint
 	Timestamp         field.Time
-	RequestType       field.String
 	ModelName         field.String
 	OriginalModelName field.String
+	IsStream          field.Bool
+	IsNative          field.Bool
 	PlatformID        field.Uint
 	APIKeyID          field.Uint
 	ModelID           field.Uint
@@ -86,9 +88,10 @@ func (r *requestLog) updateTableName(table string) *requestLog {
 	r.ALL = field.NewAsterisk(table)
 	r.ID = field.NewUint(table, "id")
 	r.Timestamp = field.NewTime(table, "timestamp")
-	r.RequestType = field.NewString(table, "request_type")
 	r.ModelName = field.NewString(table, "model_name")
 	r.OriginalModelName = field.NewString(table, "original_model_name")
+	r.IsStream = field.NewBool(table, "is_stream")
+	r.IsNative = field.NewBool(table, "is_native")
 	r.PlatformID = field.NewUint(table, "platform_id")
 	r.APIKeyID = field.NewUint(table, "api_key_id")
 	r.ModelID = field.NewUint(table, "model_id")
@@ -115,12 +118,13 @@ func (r *requestLog) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (r *requestLog) fillFieldMap() {
-	r.fieldMap = make(map[string]field.Expr, 15)
+	r.fieldMap = make(map[string]field.Expr, 16)
 	r.fieldMap["id"] = r.ID
 	r.fieldMap["timestamp"] = r.Timestamp
-	r.fieldMap["request_type"] = r.RequestType
 	r.fieldMap["model_name"] = r.ModelName
 	r.fieldMap["original_model_name"] = r.OriginalModelName
+	r.fieldMap["is_stream"] = r.IsStream
+	r.fieldMap["is_native"] = r.IsNative
 	r.fieldMap["platform_id"] = r.PlatformID
 	r.fieldMap["api_key_id"] = r.APIKeyID
 	r.fieldMap["model_id"] = r.ModelID
