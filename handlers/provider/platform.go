@@ -10,12 +10,22 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// ResourceHealthCount 资源健康状态计数
+type ResourceHealthCount struct {
+	Available   int64 `json:"available"`
+	Warning     int64 `json:"warning"`
+	Unavailable int64 `json:"unavailable"`
+	Unknown     int64 `json:"unknown"`
+}
+
 // PlatformWithHealth 带健康状态的平台响应
 type PlatformWithHealth struct {
 	*types.Platform
-	HealthStatus *types.HealthStatus `json:"health_status,omitempty"`
-	KeyCount     int64               `json:"key_count"`
-	ModelCount   int64               `json:"model_count"`
+	HealthStatus     *types.HealthStatus  `json:"health_status,omitempty"`
+	KeyCount         int64                `json:"key_count"`
+	ModelCount       int64                `json:"model_count"`
+	KeyHealthCount   *ResourceHealthCount `json:"key_health_count"`
+	ModelHealthCount *ResourceHealthCount `json:"model_health_count"`
 }
 
 // CreatePlatform godoc
@@ -72,7 +82,20 @@ func (h *Handler) GetPlatforms(c *fiber.Ctx) error {
 		})
 	}
 
+	// 获取资源到平台的映射，用于按平台统计健康状态
+	keyMap, modelMap, err := h.service.GetResourcePlatformMaps(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("获取资源平台映射失败: %v", err),
+		})
+	}
+
 	storage := h.healthService.GetStorage()
+
+	// 按平台统计密钥和模型的健康分布
+	keyHealthCounts := storage.CountByPlatform(types.ResourceTypeAPIKey, keyMap)
+	modelHealthCounts := storage.CountByPlatform(types.ResourceTypeModel, modelMap)
+
 	result := make([]PlatformWithHealth, len(platforms))
 	for i, p := range platforms {
 		result[i].Platform = p
@@ -81,9 +104,28 @@ func (h *Handler) GetPlatforms(c *fiber.Ctx) error {
 		if health, _ := storage.Get(types.ResourceTypePlatform, p.ID); health != nil {
 			result[i].HealthStatus = &health.Status
 		} else {
-			// 没有健康数据时使用未知状态
 			unknownStatus := types.HealthStatusUnknown
 			result[i].HealthStatus = &unknownStatus
+		}
+
+		// 组装密钥健康计数
+		kc := keyHealthCounts[p.ID]
+		keyUnknown := keyCounts[p.ID] - kc.Available - kc.Warning - kc.Unavailable
+		result[i].KeyHealthCount = &ResourceHealthCount{
+			Available:   kc.Available,
+			Warning:     kc.Warning,
+			Unavailable: kc.Unavailable,
+			Unknown:     keyUnknown,
+		}
+
+		// 组装模型健康计数
+		mc := modelHealthCounts[p.ID]
+		modelUnknown := modelCounts[p.ID] - mc.Available - mc.Warning - mc.Unavailable
+		result[i].ModelHealthCount = &ResourceHealthCount{
+			Available:   mc.Available,
+			Warning:     mc.Warning,
+			Unavailable: mc.Unavailable,
+			Unknown:     modelUnknown,
 		}
 	}
 	return c.JSON(result)

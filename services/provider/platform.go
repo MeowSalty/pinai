@@ -263,3 +263,38 @@ func (s *service) DeletePlatform(ctx context.Context, id uint) error {
 	logger.Info("成功删除平台及其所有关联数据")
 	return nil
 }
+
+// GetResourcePlatformMaps 获取密钥和模型的 resource_id -> platform_id 映射
+func (s *service) GetResourcePlatformMaps(ctx context.Context) (keyMap, modelMap map[uint]uint, err error) {
+	s.logger.Debug("开始获取资源平台映射")
+
+	k := query.Q.APIKey
+	// 仅查询 id 和 platform_id 两列，减少数据传输
+	apiKeys, err := k.WithContext(ctx).Select(k.ID, k.PlatformID).Find()
+	if err != nil {
+		s.logger.Error("查询密钥平台映射失败", slog.Any("error", err))
+		return nil, nil, fmt.Errorf("查询密钥平台映射失败：%w", err)
+	}
+
+	m := query.Q.Model
+	models, err := m.WithContext(ctx).Select(m.ID, m.PlatformID).Find()
+	if err != nil {
+		s.logger.Error("查询模型平台映射失败", slog.Any("error", err))
+		return nil, nil, fmt.Errorf("查询模型平台映射失败：%w", err)
+	}
+
+	keyMap = make(map[uint]uint, len(apiKeys))
+	for _, ak := range apiKeys {
+		keyMap[ak.ID] = ak.PlatformID
+	}
+
+	modelMap = make(map[uint]uint, len(models))
+	for _, md := range models {
+		modelMap[md.ID] = md.PlatformID
+	}
+
+	s.logger.Debug("成功获取资源平台映射",
+		slog.Int("key_count", len(keyMap)),
+		slog.Int("model_count", len(modelMap)))
+	return keyMap, modelMap, nil
+}

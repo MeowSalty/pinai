@@ -222,6 +222,53 @@ type StatusCount struct {
 	Unavailable int64 // 不可用数量
 }
 
+// CountByPlatform 按平台分组统计指定资源类型的各健康状态数量
+//
+// 从内存缓存中遍历匹配指定资源类型的记录，按平台分组统计各状态数量。
+//
+// 参数：
+//
+//	resourceType - 资源类型（密钥、模型）
+//	resourceToPlatform - resource_id -> platform_id 的映射
+//
+// 返回值：
+//
+//	map[uint]StatusCount - 按 platform_id 分组的各状态数量统计
+func (s *Storage) CountByPlatform(resourceType types.ResourceType, resourceToPlatform map[uint]uint) map[uint]StatusCount {
+	result := make(map[uint]StatusCount)
+
+	s.cache.Range(func(key, value interface{}) bool {
+		h := value.(*types.Health)
+		if h.ResourceType != resourceType {
+			return true
+		}
+
+		platformID, ok := resourceToPlatform[h.ResourceID]
+		if !ok {
+			return true
+		}
+
+		count := result[platformID]
+		switch h.Status {
+		case types.HealthStatusAvailable:
+			count.Available++
+		case types.HealthStatusWarning:
+			count.Warning++
+		case types.HealthStatusUnavailable:
+			count.Unavailable++
+		}
+		result[platformID] = count
+
+		return true
+	})
+
+	s.logger.Debug("按平台统计资源健康状态完成",
+		"resource_type", resourceType,
+		"platform_count", len(result))
+
+	return result
+}
+
 // CountByResourceType 按资源类型统计各状态数量
 //
 // 从内存缓存中统计指定资源类型的各状态数量
