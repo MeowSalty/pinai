@@ -40,6 +40,55 @@ func (s *service) GetPlatforms(ctx context.Context) ([]*types.Platform, error) {
 	return platforms, nil
 }
 
+// GetPlatformResourceCounts 批量获取各平台的密钥数和模型数
+func (s *service) GetPlatformResourceCounts(ctx context.Context) (keyCounts, modelCounts map[uint]int64, err error) {
+	s.logger.Debug("开始获取平台资源统计")
+
+	// 按 platform_id 分组统计密钥数
+	type countResult struct {
+		PlatformID uint  `gorm:"column:platform_id"`
+		Count      int64 `gorm:"column:count"`
+	}
+
+	var keyResults []countResult
+	err = query.Q.APIKey.WithContext(ctx).UnderlyingDB().
+		Table("api_keys").
+		Select("platform_id, COUNT(*) as count").
+		Group("platform_id").
+		Scan(&keyResults).Error
+	if err != nil {
+		s.logger.Error("统计平台密钥数失败", slog.Any("error", err))
+		return nil, nil, fmt.Errorf("统计平台密钥数失败：%w", err)
+	}
+
+	// 按 platform_id 分组统计模型数
+	var modelResults []countResult
+	err = query.Q.Model.WithContext(ctx).UnderlyingDB().
+		Table("models").
+		Select("platform_id, COUNT(*) as count").
+		Group("platform_id").
+		Scan(&modelResults).Error
+	if err != nil {
+		s.logger.Error("统计平台模型数失败", slog.Any("error", err))
+		return nil, nil, fmt.Errorf("统计平台模型数失败：%w", err)
+	}
+
+	keyCounts = make(map[uint]int64, len(keyResults))
+	for _, r := range keyResults {
+		keyCounts[r.PlatformID] = r.Count
+	}
+
+	modelCounts = make(map[uint]int64, len(modelResults))
+	for _, r := range modelResults {
+		modelCounts[r.PlatformID] = r.Count
+	}
+
+	s.logger.Debug("成功获取平台资源统计",
+		slog.Int("key_groups", len(keyCounts)),
+		slog.Int("model_groups", len(modelCounts)))
+	return keyCounts, modelCounts, nil
+}
+
 // GetPlatform 实现获取指定平台详情
 func (s *service) GetPlatform(ctx context.Context, id uint) (*types.Platform, error) {
 	logger := s.logger.With(slog.Uint64("platform_id", uint64(id)))

@@ -14,6 +14,8 @@ import (
 type PlatformWithHealth struct {
 	*types.Platform
 	HealthStatus *types.HealthStatus `json:"health_status,omitempty"`
+	KeyCount     int64               `json:"key_count"`
+	ModelCount   int64               `json:"model_count"`
 }
 
 // CreatePlatform godoc
@@ -63,10 +65,19 @@ func (h *Handler) GetPlatforms(c *fiber.Ctx) error {
 		})
 	}
 
+	keyCounts, modelCounts, err := h.service.GetPlatformResourceCounts(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("获取平台资源统计失败: %v", err),
+		})
+	}
+
 	storage := h.healthService.GetStorage()
 	result := make([]PlatformWithHealth, len(platforms))
 	for i, p := range platforms {
 		result[i].Platform = p
+		result[i].KeyCount = keyCounts[p.ID]
+		result[i].ModelCount = modelCounts[p.ID]
 		if health, _ := storage.Get(types.ResourceTypePlatform, p.ID); health != nil {
 			result[i].HealthStatus = &health.Status
 		} else {

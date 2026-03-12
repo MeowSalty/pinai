@@ -90,4 +90,7 @@ type Service interface {
 
 	// GetModel 获取指定模型详情
 	GetModel(ctx context.Context, modelId uint) (*types.Model, error)
+
+	// GetPlatformResourceCounts 批量获取各平台的密钥数和模型数
+	GetPlatformResourceCounts(ctx context.Context) (keyCounts, modelCounts map[uint]int64, err error)
 }
