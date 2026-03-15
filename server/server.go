@@ -53,6 +53,11 @@ func Run(cfg *config.Config) {
 	}
 	defer db.Close()
 
+	// 非 Debug 等级时，设置 Gin 为 Release 模式以减少冗余输出
+	if strings.ToUpper(cfg.LogLevel) != "DEBUG" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	// 创建 gin 应用
 	ginEngine := gin.New()
 
