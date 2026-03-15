@@ -6,10 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/MeowSalty/pinai/handlers/anthropic"
 	"github.com/MeowSalty/pinai/handlers/health"
 	"github.com/MeowSalty/pinai/handlers/multi"
-	"github.com/MeowSalty/pinai/handlers/openai"
 	"github.com/MeowSalty/pinai/handlers/provider"
 	"github.com/MeowSalty/pinai/handlers/proxy"
 	"github.com/MeowSalty/pinai/handlers/stats"
@@ -59,9 +57,6 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 			"message": "pong",
 		})
 	})
-
-	openai.SetupOpenAIRoutes(openaiAPI, svcs.PortalService, config.UserAgent, logger)
-	anthropic.SetupAnthropicRoutes(anthropicAPI, svcs.PortalService, config.UserAgent)
 
 	multi.SetupMultiRoutes(multiAPI, svcs.PortalService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
 
