@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"bufio"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -138,20 +137,3 @@ func (c *Collector) cleanup() {
 	}
 }
 
-// WithStreamTracking 创建流式响应的包装器
-//
-// 该方法用于处理流式响应的连接计数，确保在流式传输完成后才减少连接数
-//
-// 参数：
-//   - streamFunc: 流式响应处理函数
-//
-// 返回值：
-//   - func(*bufio.Writer): 包装后的流式响应处理函数
-func (c *Collector) WithStreamTracking(streamFunc func(*bufio.Writer) error) func(*bufio.Writer) {
-	return func(w *bufio.Writer) {
-		// 流式响应结束时减少连接数
-		defer c.DecrementConnection()
-		// 执行流式响应处理
-		streamFunc(w)
-	}
-}
