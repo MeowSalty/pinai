@@ -35,7 +35,7 @@ type AnthropicHandler struct {
 //
 // 参数：
 //   - portal: AI 网关服务实例，用于处理 AI 相关请求
-//   - userAgent: User-Agent 配置，空则透传客户端 UA，"default" 使用 fasthttp 默认值，其他字符串则复写
+//   - userAgent: User-Agent 配置，空则透传客户端 UA，"default" 使用 Go net/http 默认值，其他字符串则复写
 //
 // 返回值：
 //   - *AnthropicHandler: 初始化后的 Anthropic 处理器实例
@@ -125,7 +125,7 @@ func (h *AnthropicHandler) Messages(c *gin.Context) {
 			portalReq.Headers["User-Agent"] = userAgent
 		}
 	case "default":
-		// "default"：不设置 User-Agent，使用 fasthttp 默认值
+		// "default"：不设置 User-Agent，使用 Go net/http 默认值
 		// 不添加 User-Agent 到 Headers 中
 	default:
 		// 其他字符串：使用配置的字符串复写 User-Agent

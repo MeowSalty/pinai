@@ -3,7 +3,9 @@ module github.com/MeowSalty/pinai
 go 1.25.0
 
 require (
-	github.com/gofiber/fiber/v2 v2.52.12
+	github.com/gin-contrib/cors v1.7.6
+	github.com/gin-gonic/gin v1.12.0
+	github.com/samber/slog-gin v1.21.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
@@ -17,9 +19,7 @@ require (
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
-	github.com/gin-contrib/cors v1.7.6 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
-	github.com/gin-gonic/gin v1.12.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.30.1 // indirect
@@ -41,7 +41,6 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
-	github.com/samber/slog-gin v1.21.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
@@ -61,17 +60,9 @@ require (
 
 require (
 	github.com/MeowSalty/portal v0.8.1-0.20260315052406-0937fba38e74
-	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/orandin/slog-gorm v1.4.0
-	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/samber/slog-fiber v1.18.0
-	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.65.0
 	golang.org/x/sys v0.41.0 // indirect
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gen v0.3.27

@@ -25,7 +25,7 @@ type Handler struct {
 //
 // 参数：
 //   - portalService: AI 网关服务实例，用于处理 AI 相关请求
-//   - userAgent: User-Agent 配置，空则透传客户端 UA，"default" 使用 fasthttp 默认值，其他字符串则复写
+//   - userAgent: User-Agent 配置，空则透传客户端 UA，"default" 使用 Go net/http 默认值，其他字符串则复写
 //   - passthroughHeaders: 是否透传 HTTP 请求头（过滤后）
 //   - logger: 日志记录器实例
 //
