@@ -5,15 +5,15 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/services/portal"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // SetupOpenAIRoutes registers the OpenAI compatible routes.
-func SetupOpenAIRoutes(router fiber.Router, portalService portal.Service, userAgent string, logger *slog.Logger) {
+func SetupOpenAIRoutes(router *gin.RouterGroup, portalService portal.Service, userAgent string, logger *slog.Logger) {
 	// 创建 Handler 实例，传入 userAgent 配置
 	handler := New(portalService, userAgent, logger)
 
-	router.Get("/models", ListModels)
-	router.Post("/chat/completions", handler.ChatCompletions)
-	router.Post("/responses", handler.Responses)
+	router.GET("/models", ListModels)
+	router.POST("/chat/completions", handler.ChatCompletions)
+	router.POST("/responses", handler.Responses)
 }

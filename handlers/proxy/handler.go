@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -54,18 +54,20 @@ func New(userAgent string, logger *slog.Logger) *Handler {
 }
 
 // Proxy 处理后端代理请求并透传上游响应。
-func (h *Handler) Proxy(c *fiber.Ctx) error {
+func (h *Handler) Proxy(c *gin.Context) {
 	var req ProxyRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求格式：%v", err),
 		})
+		return
 	}
 
 	if strings.TrimSpace(req.URL) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "缺少 url 参数",
 		})
+		return
 	}
 
 	method := strings.ToUpper(strings.TrimSpace(req.Method))
@@ -73,7 +75,7 @@ func (h *Handler) Proxy(c *fiber.Ctx) error {
 		method = http.MethodGet
 	}
 
-	ctx := c.UserContext()
+	ctx := c.Request.Context()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -85,9 +87,10 @@ func (h *Handler) Proxy(c *fiber.Ctx) error {
 
 	upstreamReq, err := http.NewRequestWithContext(ctx, method, req.URL, bodyReader)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("创建上游请求失败：%v", err),
 		})
+		return
 	}
 
 	for key, value := range req.Headers {
@@ -119,9 +122,10 @@ func (h *Handler) Proxy(c *fiber.Ctx) error {
 	upstreamResp, err := client.Do(upstreamReq)
 	if err != nil {
 		logger.Error("上游请求失败", slog.Any("error", err))
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+		c.JSON(http.StatusBadGateway, gin.H{
 			"error": fmt.Sprintf("上游请求失败：%v", err),
 		})
+		return
 	}
 	defer upstreamResp.Body.Close()
 
@@ -129,16 +133,18 @@ func (h *Handler) Proxy(c *fiber.Ctx) error {
 	bodyBytes, err := io.ReadAll(limitedBody)
 	if err != nil {
 		logger.Error("读取上游响应失败", slog.Any("error", err))
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+		c.JSON(http.StatusBadGateway, gin.H{
 			"error": fmt.Sprintf("读取上游响应失败：%v", err),
 		})
+		return
 	}
 
 	if len(bodyBytes) > maxResponseBodyBytes {
 		logger.Warn("上游响应过大", slog.Int("size", len(bodyBytes)))
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+		c.JSON(http.StatusBadGateway, gin.H{
 			"error": "上游响应过大，已超过限制",
 		})
+		return
 	}
 
 	for key, values := range upstreamResp.Header {
@@ -146,12 +152,12 @@ func (h *Handler) Proxy(c *fiber.Ctx) error {
 			continue
 		}
 		for _, value := range values {
-			c.Append(key, value)
+			c.Writer.Header().Add(key, value)
 		}
 	}
 
-	c.Status(upstreamResp.StatusCode)
-	return c.Send(bodyBytes)
+	contentType := upstreamResp.Header.Get("Content-Type")
+	c.Data(upstreamResp.StatusCode, contentType, bodyBytes)
 }
 
 func isHopByHopHeader(key string) bool {

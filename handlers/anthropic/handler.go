@@ -1,11 +1,11 @@
 package anthropic
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"runtime/debug"
 	"strings"
 
@@ -16,7 +16,7 @@ import (
 	"github.com/MeowSalty/portal/request/adapter/anthropic/converter"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	portalTypes "github.com/MeowSalty/portal/request/adapter/types"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // AnthropicHandler 结构体定义了 Anthropic 兼容 API 的处理器
@@ -53,17 +53,18 @@ func New(portal portal.Service, userAgent string) *AnthropicHandler {
 // @Accept       json
 // @Produce      json
 // @Success      200  {object}  ModelList
-// @Failure      500  {object}  fiber.Map
+// @Failure      500  {object}  gin.H
 // @Router       /anthropic/v1/models [get]
-func ListModels(c *fiber.Ctx) error {
+func ListModels(c *gin.Context) {
 	q := query.Q
 	m := q.Model
 
-	models, err := m.WithContext(c.Context()).Find()
+	models, err := m.WithContext(c.Request.Context()).Find()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("无法获取模型列表：%v", err),
 		})
+		return
 	}
 
 	modelList := ModelList{
@@ -83,7 +84,7 @@ func ListModels(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(modelList)
+	c.JSON(http.StatusOK, modelList)
 }
 
 // Messages 处理消息完成请求
@@ -94,17 +95,18 @@ func ListModels(c *fiber.Ctx) error {
 // @Produce      json
 // @Param        request  body      anthropicTypes.MessageRequest  true  "消息请求"
 // @Success      200      {object}  anthropicTypes.MessageResponse
-// @Failure      400      {object}  fiber.Map
-// @Failure      401      {object}  fiber.Map
-// @Failure      500      {object}  fiber.Map
+// @Failure      400      {object}  gin.H
+// @Failure      401      {object}  gin.H
+// @Failure      500      {object}  gin.H
 // @Router       /anthropic/v1/messages [post]
-func (h *AnthropicHandler) Messages(c *fiber.Ctx) error {
+func (h *AnthropicHandler) Messages(c *gin.Context) {
 	// 解析请求
 	var req anthropicTypes.Request
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求格式： %v", err),
 		})
+		return
 	}
 
 	// 转换请求格式
@@ -119,7 +121,7 @@ func (h *AnthropicHandler) Messages(c *fiber.Ctx) error {
 	switch h.userAgent {
 	case "":
 		// 空字符串：透传客户端的 User-Agent
-		if userAgent := c.Get("User-Agent"); userAgent != "" {
+		if userAgent := c.GetHeader("User-Agent"); userAgent != "" {
 			portalReq.Headers["User-Agent"] = userAgent
 		}
 	case "default":
@@ -132,130 +134,142 @@ func (h *AnthropicHandler) Messages(c *fiber.Ctx) error {
 
 	if portalReq.Stream != nil && *portalReq.Stream {
 		// 流式响应
-		return h.handleStreamResponse(c, portalReq)
+		h.handleStreamResponse(c, portalReq)
+		return
 	}
 
 	// 非流式响应
-	resp, err := h.portal.ChatCompletion(c.Context(), portalReq)
+	resp, err := h.portal.ChatCompletion(c.Request.Context(), portalReq)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("处理请求时出错：%v", err),
 		})
+		return
 	}
 
 	// 转换响应格式
 	anthropicResp, err := converter.ResponseFromContract(resp, logger.Default())
 
-	return c.JSON(anthropicResp)
+	c.JSON(http.StatusOK, anthropicResp)
 }
 
 // handleStreamResponse 处理流式响应
-func (h *AnthropicHandler) handleStreamResponse(c *fiber.Ctx, req *portalTypes.RequestContract) error {
+func (h *AnthropicHandler) handleStreamResponse(c *gin.Context, req *portalTypes.RequestContract) {
 	// 设置流式响应头
-	c.Set("Content-Type", "text/event-stream")
-	c.Set("Cache-Control", "no-cache")
-	c.Set("Connection", "keep-alive")
-	c.Set("Transfer-Encoding", "chunked")
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Transfer-Encoding", "chunked")
 
 	// 创建可取消的上下文
-	ctx, cancel := context.WithCancel(c.Context())
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 
 	// 获取流式响应通道
 	eventChan, err := h.portal.ChatCompletionStream(ctx, req)
 	if err != nil {
-		cancel()
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("启动流式传输时出错：%v", err),
 		})
+		return
 	}
 
-	// 使用流式跟踪包装器，确保在流结束时减少连接数
+	// 确保在流结束时减少连接数
 	collector := stats.GetCollector()
-	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
-		// 添加 defer recover 来捕获流式处理中的 panic
-		defer func() {
-			if r := recover(); r != nil {
-				stack := debug.Stack()
-				// 将堆栈信息按行分割，以数组形式记录，提高 JSON 日志可读性
-				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-				slog.Error("流式响应处理发生 panic",
-					"panic", r,
-					"path", c.Path(),
-					"method", c.Method(),
-					"body", string(c.Body()),
-					"stack", stackLines,
-				)
-				// 尝试发送错误信息给客户端
-				errorEvent := map[string]any{
-					"error": map[string]any{
-						"type":    "internal_error",
-						"message": fmt.Sprintf("服务器内部错误: %v", r),
-					},
-				}
-				if jsonBytes, err := json.Marshal(errorEvent); err == nil {
-					fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes))
-					w.Flush()
+	defer collector.DecrementConnection()
+
+	flusher, _ := c.Writer.(http.Flusher)
+
+	path := c.Request.URL.Path
+	method := c.Request.Method
+
+	// 添加 defer recover 来捕获流式处理中的 panic
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			// 将堆栈信息按行分割，以数组形式记录，提高 JSON 日志可读性
+			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			slog.Error("流式响应处理发生 panic",
+				"panic", r,
+				"path", path,
+				"method", method,
+				"stack", stackLines,
+			)
+			// 尝试发送错误信息给客户端
+			errorEvent := map[string]any{
+				"error": map[string]any{
+					"type":    "internal_error",
+					"message": fmt.Sprintf("服务器内部错误: %v", r),
+				},
+			}
+			if jsonBytes, err := json.Marshal(errorEvent); err == nil {
+				fmt.Fprintf(c.Writer, "data: %s\n\n", string(jsonBytes))
+				if flusher != nil {
+					flusher.Flush()
 				}
 			}
-		}()
-
-		isErr := false
-		for event := range eventChan {
-			// 检查是否有错误字段
-			if event.Error != nil {
-				isErr = true
-
-				// 序列化错误事件
-				jsonBytes, marshalErr := json.Marshal(event.Error)
-				if marshalErr != nil {
-					// logger.Error("无法序列化错误事件", "error", marshalErr)
-					break
-				}
-
-				// 发送错误事件
-				if _, err := fmt.Fprintf(w, "data: %s\n\n", string(jsonBytes)); err != nil {
-					// logger.Error("无法发送错误事件，写入流失败", "error", err)
-					break
-				}
-				w.Flush()
-				break
-			}
-
-			// 转换为 Anthropic 格式
-			anthropicEvent, err := converter.StreamEventFromContract(event, nil)
-			if err != nil {
-				cancel()
-				slog.Error("无法转换流式响应", "error", err)
-				break
-			}
-
-			// 发送事件
-			data, _ := json.Marshal(anthropicEvent)
-			_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, data)
-
-			if err != nil {
-				cancel()
-				slog.Error("写入流式响应失败", "error", err)
-				break
-			}
-
-			// 刷新缓冲区
-			w.Flush()
 		}
-		if isErr {
-			return nil
+	}()
+
+	isErr := false
+	for event := range eventChan {
+		// 检查是否有错误字段
+		if event.Error != nil {
+			isErr = true
+
+			// 序列化错误事件
+			jsonBytes, marshalErr := json.Marshal(event.Error)
+			if marshalErr != nil {
+				// logger.Error("无法序列化错误事件", "error", marshalErr)
+				break
+			}
+
+			// 发送错误事件
+			if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", string(jsonBytes)); err != nil {
+				// logger.Error("无法发送错误事件，写入流失败", "error", err)
+				break
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+			break
 		}
 
-		// 发送流结束标记
-		_, err = fmt.Fprintf(w, "data: [DONE]\n\n")
+		// 转换为 Anthropic 格式
+		anthropicEvent, err := converter.StreamEventFromContract(event, nil)
 		if err != nil {
 			cancel()
-			slog.Error("写入流结束标记失败", "error", err)
+			slog.Error("无法转换流式响应", "error", err)
+			break
 		}
 
-		w.Flush()
-		return nil
-	}))
+		// 发送事件
+		data, _ := json.Marshal(anthropicEvent)
+		_, err = fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", event.Type, data)
 
-	return nil
+		if err != nil {
+			cancel()
+			slog.Error("写入流式响应失败", "error", err)
+			break
+		}
+
+		// 刷新缓冲区
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+	if isErr {
+		return
+	}
+
+	// 发送流结束标记
+	_, err = fmt.Fprintf(c.Writer, "data: [DONE]\n\n")
+	if err != nil {
+		cancel()
+		slog.Error("写入流结束标记失败", "error", err)
+	}
+
+	if flusher != nil {
+		flusher.Flush()
+	}
 }
