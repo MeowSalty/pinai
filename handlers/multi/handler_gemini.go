@@ -1,10 +1,10 @@
 package multi
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"runtime/debug"
 	"strings"
 
@@ -12,7 +12,7 @@ import (
 	"github.com/MeowSalty/pinai/services/stats"
 	"github.com/MeowSalty/portal"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // GeminiGenerateContent 处理 Gemini generateContent 请求，路径为 POST /multi/v1beta/models/{model}:generateContent。
@@ -27,29 +27,31 @@ import (
 // @Param        model    path      string                           true   "模型名称"
 // @Param        request  body      geminiTypes.Request  true  "生成内容请求"
 // @Success      200      {object}  geminiTypes.Response
-// @Failure      400      {object}  fiber.Map
-// @Failure      401      {object}  fiber.Map
-// @Failure      500      {object}  fiber.Map
+// @Failure      400      {object}  gin.H
+// @Failure      401      {object}  gin.H
+// @Failure      500      {object}  gin.H
 // @Router       /multi/v1beta/models/{model}:generateContent [post]
 // @Security     ApiKeyAuth
-func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
+func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 	var req geminiTypes.Request
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求体: %v", err),
 		})
+		return
 	}
 
 	if req.Model == "" {
-		req.Model = strings.TrimSpace(c.Params("model"))
+		req.Model = strings.TrimSpace(c.GetString("gemini_model"))
 	}
 	if req.Model == "" {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "缺少模型查询参数",
 		})
+		return
 	}
 
 	if req.Headers == nil {
@@ -57,14 +59,15 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 	}
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
-	resp, err := h.portalService.NativeGeminiGenerateContent(c.Context(), &req, portal.WithCompatMode())
+	resp, err := h.portalService.NativeGeminiGenerateContent(c.Request.Context(), &req, portal.WithCompatMode())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("处理请求时出错：%v", err),
 		})
+		return
 	}
 
-	return c.JSON(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
 // GeminiStreamGenerateContent 处理 Gemini streamGenerateContent 请求，路径为 POST /multi/v1beta/models/{model}:streamGenerateContent。
@@ -79,29 +82,31 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 // @Param        model    path      string                           true   "模型名称"
 // @Param        request  body      geminiTypes.Request  true  "生成内容请求"
 // @Success      200      {object}  geminiTypes.Candidate
-// @Failure      400      {object}  fiber.Map
-// @Failure      401      {object}  fiber.Map
-// @Failure      500      {object}  fiber.Map
+// @Failure      400      {object}  gin.H
+// @Failure      401      {object}  gin.H
+// @Failure      500      {object}  gin.H
 // @Router       /multi/v1beta/models/{model}:streamGenerateContent [post]
 // @Security     ApiKeyAuth
-func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
+func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 	var req geminiTypes.Request
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求体: %v", err),
 		})
+		return
 	}
 
 	if req.Model == "" {
-		req.Model = strings.TrimSpace(c.Params("model"))
+		req.Model = strings.TrimSpace(c.GetString("gemini_model"))
 	}
 	if req.Model == "" {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "缺少模型查询参数",
 		})
+		return
 	}
 
 	if req.Headers == nil {
@@ -109,60 +114,56 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 	}
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
-	return h.handleGeminiStreamResponse(c, &req)
+	h.handleGeminiStreamResponse(c, &req)
 }
 
 // handleGeminiStreamResponse 处理 Gemini 流式响应。
 // 设置 SSE 头部，通过 ChatCompletionStream 获取事件通道，将流式事件转换为 Gemini 格式并写入响应流。
 // 包含 panic 恢复机制，发生错误时发送错误事件并记录日志。
-func (h *Handler) handleGeminiStreamResponse(c *fiber.Ctx, req *geminiTypes.Request) error {
+func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Request) {
 	common.SetBaseSSEHeaders(c)
 
-	ctx, cancel := context.WithCancel(c.Context())
+	ctx, cancel := context.WithCancel(c.Request.Context())
 	eventChan := h.portalService.NativeGeminiStreamGenerateContent(ctx, req, portal.WithCompatMode())
 
 	collector := stats.GetCollector()
-	path := c.Path()
-	method := c.Method()
-	body := append([]byte(nil), c.Body()...)
-	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
-		logger := h.logger.With("path", path, "method", method, "body", string(body))
-		defer func() {
-			if r := recover(); r != nil {
-				stack := debug.Stack()
-				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-				logger.Error("流式响应处理发生 panic", "panic", r, "stack", stackLines)
-				sendStreamError(w, "internal_error", fmt.Sprintf("服务器内部错误: %v", r), "internal_error")
-			}
-		}()
+	defer collector.DecrementConnection()
 
-		for event := range eventChan {
-			data, err := json.Marshal(event)
-			if err != nil {
-				cancel()
-				logger.Error("无法序列化事件", "error", err)
-				sendStreamError(w, "internal_error", fmt.Sprintf("无法序列化事件: %v", err), "internal_error")
-				break
-			}
+	flusher, _ := c.Writer.(http.Flusher)
 
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-				cancel()
-				logger.Error("写入流式响应失败", "error", err)
-				sendStreamError(w, "internal_error", fmt.Sprintf("写入流式响应失败: %v", err), "internal_error")
-				break
-			}
-
-			w.Flush()
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			logger.Error("流式响应处理发生 panic", "panic", r, "stack", stackLines)
+			sendStreamError(c.Writer, "internal_error", fmt.Sprintf("服务器内部错误: %v", r), "internal_error")
 		}
+	}()
 
-		if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
+	for event := range eventChan {
+		data, err := json.Marshal(event)
+		if err != nil {
 			cancel()
-			logger.Error("写入流结束标记失败", "error", err)
+			logger.Error("无法序列化事件", "error", err)
+			sendStreamError(c.Writer, "internal_error", fmt.Sprintf("无法序列化事件: %v", err), "internal_error")
+			break
 		}
 
-		w.Flush()
-		return nil
-	}))
+		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
+			cancel()
+			logger.Error("写入流式响应失败", "error", err)
+			sendStreamError(c.Writer, "internal_error", fmt.Sprintf("写入流式响应失败: %v", err), "internal_error")
+			break
+		}
 
-	return nil
+		flusher.Flush()
+	}
+
+	if _, err := fmt.Fprintf(c.Writer, "data: [DONE]\n\n"); err != nil {
+		cancel()
+		logger.Error("写入流结束标记失败", "error", err)
+	}
+
+	flusher.Flush()
 }

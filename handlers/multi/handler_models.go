@@ -2,12 +2,13 @@ package multi
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/MeowSalty/pinai/database/query"
 	multiAuth "github.com/MeowSalty/pinai/handlers/multi/auth"
 	multiTypes "github.com/MeowSalty/pinai/handlers/multi/types"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // SelectModels 处理获取模型列表请求，路径为 GET /multi/v1/models。
@@ -22,16 +23,17 @@ import (
 // @Success      200  {object}  multiTypes.OpenAIModelList
 // @Success      200  {object}  multiTypes.AnthropicModelList
 // @Success      200  {object}  multiTypes.GeminiModelList
-// @Failure      500  {object}  fiber.Map
+// @Failure      500  {object}  gin.H
 // @Router       /multi/v1/models [get]
 // @Security     ApiKeyAuth
-func (h *Handler) SelectModels() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		models, err := query.Q.Model.WithContext(c.Context()).Find()
+func (h *Handler) SelectModels() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		models, err := query.Q.Model.WithContext(c.Request.Context()).Find()
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("无法获取模型列表：%v", err),
 			})
+			return
 		}
 
 		provider := strings.ToLower(multiAuth.ProviderFromContext(c))
@@ -48,7 +50,8 @@ func (h *Handler) SelectModels() fiber.Handler {
 					Name: modelID,
 				})
 			}
-			return c.JSON(modelList)
+			c.JSON(http.StatusOK, modelList)
+			return
 		}
 
 		if provider == multiAuth.ProviderAnthropic {
@@ -66,7 +69,8 @@ func (h *Handler) SelectModels() fiber.Handler {
 					Object: "model",
 				})
 			}
-			return c.JSON(modelList)
+			c.JSON(http.StatusOK, modelList)
+			return
 		}
 
 		modelList := multiTypes.OpenAIModelList{
@@ -84,7 +88,7 @@ func (h *Handler) SelectModels() fiber.Handler {
 			})
 		}
 
-		return c.JSON(modelList)
+		c.JSON(http.StatusOK, modelList)
 	}
 }
 
@@ -98,16 +102,17 @@ func (h *Handler) SelectModels() fiber.Handler {
 // @Accept       json
 // @Produce      json
 // @Success      200  {object}  multiTypes.GeminiModelList
-// @Failure      500  {object}  fiber.Map
+// @Failure      500  {object}  gin.H
 // @Router       /multi/v1beta/models [get]
 // @Security     ApiKeyAuth
-func (h *Handler) SelectGeminiModels() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		models, err := query.Q.Model.WithContext(c.Context()).Find()
+func (h *Handler) SelectGeminiModels() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		models, err := query.Q.Model.WithContext(c.Request.Context()).Find()
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("无法获取模型列表：%v", err),
 			})
+			return
 		}
 
 		modelList := multiTypes.GeminiModelList{
@@ -123,6 +128,6 @@ func (h *Handler) SelectGeminiModels() fiber.Handler {
 			})
 		}
 
-		return c.JSON(modelList)
+		c.JSON(http.StatusOK, modelList)
 	}
 }

@@ -1,17 +1,17 @@
 package native
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"runtime/debug"
 	"strings"
 
 	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // GeminiGenerateContent 处理原生 Gemini generateContent 请求，路径为 POST /multi/native/v1beta/models/:model:generateContent。
@@ -30,16 +30,17 @@ import (
 //	@Failure      500      {object}  geminiTypes.ErrorResponse  "请求失败"
 //	@Router       /multi/native/v1beta/models/{model}:generateContent [post]
 //	@Security     ApiKeyAuth
-func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
+func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 	var req geminiTypes.Request
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(geminiTypes.ErrorResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
 			Error: geminiTypes.ErrorDetail{
-				Code:    fiber.StatusBadRequest,
+				Code:    http.StatusBadRequest,
 				Message: fmt.Sprintf("无效的请求体: %v", err),
 				Status:  "INVALID_ARGUMENT",
 			},
 		})
+		return
 	}
 
 	// 处理并透传 HTTP 头部
@@ -49,33 +50,35 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Model == "" {
-		req.Model = strings.TrimSpace(c.Params("model"))
+		req.Model = strings.TrimSpace(c.GetString("gemini_model"))
 	}
 	if req.Model == "" {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(geminiTypes.ErrorResponse{
+		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
 			Error: geminiTypes.ErrorDetail{
-				Code:    fiber.StatusBadRequest,
+				Code:    http.StatusBadRequest,
 				Message: "缺少模型查询参数",
 				Status:  "INVALID_ARGUMENT",
 			},
 		})
+		return
 	}
 
-	resp, err := h.portalService.NativeGeminiGenerateContent(c.Context(), &req)
+	resp, err := h.portalService.NativeGeminiGenerateContent(c.Request.Context(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(geminiTypes.ErrorResponse{
+		c.JSON(http.StatusInternalServerError, geminiTypes.ErrorResponse{
 			Error: geminiTypes.ErrorDetail{
-				Code:    fiber.StatusInternalServerError,
+				Code:    http.StatusInternalServerError,
 				Message: fmt.Sprintf("请求失败: %v", err),
 				Status:  "INTERNAL",
 			},
 		})
+		return
 	}
 
-	return c.JSON(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
 // GeminiStreamGenerateContent 处理原生 Gemini streamGenerateContent 请求，路径为 POST /multi/native/v1beta/models/:model:streamGenerateContent。
@@ -93,16 +96,17 @@ func (h *Handler) GeminiGenerateContent(c *fiber.Ctx) error {
 //	@Failure      400      {object}  geminiTypes.ErrorResponse   "无效的请求体或缺少模型参数"
 //	@Router       /multi/native/v1beta/models/{model}:streamGenerateContent [post]
 //	@Security     ApiKeyAuth
-func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
+func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 	var req geminiTypes.Request
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(geminiTypes.ErrorResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
 			Error: geminiTypes.ErrorDetail{
-				Code:    fiber.StatusBadRequest,
+				Code:    http.StatusBadRequest,
 				Message: fmt.Sprintf("无效的请求体: %v", err),
 				Status:  "INVALID_ARGUMENT",
 			},
 		})
+		return
 	}
 
 	// 处理并透传 HTTP 头部
@@ -112,63 +116,59 @@ func (h *Handler) GeminiStreamGenerateContent(c *fiber.Ctx) error {
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Model == "" {
-		req.Model = strings.TrimSpace(c.Params("model"))
+		req.Model = strings.TrimSpace(c.GetString("gemini_model"))
 	}
 	if req.Model == "" {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(geminiTypes.ErrorResponse{
+		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
 			Error: geminiTypes.ErrorDetail{
-				Code:    fiber.StatusBadRequest,
+				Code:    http.StatusBadRequest,
 				Message: "缺少模型查询参数",
 				Status:  "INVALID_ARGUMENT",
 			},
 		})
+		return
 	}
 
-	return h.streamGemini(c, &req)
+	h.streamGemini(c, &req)
 }
 
-func (h *Handler) streamGemini(c *fiber.Ctx, req *geminiTypes.Request) error {
+func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 	common.SetBaseSSEHeaders(c)
 
-	ctx, cancel := context.WithCancel(c.Context())
+	ctx, cancel := context.WithCancel(c.Request.Context())
 	eventChan := h.portalService.NativeGeminiStreamGenerateContent(ctx, req)
 
 	collector := stats.GetCollector()
-	path := c.Path()
-	method := c.Method()
-	body := append([]byte(nil), c.Body()...)
-	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
-		logger := h.logger.With("path", path, "method", method, "body", string(body))
-		defer func() {
-			if r := recover(); r != nil {
-				stack := debug.Stack()
-				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-				logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
-			}
-		}()
+	defer collector.DecrementConnection()
 
-		for event := range eventChan {
-			data, err := json.Marshal(event)
-			if err != nil {
-				cancel()
-				logger.Error("序列化流事件失败", "error", err)
-				break
-			}
+	flusher, _ := c.Writer.(http.Flusher)
 
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-				cancel()
-				logger.Error("写入流事件失败", "error", err)
-				break
-			}
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
+		}
+	}()
 
-			w.Flush()
+	for event := range eventChan {
+		data, err := json.Marshal(event)
+		if err != nil {
+			cancel()
+			logger.Error("序列化流事件失败", "error", err)
+			break
 		}
 
-		return nil
-	}))
+		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
+			cancel()
+			logger.Error("写入流事件失败", "error", err)
+			break
+		}
 
-	return nil
+		flusher.Flush()
+	}
 }

@@ -2,23 +2,25 @@ package native
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/MeowSalty/pinai/database/query"
 	multiAuth "github.com/MeowSalty/pinai/handlers/multi/auth"
 	multiTypes "github.com/MeowSalty/pinai/handlers/multi/types"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // SelectModels 处理模型列表请求，根据请求头中的提供者信息返回对应格式的模型列表。
 // 支持 OpenAI、Anthropic 和 Gemini 三种提供者的模型列表格式。
-func SelectModels() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		models, err := query.Q.Model.WithContext(c.Context()).Find()
+func SelectModels() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		models, err := query.Q.Model.WithContext(c.Request.Context()).Find()
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("无法获取模型列表：%v", err),
 			})
+			return
 		}
 
 		provider := strings.ToLower(multiAuth.ProviderFromContext(c))
@@ -35,7 +37,8 @@ func SelectModels() fiber.Handler {
 					Name: modelID,
 				})
 			}
-			return c.JSON(modelList)
+			c.JSON(http.StatusOK, modelList)
+			return
 		}
 
 		if provider == multiAuth.ProviderAnthropic {
@@ -53,7 +56,8 @@ func SelectModels() fiber.Handler {
 					Object: "model",
 				})
 			}
-			return c.JSON(modelList)
+			c.JSON(http.StatusOK, modelList)
+			return
 		}
 
 		modelList := multiTypes.OpenAIModelList{
@@ -71,19 +75,20 @@ func SelectModels() fiber.Handler {
 			})
 		}
 
-		return c.JSON(modelList)
+		c.JSON(http.StatusOK, modelList)
 	}
 }
 
 // SelectGeminiModels 专门返回 Gemini API 兼容的 v1beta/models 格式的模型列表。
 // 该函数用于处理针对 Gemini 服务的模型列表请求。
-func SelectGeminiModels() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		models, err := query.Q.Model.WithContext(c.Context()).Find()
+func SelectGeminiModels() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		models, err := query.Q.Model.WithContext(c.Request.Context()).Find()
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("无法获取模型列表：%v", err),
 			})
+			return
 		}
 
 		modelList := multiTypes.GeminiModelList{
@@ -99,6 +104,6 @@ func SelectGeminiModels() fiber.Handler {
 			})
 		}
 
-		return c.JSON(modelList)
+		c.JSON(http.StatusOK, modelList)
 	}
 }

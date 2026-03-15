@@ -1,10 +1,11 @@
 package native
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"runtime/debug"
 	"strings"
 
@@ -13,7 +14,7 @@ import (
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
 	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
 	openaiSharedTypes "github.com/MeowSalty/portal/request/adapter/openai/types/shared"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // stringPtr 返回字符串指针
@@ -36,15 +37,16 @@ func stringPtr(s string) *string {
 //	@Failure      500      {object}  openaiSharedTypes.HTTPError    "请求失败"
 //	@Router       /multi/native/v1/chat/completions [post]
 //	@Security     ApiKeyAuth
-func (h *Handler) OpenAIChatCompletions(c *fiber.Ctx) error {
+func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 	var req openaiChatTypes.Request
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(openaiSharedTypes.HTTPError{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("无效的请求体: %v", err),
 				Type:    "invalid_request_error",
 			},
 		})
+		return
 	}
 
 	// 处理并透传 HTTP 头部
@@ -54,20 +56,22 @@ func (h *Handler) OpenAIChatCompletions(c *fiber.Ctx) error {
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
-		return h.streamOpenAIChat(c, &req, true)
+		h.streamOpenAIChat(c, &req, true)
+		return
 	}
 
-	resp, err := h.portalService.NativeOpenAIChatCompletion(c.Context(), &req)
+	resp, err := h.portalService.NativeOpenAIChatCompletion(c.Request.Context(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(openaiSharedTypes.HTTPError{
+		c.JSON(http.StatusInternalServerError, openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("请求失败: %v", err),
 				Type:    "internal_error",
 			},
 		})
+		return
 	}
 
-	return c.JSON(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
 // OpenAIResponses 处理原生 OpenAI 响应请求，路径为 POST /multi/native/v1/responses。
@@ -85,15 +89,16 @@ func (h *Handler) OpenAIChatCompletions(c *fiber.Ctx) error {
 //	@Failure      500      {object}  openaiSharedTypes.HTTPError         "请求失败"
 //	@Router       /multi/native/v1/responses [post]
 //	@Security     ApiKeyAuth
-func (h *Handler) OpenAIResponses(c *fiber.Ctx) error {
+func (h *Handler) OpenAIResponses(c *gin.Context) {
 	var req openaiResponsesTypes.Request
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(openaiSharedTypes.HTTPError{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("无效的请求体: %v", err),
 				Type:    "invalid_request_error",
 			},
 		})
+		return
 	}
 
 	// 处理并透传 HTTP 头部
@@ -103,79 +108,75 @@ func (h *Handler) OpenAIResponses(c *fiber.Ctx) error {
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
-		return h.streamOpenAIResponses(c, &req, true)
+		h.streamOpenAIResponses(c, &req, true)
+		return
 	}
 
-	resp, err := h.portalService.NativeOpenAIResponses(c.Context(), &req)
+	resp, err := h.portalService.NativeOpenAIResponses(c.Request.Context(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(openaiSharedTypes.HTTPError{
+		c.JSON(http.StatusInternalServerError, openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("请求失败: %v", err),
 				Type:    "internal_error",
 			},
 		})
+		return
 	}
 
-	return c.JSON(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (h *Handler) streamOpenAIChat(c *fiber.Ctx, req *openaiChatTypes.Request, sendDone bool) error {
+func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request, sendDone bool) {
 	common.SetBaseSSEHeaders(c)
 
-	ctx, cancel := context.WithCancel(c.Context())
+	ctx, cancel := context.WithCancel(c.Request.Context())
 	eventChan := h.portalService.NativeOpenAIChatCompletionStream(ctx, req)
 
 	collector := stats.GetCollector()
-	path := c.Path()
-	method := c.Method()
-	body := append([]byte(nil), c.Body()...)
-	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
-		logger := h.logger.With("path", path, "method", method, "body", string(body))
-		defer func() {
-			if r := recover(); r != nil {
-				stack := debug.Stack()
-				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-				logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
-				h.sendOpenAIStreamError(w, "internal_error", fmt.Sprintf("异常: %v", r), "internal_error")
-			}
-		}()
+	defer collector.DecrementConnection()
 
-		for event := range eventChan {
-			data, err := json.Marshal(event)
-			if err != nil {
-				cancel()
-				logger.Error("序列化流事件失败", "error", err)
-				h.sendOpenAIStreamError(w, "internal_error", fmt.Sprintf("序列化流事件失败: %v", err), "internal_error")
-				break
-			}
+	flusher, _ := c.Writer.(http.Flusher)
 
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-				cancel()
-				logger.Error("写入流事件失败", "error", err)
-				h.sendOpenAIStreamError(w, "internal_error", fmt.Sprintf("写入流事件失败: %v", err), "internal_error")
-				break
-			}
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
+			h.sendOpenAIStreamError(c.Writer, "internal_error", fmt.Sprintf("异常: %v", r), "internal_error")
+		}
+	}()
 
-			w.Flush()
+	for event := range eventChan {
+		data, err := json.Marshal(event)
+		if err != nil {
+			cancel()
+			logger.Error("序列化流事件失败", "error", err)
+			h.sendOpenAIStreamError(c.Writer, "internal_error", fmt.Sprintf("序列化流事件失败: %v", err), "internal_error")
+			break
 		}
 
-		if sendDone {
-			if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
-				cancel()
-				logger.Error("写入流结束标识失败", "error", err)
-				h.sendOpenAIStreamError(w, "internal_error", fmt.Sprintf("写入流结束标识失败: %v", err), "internal_error")
-			}
-			w.Flush()
+		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
+			cancel()
+			logger.Error("写入流事件失败", "error", err)
+			h.sendOpenAIStreamError(c.Writer, "internal_error", fmt.Sprintf("写入流事件失败: %v", err), "internal_error")
+			break
 		}
 
-		return nil
-	}))
+		flusher.Flush()
+	}
 
-	return nil
+	if sendDone {
+		if _, err := fmt.Fprintf(c.Writer, "data: [DONE]\n\n"); err != nil {
+			cancel()
+			logger.Error("写入流结束标识失败", "error", err)
+		}
+		flusher.Flush()
+	}
 }
 
 // sendOpenAIResponsesStreamError 发送 OpenAI Responses 流式错误事件。
-func (h *Handler) sendOpenAIResponsesStreamError(w *bufio.Writer, code, message, param string) {
+func (h *Handler) sendOpenAIResponsesStreamError(w io.Writer, code, message, param string) {
 	codePtr := &code
 	paramPtr := &param
 
@@ -189,11 +190,10 @@ func (h *Handler) sendOpenAIResponsesStreamError(w *bufio.Writer, code, message,
 
 	data, _ := json.Marshal(errEvent)
 	fmt.Fprintf(w, "data: %s\n\n", data)
-	w.Flush()
 }
 
 // sendOpenAIStreamError 发送流式错误响应
-func (h *Handler) sendOpenAIStreamError(w *bufio.Writer, errorType, message, code string) {
+func (h *Handler) sendOpenAIStreamError(w io.Writer, errorType, message, code string) {
 	errResp := openaiSharedTypes.HTTPError{
 		Error: openaiSharedTypes.ErrorDetail{
 			Message: message,
@@ -204,61 +204,54 @@ func (h *Handler) sendOpenAIStreamError(w *bufio.Writer, errorType, message, cod
 	}
 	data, _ := json.Marshal(errResp)
 	fmt.Fprintf(w, "data: %s\n\n", data)
-	w.Flush()
 }
 
-func (h *Handler) streamOpenAIResponses(c *fiber.Ctx, req *openaiResponsesTypes.Request, sendDone bool) error {
+func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesTypes.Request, sendDone bool) {
 	common.SetBaseSSEHeaders(c)
 
-	ctx, cancel := context.WithCancel(c.Context())
+	ctx, cancel := context.WithCancel(c.Request.Context())
 	eventChan := h.portalService.NativeOpenAIResponsesStream(ctx, req)
 
 	collector := stats.GetCollector()
-	path := c.Path()
-	method := c.Method()
-	body := append([]byte(nil), c.Body()...)
-	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
-		logger := h.logger.With("path", path, "method", method, "body", string(body))
-		defer func() {
-			if r := recover(); r != nil {
-				stack := debug.Stack()
-				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-				logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
-				h.sendOpenAIResponsesStreamError(w, "internal_error", fmt.Sprintf("异常: %v", r), "internal_error")
-			}
-		}()
+	defer collector.DecrementConnection()
 
-		for event := range eventChan {
-			data, err := json.Marshal(event)
-			if err != nil {
-				cancel()
-				logger.Error("序列化流事件失败", "error", err)
-				h.sendOpenAIResponsesStreamError(w, "internal_error", fmt.Sprintf("序列化流事件失败: %v", err), "internal_error")
-				break
-			}
+	flusher, _ := c.Writer.(http.Flusher)
 
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-				cancel()
-				logger.Error("写入流事件失败", "error", err)
-				h.sendOpenAIResponsesStreamError(w, "internal_error", fmt.Sprintf("写入流事件失败: %v", err), "internal_error")
-				break
-			}
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
+			h.sendOpenAIResponsesStreamError(c.Writer, "internal_error", fmt.Sprintf("异常: %v", r), "internal_error")
+		}
+	}()
 
-			logger.Debug("写入流事件成功")
-			w.Flush()
+	for event := range eventChan {
+		data, err := json.Marshal(event)
+		if err != nil {
+			cancel()
+			logger.Error("序列化流事件失败", "error", err)
+			h.sendOpenAIResponsesStreamError(c.Writer, "internal_error", fmt.Sprintf("序列化流事件失败: %v", err), "internal_error")
+			break
 		}
 
-		if sendDone {
-			if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
-				cancel()
-				logger.Error("写入流结束标识失败", "error", err)
-				h.sendOpenAIResponsesStreamError(w, "internal_error", fmt.Sprintf("写入流结束标识失败: %v", err), "internal_error")
-			}
-			w.Flush()
+		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
+			cancel()
+			logger.Error("写入流事件失败", "error", err)
+			h.sendOpenAIResponsesStreamError(c.Writer, "internal_error", fmt.Sprintf("写入流事件失败: %v", err), "internal_error")
+			break
 		}
 
-		return nil
-	}))
+		logger.Debug("写入流事件成功")
+		flusher.Flush()
+	}
 
-	return nil
+	if sendDone {
+		if _, err := fmt.Fprintf(c.Writer, "data: [DONE]\n\n"); err != nil {
+			cancel()
+			logger.Error("写入流结束标识失败", "error", err)
+		}
+		flusher.Flush()
+	}
 }

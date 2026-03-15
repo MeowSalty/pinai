@@ -1,17 +1,17 @@
 package native
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"runtime/debug"
 	"strings"
 
 	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // AnthropicMessages 处理原生 Anthropic 消息请求，路径为 POST /multi/native/v1/messages。
@@ -29,16 +29,17 @@ import (
 //	@Failure      500      {object}  map[string]string        "请求失败"
 //	@Router       /multi/native/v1/messages [post]
 //	@Security     ApiKeyAuth
-func (h *Handler) AnthropicMessages(c *fiber.Ctx) error {
+func (h *Handler) AnthropicMessages(c *gin.Context) {
 	var req anthropicTypes.Request
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(anthropicTypes.ErrorResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, anthropicTypes.ErrorResponse{
 			Type: "error",
 			Error: anthropicTypes.Error{
 				Type:    "invalid_request_error",
 				Message: fmt.Sprintf("无效的请求体: %v", err),
 			},
 		})
+		return
 	}
 
 	// 处理并透传 HTTP 头部
@@ -48,73 +49,70 @@ func (h *Handler) AnthropicMessages(c *fiber.Ctx) error {
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
-		return h.streamAnthropic(c, &req)
+		h.streamAnthropic(c, &req)
+		return
 	}
 
-	resp, err := h.portalService.NativeAnthropicMessages(c.Context(), &req)
+	resp, err := h.portalService.NativeAnthropicMessages(c.Request.Context(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(anthropicTypes.ErrorResponse{
+		c.JSON(http.StatusInternalServerError, anthropicTypes.ErrorResponse{
 			Type: "error",
 			Error: anthropicTypes.Error{
 				Type:    "api_error",
 				Message: fmt.Sprintf("请求失败: %v", err),
 			},
 		})
+		return
 	}
 
-	return c.JSON(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (h *Handler) streamAnthropic(c *fiber.Ctx, req *anthropicTypes.Request) error {
+func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 	common.SetBaseSSEHeaders(c)
 
-	ctx, cancel := context.WithCancel(c.Context())
+	ctx, cancel := context.WithCancel(c.Request.Context())
 	eventChan := h.portalService.NativeAnthropicMessagesStream(ctx, req)
 
 	collector := stats.GetCollector()
-	path := c.Path()
-	method := c.Method()
-	body := append([]byte(nil), c.Body()...)
-	c.Context().SetBodyStreamWriter(collector.WithStreamTracking(func(w *bufio.Writer) error {
-		logger := h.logger.With("path", path, "method", method, "body", string(body))
-		defer func() {
-			if r := recover(); r != nil {
-				stack := debug.Stack()
-				stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-				logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
-			}
-		}()
+	defer collector.DecrementConnection()
 
-		for event := range eventChan {
-			eventType, ok := anthropicEventType(event)
-			if !ok {
-				continue
-			}
+	flusher, _ := c.Writer.(http.Flusher)
 
-			data, err := json.Marshal(event)
-			if err != nil {
-				cancel()
-				logger.Error("序列化流事件失败", "error", err)
-				break
-			}
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
+		}
+	}()
 
-			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, data); err != nil {
-				cancel()
-				logger.Error("写入流事件失败", "error", err)
-				break
-			}
-
-			w.Flush()
-
-			if event.Error != nil {
-				break
-			}
+	for event := range eventChan {
+		eventType, ok := anthropicEventType(event)
+		if !ok {
+			continue
 		}
 
-		return nil
-	}))
+		data, err := json.Marshal(event)
+		if err != nil {
+			cancel()
+			logger.Error("序列化流事件失败", "error", err)
+			break
+		}
 
-	return nil
+		if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, data); err != nil {
+			cancel()
+			logger.Error("写入流事件失败", "error", err)
+			break
+		}
+
+		flusher.Flush()
+
+		if event.Error != nil {
+			break
+		}
+	}
 }
 
 func anthropicEventType(event *anthropicTypes.StreamEvent) (anthropicTypes.StreamEventType, bool) {
