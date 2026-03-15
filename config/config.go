@@ -8,7 +8,6 @@ import (
 type Config struct {
 	// 服务器配置
 	Port string
-	Prod bool
 
 	// 前端配置
 	EnableWeb            bool
@@ -50,7 +49,6 @@ func LoadConfig() *Config {
 
 	cfg := &Config{
 		Port:                 env.Port,
-		Prod:                 env.Prod,
 		EnableWeb:            env.EnableWeb,
 		WebDir:               env.WebDir,
 		EnableFrontendUpdate: env.EnableFrontendUpdate,
@@ -80,7 +78,6 @@ func LoadConfig() *Config {
 // loadFlags 从命令行参数加载配置
 func (c *Config) loadFlags() {
 	flag.StringVar(&c.Port, "port", c.Port, "监听端口")
-	flag.BoolVar(&c.Prod, "prod", c.Prod, "在生产环境中启用 prefork")
 
 	// 前端相关参数
 	flag.BoolVar(&c.EnableWeb, "enable-web", c.EnableWeb, "启用前端支持")
@@ -112,7 +109,7 @@ func (c *Config) loadFlags() {
 	flag.StringVar(&c.LogLevel, "log-level", c.LogLevel, "日志输出等级 (DEBUG, INFO, WARN, ERROR)")
 
 	// User-Agent 参数
-	flag.StringVar(&c.UserAgent, "user-agent", c.UserAgent, "User-Agent 配置，空则透传客户端 UA，\"default\" 使用 fasthttp 默认值，其他字符串则复写")
+	flag.StringVar(&c.UserAgent, "user-agent", c.UserAgent, "User-Agent 配置，空则透传客户端 UA，\"default\" 使用 Go net/http 默认值，其他字符串则复写")
 
 	flag.Parse()
 }

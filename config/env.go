@@ -5,7 +5,6 @@ import "os"
 // Env 环境变量配置
 type Env struct {
 	Port                 string
-	Prod                 bool
 	EnableWeb            bool
 	WebDir               string
 	EnableFrontendUpdate bool
@@ -30,7 +29,6 @@ type Env struct {
 func LoadEnv() *Env {
 	return &Env{
 		Port:                 getEnvOrDefault("PORT", ":3000"),
-		Prod:                 getEnvOrDefault("PROD", "") == "true",
 		EnableWeb:            getEnvOrDefault("ENABLE_WEB", "") == "true",
 		WebDir:               getEnvOrDefault("WEB_DIR", "web"),
 		EnableFrontendUpdate: getEnvOrDefault("ENABLE_FRONTEND_UPDATE", "true") == "true",
