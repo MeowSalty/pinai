@@ -3,40 +3,35 @@ package auth
 import (
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 const ProviderLocalKey = "provider"
 
 // NewProviderMiddleware validates provider-specific auth and stores provider in context.
-func NewProviderMiddleware(registry Registry, apiToken string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+func NewProviderMiddleware(registry Registry, apiToken string) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		provider := ResolveProvider(c)
-		c.Locals(ProviderLocalKey, provider)
+		c.Set(ProviderLocalKey, provider)
 		if apiToken != "" {
 			strategy := registry[provider]
 			if strategy != nil {
-				if err := strategy.Validate(c); err != nil {
-					return err
+				if !strategy.Validate(c) {
+					return
 				}
 			}
 		}
-		return c.Next()
+		c.Next()
 	}
 }
 
-func ProviderFromContext(c *fiber.Ctx) string {
-	if value := c.Locals(ProviderLocalKey); value != nil {
-		if provider, ok := value.(string); ok {
-			return provider
-		}
-	}
-	return ""
+func ProviderFromContext(c *gin.Context) string {
+	return c.GetString(ProviderLocalKey)
 }
 
 // ResolveProvider determines provider based on path, query, and headers.
-func ResolveProvider(c *fiber.Ctx) string {
-	if provider := providerFromPath(c.Path()); provider != "" {
+func ResolveProvider(c *gin.Context) string {
+	if provider := providerFromPath(c.Request.URL.Path); provider != "" {
 		return provider
 	}
 	if provider := providerFromQuery(c); provider != "" {
@@ -51,7 +46,7 @@ func ResolveProvider(c *fiber.Ctx) string {
 	return ProviderOpenAI
 }
 
-func providerFromQuery(c *fiber.Ctx) string {
+func providerFromQuery(c *gin.Context) string {
 	provider := strings.ToLower(strings.TrimSpace(c.Query("provider")))
 	switch provider {
 	case ProviderOpenAI, ProviderAnthropic, ProviderGemini:
@@ -78,15 +73,15 @@ func providerFromPath(path string) string {
 	}
 }
 
-func isAnthropicRequest(c *fiber.Ctx) bool {
-	if c.Get(AnthropicAPIKeyHeader) == "" {
+func isAnthropicRequest(c *gin.Context) bool {
+	if c.GetHeader(AnthropicAPIKeyHeader) == "" {
 		return false
 	}
-	return c.Get(AnthropicVersionHeader) != ""
+	return c.GetHeader(AnthropicVersionHeader) != ""
 }
 
-func isGeminiRequest(c *fiber.Ctx) bool {
-	if c.Get(GeminiAPIKeyHeader) != "" {
+func isGeminiRequest(c *gin.Context) bool {
+	if c.GetHeader(GeminiAPIKeyHeader) != "" {
 		return true
 	}
 	return c.Query("key") != ""

@@ -2,9 +2,10 @@ package auth
 
 import (
 	"crypto/subtle"
+	"net/http"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -16,31 +17,35 @@ type GeminiAuth struct {
 	Token string
 }
 
-func (a GeminiAuth) Middleware() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		if err := a.Validate(c); err != nil {
-			return err
+func (a GeminiAuth) Middleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !a.Validate(c) {
+			return
 		}
-		return c.Next()
+		c.Next()
 	}
 }
 
-func (a GeminiAuth) Validate(c *fiber.Ctx) error {
-	apiKey := strings.TrimSpace(c.Get(GeminiAPIKeyHeader))
+func (a GeminiAuth) Validate(c *gin.Context) bool {
+	apiKey := strings.TrimSpace(c.GetHeader(GeminiAPIKeyHeader))
 	if apiKey == "" {
 		apiKey = strings.TrimSpace(c.Query("key"))
 	}
 	if apiKey == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "缺少 x-goog-api-key 头或 key 查询参数",
 		})
+		c.Abort()
+		return false
 	}
 
 	if subtle.ConstantTimeCompare([]byte(apiKey), []byte(a.Token)) != 1 {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "无效的 API key",
 		})
+		c.Abort()
+		return false
 	}
 
-	return nil
+	return true
 }

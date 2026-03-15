@@ -2,9 +2,10 @@ package auth
 
 import (
 	"crypto/subtle"
+	"net/http"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // OpenAIAuth validates Authorization: Bearer <token> header.
@@ -12,36 +13,42 @@ type OpenAIAuth struct {
 	Token string
 }
 
-func (a OpenAIAuth) Middleware() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		if err := a.Validate(c); err != nil {
-			return err
+func (a OpenAIAuth) Middleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !a.Validate(c) {
+			return
 		}
-		return c.Next()
+		c.Next()
 	}
 }
 
-func (a OpenAIAuth) Validate(c *fiber.Ctx) error {
-	authHeader := c.Get("Authorization")
+func (a OpenAIAuth) Validate(c *gin.Context) bool {
+	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "缺少 Authorization 头",
 		})
+		c.Abort()
+		return false
 	}
 
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Authorization 头格式无效，应为：Bearer <token>",
 		})
+		c.Abort()
+		return false
 	}
 
 	token := parts[1]
 	if subtle.ConstantTimeCompare([]byte(token), []byte(a.Token)) != 1 {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "无效的 API token",
 		})
+		c.Abort()
+		return false
 	}
 
-	return nil
+	return true
 }

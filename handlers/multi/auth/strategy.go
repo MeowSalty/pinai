@@ -1,9 +1,9 @@
 package auth
 
-import "github.com/gofiber/fiber/v2"
+import "github.com/gin-gonic/gin"
 
 // Strategy defines a unified authentication interface.
 type Strategy interface {
-	Middleware() fiber.Handler
-	Validate(c *fiber.Ctx) error
+	Middleware() gin.HandlerFunc
+	Validate(c *gin.Context) bool // false = 已写入错误响应并 Abort
 }
