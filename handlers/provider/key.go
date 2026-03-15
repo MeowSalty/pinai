@@ -1,11 +1,13 @@
-package provider
+﻿package provider
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
+	provider "github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,7 +52,7 @@ func (h *Handler) AddKeyToPlatform(c *gin.Context) {
 	createdKey, err := h.service.AddKeyToPlatform(ctx, uint(platformId), key)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -92,7 +94,7 @@ func (h *Handler) GetKeysByPlatform(c *gin.Context) {
 	keys, err := h.service.GetKeysByPlatform(ctx, uint(platformId))
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -148,7 +150,7 @@ func (h *Handler) DeleteKey(c *gin.Context) {
 	ctx := c.Request.Context()
 	err = h.service.DeleteKey(ctx, uint(keyId))
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "密钥未找到",
 			})
@@ -199,7 +201,7 @@ func (h *Handler) UpdateKey(c *gin.Context) {
 	updatedKey, err := h.service.UpdateKey(ctx, uint(keyId), key)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "密钥未找到",
 			})
@@ -260,7 +262,7 @@ func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 	ctx := c.Request.Context()
 	_, err = h.service.GetKey(ctx, uint(keyId))
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "密钥未找到",
 			})
@@ -300,3 +302,4 @@ func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 		"status":  "unavailable",
 	})
 }
+

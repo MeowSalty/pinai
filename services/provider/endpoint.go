@@ -1,4 +1,4 @@
-package provider
+﻿package provider
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
 	"gorm.io/gen/field"
+	"gorm.io/gorm"
 )
 
 // AddEndpointToPlatform 实现为指定平台添加新端点
@@ -152,8 +153,11 @@ func (s *service) UpdateEndpoint(ctx context.Context, endpointId uint, endpoint 
 	err := query.Q.Transaction(func(tx *query.Query) error {
 		existing, err := tx.Endpoint.WithContext(ctx).Where(tx.Endpoint.ID.Eq(endpointId)).First()
 		if err != nil {
-			logger.Warn("端点不存在或查询失败", slog.Any("error", err))
-			return err
+			if err == gorm.ErrRecordNotFound {
+				return fmt.Errorf("未找到 ID 为 %d 的端点：%w", endpointId, ErrResourceNotFound)
+			}
+			logger.Warn("端点查询失败", slog.Any("error", err))
+			return fmt.Errorf("查询端点失败：%w", err)
 		}
 
 		updates := make(map[string]interface{})
@@ -197,7 +201,7 @@ func (s *service) UpdateEndpoint(ctx context.Context, endpointId uint, endpoint 
 			}
 			if result.RowsAffected == 0 {
 				logger.Warn("端点不存在")
-				return fmt.Errorf("未找到 ID 为 %d 的端点", endpointId)
+				return fmt.Errorf("未找到 ID 为 %d 的端点：%w", endpointId, ErrResourceNotFound)
 			}
 		}
 
@@ -276,7 +280,7 @@ func (s *service) BatchUpdateEndpoints(ctx context.Context, platformId uint, upd
 				missing = append(missing, id)
 			}
 		}
-		return nil, fmt.Errorf("以下端点不存在或不属于平台：%v", missing)
+		return nil, fmt.Errorf("以下端点不存在或不属于平台：%v: %w", missing, ErrResourceNotFound)
 	}
 
 	var updatedEndpoints []*types.Endpoint
@@ -466,7 +470,7 @@ func (s *service) DeleteEndpoint(ctx context.Context, endpointId uint) error {
 	}
 	if result.RowsAffected == 0 {
 		logger.Warn("端点不存在")
-		return fmt.Errorf("未找到 ID 为 %d 的端点", endpointId)
+		return fmt.Errorf("未找到 ID 为 %d 的端点：%w", endpointId, ErrResourceNotFound)
 	}
 
 	if endpoint.IsDefault {

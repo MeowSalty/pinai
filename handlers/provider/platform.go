@@ -1,11 +1,13 @@
-package provider
+﻿package provider
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
+	provider "github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
 )
@@ -160,7 +162,7 @@ func (h *Handler) GetPlatform(c *gin.Context) {
 	platform, err := h.service.GetPlatform(ctx, uint(id))
 	if err != nil {
 		// 检查错误类型，如果未找到则返回 404
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -209,7 +211,7 @@ func (h *Handler) UpdatePlatform(c *gin.Context) {
 	updatedPlatform, err := h.service.UpdatePlatform(ctx, uint(id), platform)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -248,7 +250,7 @@ func (h *Handler) DeletePlatform(c *gin.Context) {
 	err = h.service.DeletePlatform(ctx, uint(id))
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -297,7 +299,7 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 	ctx := c.Request.Context()
 	_, err = h.service.GetPlatform(ctx, uint(platformId))
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -344,3 +346,4 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 		"status":      "unavailable",
 	})
 }
+

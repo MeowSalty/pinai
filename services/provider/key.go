@@ -1,4 +1,4 @@
-package provider
+﻿package provider
 
 import (
 	"context"
@@ -85,7 +85,7 @@ func (s *service) UpdateKey(ctx context.Context, keyId uint, key types.APIKey) (
 	}
 	if result.RowsAffected == 0 {
 		logger.Warn("API 密钥不存在")
-		return nil, fmt.Errorf("未找到 ID 为 %d 的密钥", keyId)
+		return nil, fmt.Errorf("未找到 ID 为 %d 的密钥：%w", keyId, ErrResourceNotFound)
 	}
 
 	// 返回更新后的完整对象
@@ -154,7 +154,7 @@ func (s *service) DeleteKey(ctx context.Context, keyId uint) error {
 		}
 		if result.RowsAffected == 0 {
 			logger.Warn("API 密钥不存在")
-			return fmt.Errorf("未找到 ID 为 %d 的 API 密钥", keyId)
+			return fmt.Errorf("未找到 ID 为 %d 的 API 密钥：%w", keyId, ErrResourceNotFound)
 		}
 		logger.Debug("成功删除密钥", slog.Int64("deleted_count", result.RowsAffected))
 
@@ -191,3 +191,4 @@ func (s *service) DeleteKey(ctx context.Context, keyId uint) error {
 	}
 	return nil
 }
+

@@ -1,4 +1,4 @@
-package provider
+﻿package provider
 
 import (
 	"context"
@@ -117,7 +117,7 @@ func (s *service) UpdatePlatform(ctx context.Context, id uint, platform types.Pl
 	}
 	if result.RowsAffected == 0 {
 		logger.Warn("平台不存在")
-		return nil, fmt.Errorf("未找到 ID 为 %d 的平台", id)
+		return nil, fmt.Errorf("未找到 ID 为 %d 的平台：%w", id, ErrResourceNotFound)
 	}
 
 	// 返回更新后的完整对象
@@ -147,7 +147,7 @@ func (s *service) DeletePlatform(ctx context.Context, id uint) error {
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			logger.Warn("平台不存在")
-			return fmt.Errorf("未找到 ID 为 %d 的平台", id)
+			return fmt.Errorf("未找到 ID 为 %d 的平台：%w", id, ErrResourceNotFound)
 		}
 		logger.Error("查询平台失败", slog.Any("error", err))
 		return fmt.Errorf("查询平台失败：%w", err)
@@ -298,3 +298,4 @@ func (s *service) GetResourcePlatformMaps(ctx context.Context) (keyMap, modelMap
 		slog.Int("model_count", len(modelMap)))
 	return keyMap, modelMap, nil
 }
+

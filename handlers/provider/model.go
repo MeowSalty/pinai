@@ -1,6 +1,7 @@
-package provider
+﻿package provider
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -51,7 +52,7 @@ func (h *Handler) AddModelToPlatform(c *gin.Context) {
 	createdModel, err := h.service.AddModelToPlatform(ctx, uint(platformId), model)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -108,7 +109,7 @@ func (h *Handler) BatchAddModelsToPlatform(c *gin.Context) {
 	createdModels, err := h.service.BatchAddModelsToPlatform(ctx, uint(platformId), req.Models)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -154,7 +155,7 @@ func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 	models, err := h.service.GetModelsByPlatform(ctx, uint(platformId))
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -221,7 +222,7 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 	updatedModel, err := h.service.UpdateModel(ctx, uint(modelId), model)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的模型", modelId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "模型未找到",
 			})
@@ -260,7 +261,7 @@ func (h *Handler) DeleteModel(c *gin.Context) {
 	err = h.service.DeleteModel(ctx, uint(modelId))
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的模型", modelId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "模型未找到",
 			})
@@ -329,14 +330,14 @@ func (h *Handler) BatchUpdateModels(c *gin.Context) {
 	updatedModels, err := h.service.BatchUpdateModels(ctx, uint(platformId), req.Models)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
 			return
 		}
-		// 检查是否是模型不存在的错误
-		if len(err.Error()) > 0 && (err.Error()[:6] == "未找到" || err.Error()[:6] == "模型 ID") {
+		// 检查是否是模型不存在或不属于平台的错误
+		if errors.Is(err, provider.ErrResourceNotFound) || errors.Is(err, provider.ErrResourceNotBelong) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": err.Error(),
 			})
@@ -401,7 +402,7 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 	ctx := c.Request.Context()
 	_, err = h.service.GetModel(ctx, uint(modelId))
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的模型", modelId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "模型未找到",
 			})
@@ -484,21 +485,21 @@ func (h *Handler) BatchDeleteModels(c *gin.Context) {
 	deletedCount, err := h.service.BatchDeleteModels(ctx, uint(platformId), req.ModelIDs)
 	if err != nil {
 		// 检查错误类型
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
 			return
 		}
 		// 检查是否是模型不存在的错误
-		if len(err.Error()) > 0 && err.Error()[:2] == "以下" {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": err.Error(),
 			})
 			return
 		}
 		// 检查是否是模型不属于平台的错误
-		if len(err.Error()) > 6 && err.Error()[:6] == "模型 ID" {
+		if errors.Is(err, provider.ErrResourceNotBelong) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": err.Error(),
 			})
@@ -517,3 +518,4 @@ func (h *Handler) BatchDeleteModels(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+

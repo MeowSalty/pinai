@@ -1,4 +1,4 @@
-package provider
+﻿package provider
 
 import (
 	"context"
@@ -19,7 +19,7 @@ func (s *service) getPlatformByID(ctx context.Context, platformId uint) (*types.
 		First()
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到 ID 为 %d 的平台", platformId)
+			return nil, fmt.Errorf("未找到 ID 为 %d 的平台：%w", platformId, ErrResourceNotFound)
 		}
 		return nil, fmt.Errorf("查询平台失败：%w", err)
 	}
@@ -70,7 +70,7 @@ func (s *service) batchValidateAPIKeys(ctx context.Context, platformId uint, mod
 		}
 		for _, id := range apiKeyIDs {
 			if _, ok := validKeyMap[id]; !ok {
-				return fmt.Errorf("API 密钥 ID %d 不存在或不属于平台 ID %d", id, platformId)
+				return fmt.Errorf("API 密钥 ID %d 不存在或不属于平台 ID %d: %w", id, platformId, ErrResourceNotBelong)
 			}
 		}
 	}
@@ -84,7 +84,7 @@ func (s *service) getAPIKeyByID(ctx context.Context, keyId uint) (*types.APIKey,
 	apiKey, err := query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.ID.Eq(keyId)).First()
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到 ID 为 %d 的 API 密钥", keyId)
+			return nil, fmt.Errorf("未找到 ID 为 %d 的 API 密钥：%w", keyId, ErrResourceNotFound)
 		}
 		return nil, fmt.Errorf("查询 API 密钥失败：%w", err)
 	}
@@ -97,7 +97,7 @@ func (s *service) getEndpointByID(ctx context.Context, endpointId uint) (*types.
 	endpoint, err := query.Q.Endpoint.WithContext(ctx).Where(query.Q.Endpoint.ID.Eq(endpointId)).First()
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到 ID 为 %d 的端点", endpointId)
+			return nil, fmt.Errorf("未找到 ID 为 %d 的端点：%w", endpointId, ErrResourceNotFound)
 		}
 		return nil, fmt.Errorf("查询端点失败：%w", err)
 	}
@@ -137,7 +137,7 @@ func (s *service) validateAndGetAPIKeys(ctx context.Context, platformId uint, ap
 	// 检查是否所有密钥都有效
 	if len(validKeys) != len(apiKeyIDs) {
 		logger.Warn("部分 API 密钥不存在或不属于该平台")
-		return nil, fmt.Errorf("部分 API 密钥不存在或不属于平台 ID %d", platformId)
+		return nil, fmt.Errorf("部分 API 密钥不存在或不属于平台 ID %d: %w", platformId, ErrResourceNotBelong)
 	}
 
 	return validKeys, nil
@@ -192,7 +192,7 @@ func (s *service) getModelByID(ctx context.Context, modelId uint) (*types.Model,
 	model, err := query.Q.Model.WithContext(ctx).Where(query.Q.Model.ID.Eq(modelId)).First()
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到 ID 为 %d 的模型", modelId)
+			return nil, fmt.Errorf("未找到 ID 为 %d 的模型：%w", modelId, ErrResourceNotFound)
 		}
 		return nil, fmt.Errorf("查询模型失败：%w", err)
 	}
@@ -207,7 +207,7 @@ func (s *service) getModelWithAPIKeys(ctx context.Context, modelId uint) (*types
 		First()
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到 ID 为 %d 的模型", modelId)
+			return nil, fmt.Errorf("未找到 ID 为 %d 的模型：%w", modelId, ErrResourceNotFound)
 		}
 		return nil, fmt.Errorf("查询模型失败：%w", err)
 	}
@@ -264,3 +264,4 @@ func (s *service) removeOrphanedModels(ctx context.Context, platformId uint, log
 
 	return result.RowsAffected, nil
 }
+

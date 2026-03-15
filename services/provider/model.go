@@ -1,4 +1,4 @@
-package provider
+﻿package provider
 
 import (
 	"context"
@@ -211,7 +211,7 @@ func (s *service) DeleteModel(ctx context.Context, modelId uint) error {
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			logger.Warn("模型不存在")
-			return fmt.Errorf("未找到 ID 为 %d 的模型", modelId)
+			return fmt.Errorf("未找到 ID 为 %d 的模型: %w", modelId, ErrResourceNotFound)
 		}
 		logger.Error("查询模型失败", slog.Any("error", err))
 		return fmt.Errorf("查询模型失败：%w", err)
@@ -268,7 +268,7 @@ func (s *service) DeleteModel(ctx context.Context, modelId uint) error {
 			}
 		}
 
-		return fmt.Errorf("未找到 ID 为 %d 的模型", modelId)
+		return fmt.Errorf("未找到 ID 为 %d 的模型: %w", modelId, ErrResourceNotFound)
 	}
 
 	logger.Info("成功删除模型")
@@ -329,7 +329,7 @@ func (s *service) BatchDeleteModels(ctx context.Context, platformId uint, modelI
 			}
 		}
 
-		return 0, fmt.Errorf("以下模型不存在：%v", missingIds)
+		return 0, fmt.Errorf("以下模型不存在：%v: %w", missingIds, ErrResourceNotFound)
 	}
 
 	// 验证所有模型都属于指定平台
@@ -339,7 +339,7 @@ func (s *service) BatchDeleteModels(ctx context.Context, platformId uint, modelI
 				slog.Uint64("model_id", uint64(model.ID)),
 				slog.Uint64("model_platform_id", uint64(model.PlatformID)),
 				slog.Uint64("expected_platform_id", uint64(platformId)))
-			return 0, fmt.Errorf("模型 ID %d 不属于平台 ID %d", model.ID, platformId)
+			return 0, fmt.Errorf("模型 ID %d 不属于平台 ID %d: %w", model.ID, platformId, ErrResourceNotBelong)
 		}
 	}
 
@@ -573,7 +573,7 @@ func (s *service) batchValidateModels(ctx context.Context, platformId uint, upda
 			}
 		}
 
-		return fmt.Errorf("以下模型不存在：%v", missingIds)
+		return fmt.Errorf("以下模型不存在：%v: %w", missingIds, ErrResourceNotFound)
 	}
 
 	// 验证所有模型都属于指定平台
@@ -583,10 +583,11 @@ func (s *service) batchValidateModels(ctx context.Context, platformId uint, upda
 				slog.Uint64("model_id", uint64(model.ID)),
 				slog.Uint64("model_platform_id", uint64(model.PlatformID)),
 				slog.Uint64("expected_platform_id", uint64(platformId)))
-			return fmt.Errorf("模型 ID %d 不属于平台 ID %d", model.ID, platformId)
+			return fmt.Errorf("模型 ID %d 不属于平台 ID %d: %w", model.ID, platformId, ErrResourceNotBelong)
 		}
 	}
 
 	logger.Debug("成功验证所有模型", slog.Int("validated_count", len(models)))
 	return nil
 }
+

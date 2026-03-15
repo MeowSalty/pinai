@@ -1,6 +1,7 @@
-package provider
+﻿package provider
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -44,7 +45,7 @@ func (h *Handler) AddEndpointToPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	createdEndpoint, err := h.service.AddEndpointToPlatform(ctx, uint(platformId), endpoint)
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -99,7 +100,7 @@ func (h *Handler) BatchAddEndpointsToPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	createdEndpoints, err := h.service.BatchAddEndpointsToPlatform(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -143,7 +144,7 @@ func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	endpoints, err := h.service.GetEndpointsByPlatform(ctx, uint(platformId))
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -181,7 +182,7 @@ func (h *Handler) GetEndpoint(c *gin.Context) {
 	ctx := c.Request.Context()
 	endpoint, err := h.service.GetEndpoint(ctx, uint(endpointId))
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的端点", endpointId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "端点未找到",
 			})
@@ -229,7 +230,7 @@ func (h *Handler) UpdateEndpoint(c *gin.Context) {
 	ctx := c.Request.Context()
 	updatedEndpoint, err := h.service.UpdateEndpoint(ctx, uint(endpointId), endpoint)
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的端点", endpointId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "端点未找到",
 			})
@@ -293,13 +294,13 @@ func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 	ctx := c.Request.Context()
 	updatedEndpoints, err := h.service.BatchUpdateEndpoints(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
 			return
 		}
-		if len(err.Error()) > 0 && (err.Error()[:6] == "未找到" || err.Error()[:6] == "端点 ID") {
+		if errors.Is(err, provider.ErrResourceNotFound) || errors.Is(err, provider.ErrResourceNotBelong) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": err.Error(),
 			})
@@ -343,7 +344,7 @@ func (h *Handler) DeleteEndpoint(c *gin.Context) {
 	ctx := c.Request.Context()
 	err = h.service.DeleteEndpoint(ctx, uint(endpointId))
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的端点", endpointId) {
+		if errors.Is(err, provider.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "端点未找到",
 			})
@@ -359,3 +360,4 @@ func (h *Handler) DeleteEndpoint(c *gin.Context) {
 		"message": "端点已成功删除",
 	})
 }
+
