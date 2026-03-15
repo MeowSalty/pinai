@@ -74,13 +74,7 @@ func Run(cfg *config.Config) {
 		)
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
-	ginEngine.Use(sloggin.NewWithConfig(ginLogger, sloggin.Config{
-		Filters: []sloggin.Filter{
-			// 忽略 /completions 路径下的请求，避免干扰流式传输
-			sloggin.IgnorePathContains("/completions"),
-			sloggin.IgnorePathContains("/messages"),
-		},
-	}))
+	ginEngine.Use(sloggin.New(ginLogger))
 
 	// 初始化服务
 	appContext := context.Background()
