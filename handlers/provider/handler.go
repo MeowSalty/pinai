@@ -11,6 +11,11 @@ type Handler struct {
 	healthService health.Service
 }
 
+// HealthUpdateRequest 健康状态更新请求
+type HealthUpdateRequest struct {
+	Enabled *bool `json:"enabled" binding:"required"` // true=启用；false=禁用
+}
+
 // NewHandler 创建一个新的 ProviderHandler 实例
 //
 // 参数：

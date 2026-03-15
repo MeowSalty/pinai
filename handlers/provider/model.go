@@ -360,75 +360,43 @@ func (h *Handler) BatchUpdateModels(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// EnableModelHealth godoc
-// @Summary      启用/恢复模型健康状态
-// @Description  删除模型的健康记录，让系统重新评估健康状态
+// UpdateModelHealth godoc
+// @Summary      更新模型健康状态
+// @Description  通过 enabled 字段启用或禁用模型健康状态
 // @Tags         models
+// @Accept       json
 // @Produce      json
-// @Param        platformId  path      int  true  "平台 ID"
-// @Param        modelId     path      int  true  "模型 ID"
+// @Param        platformId  path      int                  true  "平台 ID"
+// @Param        modelId     path      int                  true  "模型 ID"
+// @Param        request     body      HealthUpdateRequest  true  "健康状态更新请求"
 // @Success      200  {object}  map[string]interface{}  "操作成功"
 // @Failure      400  {object}  map[string]interface{}  "请求参数错误"
 // @Failure      404  {object}  map[string]interface{}  "模型未找到"
 // @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
-// @Router       /api/platforms/{platformId}/models/{modelId}/health/enable [post]
-func (h *Handler) EnableModelHealth(c *gin.Context) {
-	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
-	if err != nil {
+// @Router       /api/platforms/{platformId}/models/{modelId}/health [patch]
+func (h *Handler) UpdateModelHealth(c *gin.Context) {
+	var req HealthUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的模型 ID",
+			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
 		return
 	}
-
-	// 验证模型是否存在
-	ctx := context.Background()
-	_, err = h.service.GetModel(ctx, uint(modelId))
-	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的模型", modelId) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "模型未找到",
-			})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取模型失败: %v", err),
-		})
-		return
-	}
-
-	// 启用健康状态
-	if err := h.healthService.EnableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("启用模型健康状态失败: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":  "模型已启用",
-		"model_id": modelId,
-		"status":   "unknown",
-	})
+	h.updateModelHealthWithEnabled(c, req.Enabled)
 }
 
-// DisableModelHealth godoc
-// @Summary      禁用模型健康状态
-// @Description  将模型健康状态设置为不可用
-// @Tags         models
-// @Produce      json
-// @Param        platformId  path      int  true  "平台 ID"
-// @Param        modelId     path      int  true  "模型 ID"
-// @Success      200  {object}  map[string]interface{}  "操作成功"
-// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
-// @Failure      404  {object}  map[string]interface{}  "模型未找到"
-// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
-// @Router       /api/platforms/{platformId}/models/{modelId}/health/disable [post]
-func (h *Handler) DisableModelHealth(c *gin.Context) {
+func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的模型 ID",
+		})
+		return
+	}
+
+	if enabled == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "必须提供 enabled 字段",
 		})
 		return
 	}
@@ -449,7 +417,21 @@ func (h *Handler) DisableModelHealth(c *gin.Context) {
 		return
 	}
 
-	// 禁用健康状态
+	if *enabled {
+		if err := h.healthService.EnableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("启用模型健康状态失败: %v", err),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"message":  "模型已启用",
+			"model_id": modelId,
+			"status":   "unknown",
+		})
+		return
+	}
+
 	if err := h.healthService.DisableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("禁用模型健康状态失败: %v", err),

@@ -219,75 +219,43 @@ func (h *Handler) UpdateKey(c *gin.Context) {
 	c.JSON(http.StatusOK, updatedKey)
 }
 
-// EnableKeyHealth godoc
-// @Summary      启用/恢复密钥健康状态
-// @Description  删除密钥的健康记录，让系统重新评估健康状态
+// UpdateKeyHealth godoc
+// @Summary      更新密钥健康状态
+// @Description  通过 enabled 字段启用或禁用密钥健康状态
 // @Tags         keys
+// @Accept       json
 // @Produce      json
-// @Param        platformId  path      int  true  "平台 ID"
-// @Param        keyId       path      int  true  "密钥 ID"
+// @Param        platformId  path      int                  true  "平台 ID"
+// @Param        keyId       path      int                  true  "密钥 ID"
+// @Param        request     body      HealthUpdateRequest  true  "健康状态更新请求"
 // @Success      200  {object}  map[string]interface{}  "操作成功"
 // @Failure      400  {object}  map[string]interface{}  "请求参数错误"
 // @Failure      404  {object}  map[string]interface{}  "密钥未找到"
 // @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
-// @Router       /api/platforms/{platformId}/keys/{keyId}/health/enable [post]
-func (h *Handler) EnableKeyHealth(c *gin.Context) {
-	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
-	if err != nil {
+// @Router       /api/platforms/{platformId}/keys/{keyId}/health [patch]
+func (h *Handler) UpdateKeyHealth(c *gin.Context) {
+	var req HealthUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的密钥 ID",
+			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
 		return
 	}
-
-	// 验证密钥是否存在
-	ctx := context.Background()
-	_, err = h.service.GetKey(ctx, uint(keyId))
-	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "密钥未找到",
-			})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取密钥失败: %v", err),
-		})
-		return
-	}
-
-	// 启用健康状态
-	if err := h.healthService.EnableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("启用密钥健康状态失败: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "密钥已启用",
-		"key_id":  keyId,
-		"status":  "unknown",
-	})
+	h.updateKeyHealthWithEnabled(c, req.Enabled)
 }
 
-// DisableKeyHealth godoc
-// @Summary      禁用密钥健康状态
-// @Description  将密钥健康状态设置为不可用
-// @Tags         keys
-// @Produce      json
-// @Param        platformId  path      int  true  "平台 ID"
-// @Param        keyId       path      int  true  "密钥 ID"
-// @Success      200  {object}  map[string]interface{}  "操作成功"
-// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
-// @Failure      404  {object}  map[string]interface{}  "密钥未找到"
-// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
-// @Router       /api/platforms/{platformId}/keys/{keyId}/health/disable [post]
-func (h *Handler) DisableKeyHealth(c *gin.Context) {
+func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的密钥 ID",
+		})
+		return
+	}
+
+	if enabled == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "必须提供 enabled 字段",
 		})
 		return
 	}
@@ -308,7 +276,21 @@ func (h *Handler) DisableKeyHealth(c *gin.Context) {
 		return
 	}
 
-	// 禁用健康状态
+	if *enabled {
+		if err := h.healthService.EnableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("启用密钥健康状态失败: %v", err),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"message": "密钥已启用",
+			"key_id":  keyId,
+			"status":  "unknown",
+		})
+		return
+	}
+
 	if err := h.healthService.DisableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("禁用密钥健康状态失败: %v", err),

@@ -142,14 +142,14 @@ func (h *Handler) GetPlatforms(c *gin.Context) {
 // @Description  获取指定平台详情
 // @Tags         platforms
 // @Produce      json
-// @Param        id   path      int  true  "平台 ID"
+// @Param        platformId   path      int  true  "平台 ID"
 // @Success      200  {object}  types.Platform                    "平台详情"
 // @Failure      400  {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404  {object}  map[string]interface{}            "平台未找到"
 // @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platforms/{id} [get]
+// @Router       /api/platforms/{platformId} [get]
 func (h *Handler) GetPlatform(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
@@ -182,15 +182,15 @@ func (h *Handler) GetPlatform(c *gin.Context) {
 // @Tags         platforms
 // @Accept       json
 // @Produce      json
-// @Param        id       path      int                             true  "平台 ID"
+// @Param        platformId  path      int                             true  "平台 ID"
 // @Param        request  body      types.Platform                  true  "更新平台的请求体"
 // @Success      200      {object}  types.Platform                    "更新后的平台信息"
 // @Failure      400      {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404      {object}  map[string]interface{}            "平台未找到"
 // @Failure      500      {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platforms/{id} [put]
+// @Router       /api/platforms/{platformId} [put]
 func (h *Handler) UpdatePlatform(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
@@ -230,14 +230,14 @@ func (h *Handler) UpdatePlatform(c *gin.Context) {
 // @Description  删除指定平台及其所有关联的模型、密钥和关联关系
 // @Tags         platforms
 // @Produce      json
-// @Param        id   path      int  true  "平台 ID"
+// @Param        platformId   path      int  true  "平台 ID"
 // @Success      204  "删除成功"
 // @Failure      400  {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404  {object}  map[string]interface{}            "平台未找到"
 // @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platforms/{id} [delete]
+// @Router       /api/platforms/{platformId} [delete]
 func (h *Handler) DeletePlatform(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
@@ -264,19 +264,21 @@ func (h *Handler) DeletePlatform(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// EnablePlatformHealth godoc
-// @Summary      启用/恢复平台健康状态
-// @Description  删除平台的健康记录，让系统重新评估健康状态
+// UpdatePlatformHealth godoc
+// @Summary      更新平台健康状态
+// @Description  通过 enabled 字段启用或禁用平台健康状态
 // @Tags         platforms
+// @Accept       json
 // @Produce      json
-// @Param        id   path      int  true  "平台 ID"
+// @Param        platformId  path      int                  true  "平台 ID"
+// @Param        request     body      HealthUpdateRequest  true  "健康状态更新请求"
 // @Success      200  {object}  map[string]interface{}  "操作成功"
 // @Failure      400  {object}  map[string]interface{}  "请求参数错误"
 // @Failure      404  {object}  map[string]interface{}  "平台未找到"
 // @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
-// @Router       /api/platforms/{id}/health/enable [post]
-func (h *Handler) EnablePlatformHealth(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+// @Router       /api/platforms/{platformId}/health [patch]
+func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
+	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
@@ -284,11 +286,19 @@ func (h *Handler) EnablePlatformHealth(c *gin.Context) {
 		return
 	}
 
+	var req HealthUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("无法解析请求体: %v", err),
+		})
+		return
+	}
+
 	// 验证平台是否存在
 	ctx := context.Background()
-	_, err = h.service.GetPlatform(ctx, uint(id))
+	_, err = h.service.GetPlatform(ctx, uint(platformId))
 	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
+		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
@@ -300,59 +310,29 @@ func (h *Handler) EnablePlatformHealth(c *gin.Context) {
 		return
 	}
 
-	// 启用健康状态
-	if err := h.healthService.EnableHealth(types.ResourceTypePlatform, uint(id)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("启用平台健康状态失败: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":     "平台已启用",
-		"platform_id": id,
-		"status":      "unknown",
-	})
-}
-
-// DisablePlatformHealth godoc
-// @Summary      禁用平台健康状态
-// @Description  将平台健康状态设置为不可用
-// @Tags         platforms
-// @Produce      json
-// @Param        id   path      int  true  "平台 ID"
-// @Success      200  {object}  map[string]interface{}  "操作成功"
-// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
-// @Failure      404  {object}  map[string]interface{}  "平台未找到"
-// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
-// @Router       /api/platforms/{id}/health/disable [post]
-func (h *Handler) DisablePlatformHealth(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
+	if req.Enabled == nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
+			"error": "必须提供 enabled 字段",
 		})
 		return
 	}
 
-	// 验证平台是否存在
-	ctx := context.Background()
-	_, err = h.service.GetPlatform(ctx, uint(id))
-	if err != nil {
-		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
+	if *req.Enabled {
+		if err := h.healthService.EnableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("启用平台健康状态失败: %v", err),
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取平台失败: %v", err),
+		c.JSON(http.StatusOK, gin.H{
+			"message":     "平台已启用",
+			"platform_id": platformId,
+			"status":      "unknown",
 		})
 		return
 	}
 
-	// 禁用健康状态
-	if err := h.healthService.DisableHealth(types.ResourceTypePlatform, uint(id)); err != nil {
+	if err := h.healthService.DisableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("禁用平台健康状态失败: %v", err),
 		})
@@ -361,7 +341,7 @@ func (h *Handler) DisablePlatformHealth(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":     "平台已禁用",
-		"platform_id": id,
+		"platform_id": platformId,
 		"status":      "unavailable",
 	})
 }
