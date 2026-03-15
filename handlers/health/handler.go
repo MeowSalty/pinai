@@ -1,13 +1,11 @@
 package health
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/pinai/services/health"
 )
 
@@ -83,74 +81,6 @@ func (h *Handler) GetPlatformHealthList(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// EnablePlatform 启用/恢复指定平台的健康状态
-//
-// 路径参数：
-//
-//	platformId - 平台 ID
-//
-// 返回值：
-//
-//	成功 - 操作成功消息
-//	失败 - 错误信息
-func (h *Handler) EnablePlatform(c *gin.Context) {
-	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
-		return
-	}
-
-	// 启用健康状态
-	if err := h.healthService.EnableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("启用平台健康状态失败: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":     "平台已启用",
-		"platform_id": platformId,
-		"status":      "unknown",
-	})
-}
-
-// DisablePlatform 禁用指定平台的健康状态
-//
-// 路径参数：
-//
-//	platformId - 平台 ID
-//
-// 返回值：
-//
-//	成功 - 操作成功消息
-//	失败 - 错误信息
-func (h *Handler) DisablePlatform(c *gin.Context) {
-	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
-		return
-	}
-
-	// 禁用健康状态
-	if err := h.healthService.DisableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("禁用平台健康状态失败: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":     "平台已禁用",
-		"platform_id": platformId,
-		"status":      "unavailable",
-	})
-}
-
 // GetAPIKeyHealthList 获取密钥健康列表
 //
 // 查询参数：
@@ -189,74 +119,6 @@ func (h *Handler) GetAPIKeyHealthList(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// EnableAPIKey 启用/恢复指定密钥的健康状态
-//
-// 路径参数：
-//
-//	keyId - 密钥 ID
-//
-// 返回值：
-//
-//	成功 - 操作成功消息
-//	失败 - 错误信息
-func (h *Handler) EnableAPIKey(c *gin.Context) {
-	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的密钥 ID",
-		})
-		return
-	}
-
-	// 启用健康状态
-	if err := h.healthService.EnableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("启用密钥健康状态失败: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "密钥已启用",
-		"key_id":  keyId,
-		"status":  "unknown",
-	})
-}
-
-// DisableAPIKey 禁用指定密钥的健康状态
-//
-// 路径参数：
-//
-//	keyId - 密钥 ID
-//
-// 返回值：
-//
-//	成功 - 操作成功消息
-//	失败 - 错误信息
-func (h *Handler) DisableAPIKey(c *gin.Context) {
-	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的密钥 ID",
-		})
-		return
-	}
-
-	// 禁用健康状态
-	if err := h.healthService.DisableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("禁用密钥健康状态失败: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "密钥已禁用",
-		"key_id":  keyId,
-		"status":  "unavailable",
-	})
-}
-
 // GetModelHealthList 获取模型健康列表
 //
 // 查询参数：
@@ -293,74 +155,6 @@ func (h *Handler) GetModelHealthList(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
-}
-
-// EnableModel 启用/恢复指定模型的健康状态
-//
-// 路径参数：
-//
-//	modelId - 模型 ID
-//
-// 返回值：
-//
-//	成功 - 操作成功消息
-//	失败 - 错误信息
-func (h *Handler) EnableModel(c *gin.Context) {
-	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的模型 ID",
-		})
-		return
-	}
-
-	// 启用健康状态
-	if err := h.healthService.EnableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("启用模型健康状态失败: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":  "模型已启用",
-		"model_id": modelId,
-		"status":   "unknown",
-	})
-}
-
-// DisableModel 禁用指定模型的健康状态
-//
-// 路径参数：
-//
-//	modelId - 模型 ID
-//
-// 返回值：
-//
-//	成功 - 操作成功消息
-//	失败 - 错误信息
-func (h *Handler) DisableModel(c *gin.Context) {
-	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的模型 ID",
-		})
-		return
-	}
-
-	// 禁用健康状态
-	if err := h.healthService.DisableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("禁用模型健康状态失败: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":  "模型已禁用",
-		"model_id": modelId,
-		"status":   "unavailable",
-	})
 }
 
 // GetIssues 获取异常资源列表

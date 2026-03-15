@@ -18,16 +18,10 @@ func SetupHealthRoutes(router *gin.RouterGroup, healthService health.Service) {
 
 	// 平台健康端点
 	healthGroup.GET("/platforms", handler.GetPlatformHealthList)
-	healthGroup.POST("/platforms/:platformId/enable", handler.EnablePlatform)
-	healthGroup.POST("/platforms/:platformId/disable", handler.DisablePlatform)
 
 	// 密钥健康端点
 	healthGroup.GET("/keys", handler.GetAPIKeyHealthList)
-	healthGroup.POST("/keys/:keyId/enable", handler.EnableAPIKey)
-	healthGroup.POST("/keys/:keyId/disable", handler.DisableAPIKey)
 
 	// 模型健康端点
 	healthGroup.GET("/models", handler.GetModelHealthList)
-	healthGroup.POST("/models/:modelId/enable", handler.EnableModel)
-	healthGroup.POST("/models/:modelId/disable", handler.DisableModel)
 }
