@@ -3,12 +3,13 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/pinai/services/provider"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // AddEndpointToPlatform godoc
@@ -24,35 +25,39 @@ import (
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints [post]
-func (h *Handler) AddEndpointToPlatform(c *fiber.Ctx) error {
-	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
+func (h *Handler) AddEndpointToPlatform(c *gin.Context) {
+	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	var endpoint types.Endpoint
-	if err := c.BodyParser(&endpoint); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&endpoint); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
+		return
 	}
 
 	ctx := context.Background()
 	createdEndpoint, err := h.service.AddEndpointToPlatform(ctx, uint(platformId), endpoint)
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("为平台添加端点失败: %v", err),
 		})
+		return
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(createdEndpoint)
+	c.JSON(http.StatusCreated, createdEndpoint)
 }
 
 // BatchAddEndpointsToPlatform godoc
@@ -68,38 +73,43 @@ func (h *Handler) AddEndpointToPlatform(c *fiber.Ctx) error {
 // @Failure      404         {object}  map[string]interface{}                        "平台未找到"
 // @Failure      500         {object}  map[string]interface{}                        "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints/batch [post]
-func (h *Handler) BatchAddEndpointsToPlatform(c *fiber.Ctx) error {
-	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
+func (h *Handler) BatchAddEndpointsToPlatform(c *gin.Context) {
+	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	var req provider.BatchCreateEndpointsRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
+		return
 	}
 
 	if len(req.Endpoints) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "必须至少提供一个端点",
 		})
+		return
 	}
 
 	ctx := context.Background()
 	createdEndpoints, err := h.service.BatchAddEndpointsToPlatform(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("批量创建端点失败: %v", err),
 		})
+		return
 	}
 
 	response := provider.BatchCreateEndpointsResponse{
@@ -108,7 +118,7 @@ func (h *Handler) BatchAddEndpointsToPlatform(c *fiber.Ctx) error {
 		CreatedCount: len(createdEndpoints),
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(response)
+	c.JSON(http.StatusCreated, response)
 }
 
 // GetEndpointsByPlatform godoc
@@ -122,28 +132,31 @@ func (h *Handler) BatchAddEndpointsToPlatform(c *fiber.Ctx) error {
 // @Failure      404         {object}  map[string]interface{}           "平台未找到"
 // @Failure      500         {object}  map[string]interface{}           "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints [get]
-func (h *Handler) GetEndpointsByPlatform(c *fiber.Ctx) error {
-	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
+func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
+	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	ctx := context.Background()
 	endpoints, err := h.service.GetEndpointsByPlatform(ctx, uint(platformId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取平台端点列表失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(endpoints)
+	c.JSON(http.StatusOK, endpoints)
 }
 
 // GetEndpoint godoc
@@ -158,28 +171,31 @@ func (h *Handler) GetEndpointsByPlatform(c *fiber.Ctx) error {
 // @Failure      404         {object}  map[string]interface{}           "端点未找到"
 // @Failure      500         {object}  map[string]interface{}           "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints/{endpointId} [get]
-func (h *Handler) GetEndpoint(c *fiber.Ctx) error {
-	endpointId, err := strconv.ParseUint(c.Params("endpointId"), 10, 64)
+func (h *Handler) GetEndpoint(c *gin.Context) {
+	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的端点 ID",
 		})
+		return
 	}
 
 	ctx := context.Background()
 	endpoint, err := h.service.GetEndpoint(ctx, uint(endpointId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的端点", endpointId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "端点未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取端点详情失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(endpoint)
+	c.JSON(http.StatusOK, endpoint)
 }
 
 // UpdateEndpoint godoc
@@ -196,35 +212,39 @@ func (h *Handler) GetEndpoint(c *fiber.Ctx) error {
 // @Failure      404         {object}  map[string]interface{}            "平台或端点未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints/{endpointId} [put]
-func (h *Handler) UpdateEndpoint(c *fiber.Ctx) error {
-	endpointId, err := strconv.ParseUint(c.Params("endpointId"), 10, 64)
+func (h *Handler) UpdateEndpoint(c *gin.Context) {
+	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的端点 ID",
 		})
+		return
 	}
 
 	var endpoint types.Endpoint
-	if err := c.BodyParser(&endpoint); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&endpoint); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
+		return
 	}
 
 	ctx := context.Background()
 	updatedEndpoint, err := h.service.UpdateEndpoint(ctx, uint(endpointId), endpoint)
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的端点", endpointId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "端点未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("更新端点失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(updatedEndpoint)
+	c.JSON(http.StatusOK, updatedEndpoint)
 }
 
 // BatchUpdateEndpoints godoc
@@ -240,32 +260,36 @@ func (h *Handler) UpdateEndpoint(c *fiber.Ctx) error {
 // @Failure      404         {object}  map[string]interface{}                        "平台或端点未找到"
 // @Failure      500         {object}  map[string]interface{}                        "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints/batch [put]
-func (h *Handler) BatchUpdateEndpoints(c *fiber.Ctx) error {
-	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
+func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
+	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	var req provider.BatchUpdateEndpointsRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
+		return
 	}
 
 	if len(req.Endpoints) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "必须至少提供一个端点更新项",
 		})
+		return
 	}
 
 	for i, item := range req.Endpoints {
 		if item.ID == 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("端点更新项 %d 缺少必需的 ID 字段", i),
 			})
+			return
 		}
 	}
 
@@ -273,18 +297,21 @@ func (h *Handler) BatchUpdateEndpoints(c *fiber.Ctx) error {
 	updatedEndpoints, err := h.service.BatchUpdateEndpoints(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
 		if len(err.Error()) > 0 && (err.Error()[:6] == "未找到" || err.Error()[:6] == "端点 ID") {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": err.Error(),
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("批量更新端点失败: %v", err),
 		})
+		return
 	}
 
 	response := provider.BatchUpdateEndpointsResponse{
@@ -293,7 +320,7 @@ func (h *Handler) BatchUpdateEndpoints(c *fiber.Ctx) error {
 		UpdatedCount: len(updatedEndpoints),
 	}
 
-	return c.JSON(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // DeleteEndpoint godoc
@@ -308,28 +335,31 @@ func (h *Handler) BatchUpdateEndpoints(c *fiber.Ctx) error {
 // @Failure      404         {object}  map[string]interface{}            "平台或端点未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints/{endpointId} [delete]
-func (h *Handler) DeleteEndpoint(c *fiber.Ctx) error {
-	endpointId, err := strconv.ParseUint(c.Params("endpointId"), 10, 64)
+func (h *Handler) DeleteEndpoint(c *gin.Context) {
+	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的端点 ID",
 		})
+		return
 	}
 
 	ctx := context.Background()
 	err = h.service.DeleteEndpoint(ctx, uint(endpointId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的端点", endpointId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "端点未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("删除端点失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(fiber.Map{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "端点已成功删除",
 	})
 }

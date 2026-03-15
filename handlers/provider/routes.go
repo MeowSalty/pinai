@@ -4,54 +4,54 @@ import (
 	"github.com/MeowSalty/pinai/services/health"
 	"github.com/MeowSalty/pinai/services/provider"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // SetupProviderRoutes 配置 LLM 供应方管理相关的 API 路由
-func SetupProviderRoutes(router fiber.Router, llmService provider.Service, healthService health.Service) {
+func SetupProviderRoutes(router *gin.RouterGroup, llmService provider.Service, healthService health.Service) {
 	// 创建单一的 Provider Handler 实例
 	handler := NewHandler(llmService, healthService)
 
 	// 平台 (Platforms) 相关路由
-	router.Post("/platforms", handler.CreatePlatform)
-	router.Get("/platforms", handler.GetPlatforms)
-	router.Get("/platforms/:id", handler.GetPlatform)
-	router.Put("/platforms/:id", handler.UpdatePlatform)
-	router.Delete("/platforms/:id", handler.DeletePlatform)
+	router.POST("/platforms", handler.CreatePlatform)
+	router.GET("/platforms", handler.GetPlatforms)
+	router.GET("/platforms/:id", handler.GetPlatform)
+	router.PUT("/platforms/:id", handler.UpdatePlatform)
+	router.DELETE("/platforms/:id", handler.DeletePlatform)
 
 	// 平台健康状态管理路由
-	router.Post("/platforms/:id/health/enable", handler.EnablePlatformHealth)
-	router.Post("/platforms/:id/health/disable", handler.DisablePlatformHealth)
+	router.POST("/platforms/:id/health/enable", handler.EnablePlatformHealth)
+	router.POST("/platforms/:id/health/disable", handler.DisablePlatformHealth)
 
 	// 模型 (Models) 相关路由 (嵌套在平台下)
-	router.Post("/platforms/:platformId/models", handler.AddModelToPlatform)
-	router.Post("/platforms/:platformId/models/batch", handler.BatchAddModelsToPlatform)
-	router.Get("/platforms/:platformId/models", handler.GetModelsByPlatform)
-	router.Put("/platforms/:platformId/models/batch", handler.BatchUpdateModels)
-	router.Put("/platforms/:platformId/models/:modelId", handler.UpdateModel)
-	router.Delete("/platforms/:platformId/models/batch", handler.BatchDeleteModels)
-	router.Delete("/platforms/:platformId/models/:modelId", handler.DeleteModel)
+	router.POST("/platforms/:platformId/models", handler.AddModelToPlatform)
+	router.POST("/platforms/:platformId/models/batch", handler.BatchAddModelsToPlatform)
+	router.GET("/platforms/:platformId/models", handler.GetModelsByPlatform)
+	router.PUT("/platforms/:platformId/models/batch", handler.BatchUpdateModels)
+	router.PUT("/platforms/:platformId/models/:modelId", handler.UpdateModel)
+	router.DELETE("/platforms/:platformId/models/batch", handler.BatchDeleteModels)
+	router.DELETE("/platforms/:platformId/models/:modelId", handler.DeleteModel)
 
 	// 模型健康状态管理路由
-	router.Post("/platforms/:platformId/models/:modelId/health/enable", handler.EnableModelHealth)
-	router.Post("/platforms/:platformId/models/:modelId/health/disable", handler.DisableModelHealth)
+	router.POST("/platforms/:platformId/models/:modelId/health/enable", handler.EnableModelHealth)
+	router.POST("/platforms/:platformId/models/:modelId/health/disable", handler.DisableModelHealth)
 
 	// 密钥 (Keys) 相关路由 (嵌套在平台下)
-	router.Post("/platforms/:platformId/keys", handler.AddKeyToPlatform)
-	router.Get("/platforms/:platformId/keys", handler.GetKeysByPlatform)
-	router.Put("/platforms/:platformId/keys/:keyId", handler.UpdateKey)
-	router.Delete("/platforms/:platformId/keys/:keyId", handler.DeleteKey)
+	router.POST("/platforms/:platformId/keys", handler.AddKeyToPlatform)
+	router.GET("/platforms/:platformId/keys", handler.GetKeysByPlatform)
+	router.PUT("/platforms/:platformId/keys/:keyId", handler.UpdateKey)
+	router.DELETE("/platforms/:platformId/keys/:keyId", handler.DeleteKey)
 
 	// 密钥健康状态管理路由
-	router.Post("/platforms/:platformId/keys/:keyId/health/enable", handler.EnableKeyHealth)
-	router.Post("/platforms/:platformId/keys/:keyId/health/disable", handler.DisableKeyHealth)
+	router.POST("/platforms/:platformId/keys/:keyId/health/enable", handler.EnableKeyHealth)
+	router.POST("/platforms/:platformId/keys/:keyId/health/disable", handler.DisableKeyHealth)
 
 	// 端点 (Endpoints) 相关路由 (嵌套在平台下)
-	router.Post("/platforms/:platformId/endpoints", handler.AddEndpointToPlatform)
-	router.Post("/platforms/:platformId/endpoints/batch", handler.BatchAddEndpointsToPlatform)
-	router.Get("/platforms/:platformId/endpoints", handler.GetEndpointsByPlatform)
-	router.Get("/platforms/:platformId/endpoints/:endpointId", handler.GetEndpoint)
-	router.Put("/platforms/:platformId/endpoints/batch", handler.BatchUpdateEndpoints)
-	router.Put("/platforms/:platformId/endpoints/:endpointId", handler.UpdateEndpoint)
-	router.Delete("/platforms/:platformId/endpoints/:endpointId", handler.DeleteEndpoint)
+	router.POST("/platforms/:platformId/endpoints", handler.AddEndpointToPlatform)
+	router.POST("/platforms/:platformId/endpoints/batch", handler.BatchAddEndpointsToPlatform)
+	router.GET("/platforms/:platformId/endpoints", handler.GetEndpointsByPlatform)
+	router.GET("/platforms/:platformId/endpoints/:endpointId", handler.GetEndpoint)
+	router.PUT("/platforms/:platformId/endpoints/batch", handler.BatchUpdateEndpoints)
+	router.PUT("/platforms/:platformId/endpoints/:endpointId", handler.UpdateEndpoint)
+	router.DELETE("/platforms/:platformId/endpoints/:endpointId", handler.DeleteEndpoint)
 }

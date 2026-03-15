@@ -3,11 +3,12 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // ResourceHealthCount 资源健康状态计数
@@ -39,23 +40,25 @@ type PlatformWithHealth struct {
 // @Failure      400      {object}  map[string]interface{}            "请求参数错误"
 // @Failure      500      {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms [post]
-func (h *Handler) CreatePlatform(c *fiber.Ctx) error {
+func (h *Handler) CreatePlatform(c *gin.Context) {
 	var platform types.Platform
-	if err := c.BodyParser(&platform); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&platform); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
+		return
 	}
 
 	ctx := context.Background()
 	createdPlatform, err := h.service.CreatePlatform(ctx, platform)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("创建平台失败: %v", err),
 		})
+		return
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(createdPlatform)
+	c.JSON(http.StatusCreated, createdPlatform)
 }
 
 // GetPlatforms godoc
@@ -66,28 +69,31 @@ func (h *Handler) CreatePlatform(c *fiber.Ctx) error {
 // @Success      200  {array}   PlatformWithHealth                "平台列表"
 // @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms [get]
-func (h *Handler) GetPlatforms(c *fiber.Ctx) error {
+func (h *Handler) GetPlatforms(c *gin.Context) {
 	ctx := context.Background()
 	platforms, err := h.service.GetPlatforms(ctx)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取平台列表失败: %v", err),
 		})
+		return
 	}
 
 	keyCounts, modelCounts, err := h.service.GetPlatformResourceCounts(ctx)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取平台资源统计失败: %v", err),
 		})
+		return
 	}
 
 	// 获取资源到平台的映射，用于按平台统计健康状态
 	keyMap, modelMap, err := h.service.GetResourcePlatformMaps(ctx)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取资源平台映射失败: %v", err),
 		})
+		return
 	}
 
 	storage := h.healthService.GetStorage()
@@ -128,7 +134,7 @@ func (h *Handler) GetPlatforms(c *fiber.Ctx) error {
 			Unknown:     modelUnknown,
 		}
 	}
-	return c.JSON(result)
+	c.JSON(http.StatusOK, result)
 }
 
 // GetPlatform godoc
@@ -142,12 +148,13 @@ func (h *Handler) GetPlatforms(c *fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}            "平台未找到"
 // @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{id} [get]
-func (h *Handler) GetPlatform(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+func (h *Handler) GetPlatform(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	ctx := context.Background()
@@ -155,16 +162,18 @@ func (h *Handler) GetPlatform(c *fiber.Ctx) error {
 	if err != nil {
 		// 检查错误类型，如果未找到则返回 404
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取平台详情失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(platform)
+	c.JSON(http.StatusOK, platform)
 }
 
 // UpdatePlatform godoc
@@ -180,19 +189,21 @@ func (h *Handler) GetPlatform(c *fiber.Ctx) error {
 // @Failure      404      {object}  map[string]interface{}            "平台未找到"
 // @Failure      500      {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{id} [put]
-func (h *Handler) UpdatePlatform(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+func (h *Handler) UpdatePlatform(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	var platform types.Platform
-	if err := c.BodyParser(&platform); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&platform); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
+		return
 	}
 
 	ctx := context.Background()
@@ -200,16 +211,18 @@ func (h *Handler) UpdatePlatform(c *fiber.Ctx) error {
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("更新平台失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(updatedPlatform)
+	c.JSON(http.StatusOK, updatedPlatform)
 }
 
 // DeletePlatform godoc
@@ -223,12 +236,13 @@ func (h *Handler) UpdatePlatform(c *fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}            "平台未找到"
 // @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{id} [delete]
-func (h *Handler) DeletePlatform(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+func (h *Handler) DeletePlatform(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	ctx := context.Background()
@@ -236,16 +250,18 @@ func (h *Handler) DeletePlatform(c *fiber.Ctx) error {
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("删除平台失败: %v", err),
 		})
+		return
 	}
 
-	return c.SendStatus(fiber.StatusNoContent)
+	c.Status(http.StatusNoContent)
 }
 
 // EnablePlatformHealth godoc
@@ -259,12 +275,13 @@ func (h *Handler) DeletePlatform(c *fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}  "平台未找到"
 // @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
 // @Router       /api/platforms/{id}/health/enable [post]
-func (h *Handler) EnablePlatformHealth(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+func (h *Handler) EnablePlatformHealth(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	// 验证平台是否存在
@@ -272,23 +289,26 @@ func (h *Handler) EnablePlatformHealth(c *fiber.Ctx) error {
 	_, err = h.service.GetPlatform(ctx, uint(id))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取平台失败: %v", err),
 		})
+		return
 	}
 
 	// 启用健康状态
 	if err := h.healthService.EnableHealth(types.ResourceTypePlatform, uint(id)); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("启用平台健康状态失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(fiber.Map{
+	c.JSON(http.StatusOK, gin.H{
 		"message":     "平台已启用",
 		"platform_id": id,
 		"status":      "unknown",
@@ -306,12 +326,13 @@ func (h *Handler) EnablePlatformHealth(c *fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}  "平台未找到"
 // @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
 // @Router       /api/platforms/{id}/health/disable [post]
-func (h *Handler) DisablePlatformHealth(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+func (h *Handler) DisablePlatformHealth(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	// 验证平台是否存在
@@ -319,23 +340,26 @@ func (h *Handler) DisablePlatformHealth(c *fiber.Ctx) error {
 	_, err = h.service.GetPlatform(ctx, uint(id))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", id) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取平台失败: %v", err),
 		})
+		return
 	}
 
 	// 禁用健康状态
 	if err := h.healthService.DisableHealth(types.ResourceTypePlatform, uint(id)); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("禁用平台健康状态失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(fiber.Map{
+	c.JSON(http.StatusOK, gin.H{
 		"message":     "平台已禁用",
 		"platform_id": id,
 		"status":      "unavailable",

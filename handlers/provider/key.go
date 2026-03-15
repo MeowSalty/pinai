@@ -3,11 +3,12 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 )
 
 // KeyWithHealth 带健康状态的密钥响应
@@ -29,19 +30,21 @@ type KeyWithHealth struct {
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/keys [post]
-func (h *Handler) AddKeyToPlatform(c *fiber.Ctx) error {
-	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
+func (h *Handler) AddKeyToPlatform(c *gin.Context) {
+	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	var key types.APIKey
-	if err := c.BodyParser(&key); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&key); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
+		return
 	}
 
 	ctx := context.Background()
@@ -49,18 +52,20 @@ func (h *Handler) AddKeyToPlatform(c *fiber.Ctx) error {
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("为平台添加密钥失败: %v", err),
 		})
+		return
 	}
 
 	// 出于安全考虑，不返回密钥值
 	createdKey.Value = ""
-	return c.Status(fiber.StatusCreated).JSON(createdKey)
+	c.JSON(http.StatusCreated, createdKey)
 }
 
 // GetKeysByPlatform godoc
@@ -75,12 +80,13 @@ func (h *Handler) AddKeyToPlatform(c *fiber.Ctx) error {
 // @Failure      404         {object}  map[string]interface{}            "平台未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/keys [get]
-func (h *Handler) GetKeysByPlatform(c *fiber.Ctx) error {
-	platformId, err := strconv.ParseUint(c.Params("platformId"), 10, 64)
+func (h *Handler) GetKeysByPlatform(c *gin.Context) {
+	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的平台 ID",
 		})
+		return
 	}
 
 	ctx := context.Background()
@@ -88,13 +94,15 @@ func (h *Handler) GetKeysByPlatform(c *fiber.Ctx) error {
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "平台未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取平台密钥列表失败: %v", err),
 		})
+		return
 	}
 
 	// 检查是否需要包含健康状态
@@ -111,10 +119,11 @@ func (h *Handler) GetKeysByPlatform(c *fiber.Ctx) error {
 				result[i].HealthStatus = &unknownStatus
 			}
 		}
-		return c.JSON(result)
+		c.JSON(http.StatusOK, result)
+		return
 	}
 
-	return c.JSON(keys)
+	c.JSON(http.StatusOK, keys)
 }
 
 // DeleteKey godoc
@@ -129,28 +138,31 @@ func (h *Handler) GetKeysByPlatform(c *fiber.Ctx) error {
 // @Failure      404         {object}  map[string]interface{}            "平台或密钥未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/keys/{keyId} [delete]
-func (h *Handler) DeleteKey(c *fiber.Ctx) error {
-	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
+func (h *Handler) DeleteKey(c *gin.Context) {
+	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的密钥 ID",
 		})
+		return
 	}
 
 	ctx := context.Background()
 	err = h.service.DeleteKey(ctx, uint(keyId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "密钥未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("删除密钥失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(fiber.Map{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "密钥已成功删除",
 	})
 }
@@ -169,19 +181,21 @@ func (h *Handler) DeleteKey(c *fiber.Ctx) error {
 // @Failure      404         {object}  map[string]interface{}            "平台或密钥未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/keys/{keyId} [put]
-func (h *Handler) UpdateKey(c *fiber.Ctx) error {
-	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
+func (h *Handler) UpdateKey(c *gin.Context) {
+	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的密钥 ID",
 		})
+		return
 	}
 
 	var key types.APIKey
-	if err := c.BodyParser(&key); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := c.ShouldBindJSON(&key); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无法解析请求体: %v", err),
 		})
+		return
 	}
 
 	ctx := context.Background()
@@ -189,18 +203,20 @@ func (h *Handler) UpdateKey(c *fiber.Ctx) error {
 	if err != nil {
 		// 检查错误类型
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "密钥未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("更新密钥失败: %v", err),
 		})
+		return
 	}
 
 	// 出于安全考虑，不返回密钥值
 	updatedKey.Value = ""
-	return c.JSON(updatedKey)
+	c.JSON(http.StatusOK, updatedKey)
 }
 
 // EnableKeyHealth godoc
@@ -215,12 +231,13 @@ func (h *Handler) UpdateKey(c *fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}  "密钥未找到"
 // @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
 // @Router       /api/platforms/{platformId}/keys/{keyId}/health/enable [post]
-func (h *Handler) EnableKeyHealth(c *fiber.Ctx) error {
-	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
+func (h *Handler) EnableKeyHealth(c *gin.Context) {
+	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的密钥 ID",
 		})
+		return
 	}
 
 	// 验证密钥是否存在
@@ -228,23 +245,26 @@ func (h *Handler) EnableKeyHealth(c *fiber.Ctx) error {
 	_, err = h.service.GetKey(ctx, uint(keyId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "密钥未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取密钥失败: %v", err),
 		})
+		return
 	}
 
 	// 启用健康状态
 	if err := h.healthService.EnableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("启用密钥健康状态失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(fiber.Map{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "密钥已启用",
 		"key_id":  keyId,
 		"status":  "unknown",
@@ -263,12 +283,13 @@ func (h *Handler) EnableKeyHealth(c *fiber.Ctx) error {
 // @Failure      404  {object}  map[string]interface{}  "密钥未找到"
 // @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
 // @Router       /api/platforms/{platformId}/keys/{keyId}/health/disable [post]
-func (h *Handler) DisableKeyHealth(c *fiber.Ctx) error {
-	keyId, err := strconv.ParseUint(c.Params("keyId"), 10, 64)
+func (h *Handler) DisableKeyHealth(c *gin.Context) {
+	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的密钥 ID",
 		})
+		return
 	}
 
 	// 验证密钥是否存在
@@ -276,23 +297,26 @@ func (h *Handler) DisableKeyHealth(c *fiber.Ctx) error {
 	_, err = h.service.GetKey(ctx, uint(keyId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "密钥未找到",
 			})
+			return
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取密钥失败: %v", err),
 		})
+		return
 	}
 
 	// 禁用健康状态
 	if err := h.healthService.DisableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("禁用密钥健康状态失败: %v", err),
 		})
+		return
 	}
 
-	return c.JSON(fiber.Map{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "密钥已禁用",
 		"key_id":  keyId,
 		"status":  "unavailable",
