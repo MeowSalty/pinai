@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -42,7 +41,7 @@ func (h *Handler) AddEndpointToPlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	createdEndpoint, err := h.service.AddEndpointToPlatform(ctx, uint(platformId), endpoint)
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
@@ -97,7 +96,7 @@ func (h *Handler) BatchAddEndpointsToPlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	createdEndpoints, err := h.service.BatchAddEndpointsToPlatform(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
@@ -141,7 +140,7 @@ func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	endpoints, err := h.service.GetEndpointsByPlatform(ctx, uint(platformId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
@@ -179,7 +178,7 @@ func (h *Handler) GetEndpoint(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	endpoint, err := h.service.GetEndpoint(ctx, uint(endpointId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的端点", endpointId) {
@@ -227,7 +226,7 @@ func (h *Handler) UpdateEndpoint(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	updatedEndpoint, err := h.service.UpdateEndpoint(ctx, uint(endpointId), endpoint)
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的端点", endpointId) {
@@ -291,7 +290,7 @@ func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	updatedEndpoints, err := h.service.BatchUpdateEndpoints(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {
@@ -341,7 +340,7 @@ func (h *Handler) DeleteEndpoint(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	err = h.service.DeleteEndpoint(ctx, uint(endpointId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的端点", endpointId) {

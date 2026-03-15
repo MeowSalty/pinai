@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -48,7 +47,7 @@ func (h *Handler) AddModelToPlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	createdModel, err := h.service.AddModelToPlatform(ctx, uint(platformId), model)
 	if err != nil {
 		// 检查错误类型
@@ -105,7 +104,7 @@ func (h *Handler) BatchAddModelsToPlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	createdModels, err := h.service.BatchAddModelsToPlatform(ctx, uint(platformId), req.Models)
 	if err != nil {
 		// 检查错误类型
@@ -151,7 +150,7 @@ func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	models, err := h.service.GetModelsByPlatform(ctx, uint(platformId))
 	if err != nil {
 		// 检查错误类型
@@ -218,7 +217,7 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	updatedModel, err := h.service.UpdateModel(ctx, uint(modelId), model)
 	if err != nil {
 		// 检查错误类型
@@ -257,7 +256,7 @@ func (h *Handler) DeleteModel(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	err = h.service.DeleteModel(ctx, uint(modelId))
 	if err != nil {
 		// 检查错误类型
@@ -326,7 +325,7 @@ func (h *Handler) BatchUpdateModels(c *gin.Context) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	updatedModels, err := h.service.BatchUpdateModels(ctx, uint(platformId), req.Models)
 	if err != nil {
 		// 检查错误类型
@@ -399,7 +398,7 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 	}
 
 	// 验证模型是否存在
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	_, err = h.service.GetModel(ctx, uint(modelId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的模型", modelId) {
@@ -481,7 +480,7 @@ func (h *Handler) BatchDeleteModels(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	deletedCount, err := h.service.BatchDeleteModels(ctx, uint(platformId), req.ModelIDs)
 	if err != nil {
 		// 检查错误类型

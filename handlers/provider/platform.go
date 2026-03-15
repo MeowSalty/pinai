@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -49,7 +48,7 @@ func (h *Handler) CreatePlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	createdPlatform, err := h.service.CreatePlatform(ctx, platform)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -70,7 +69,7 @@ func (h *Handler) CreatePlatform(c *gin.Context) {
 // @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
 // @Router       /api/platforms [get]
 func (h *Handler) GetPlatforms(c *gin.Context) {
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	platforms, err := h.service.GetPlatforms(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -157,7 +156,7 @@ func (h *Handler) GetPlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	platform, err := h.service.GetPlatform(ctx, uint(id))
 	if err != nil {
 		// 检查错误类型，如果未找到则返回 404
@@ -206,7 +205,7 @@ func (h *Handler) UpdatePlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	updatedPlatform, err := h.service.UpdatePlatform(ctx, uint(id), platform)
 	if err != nil {
 		// 检查错误类型
@@ -245,7 +244,7 @@ func (h *Handler) DeletePlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	err = h.service.DeletePlatform(ctx, uint(id))
 	if err != nil {
 		// 检查错误类型
@@ -295,7 +294,7 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 	}
 
 	// 验证平台是否存在
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	_, err = h.service.GetPlatform(ctx, uint(platformId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的平台", platformId) {

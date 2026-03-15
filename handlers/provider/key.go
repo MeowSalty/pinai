@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -47,7 +46,7 @@ func (h *Handler) AddKeyToPlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	createdKey, err := h.service.AddKeyToPlatform(ctx, uint(platformId), key)
 	if err != nil {
 		// 检查错误类型
@@ -89,7 +88,7 @@ func (h *Handler) GetKeysByPlatform(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	keys, err := h.service.GetKeysByPlatform(ctx, uint(platformId))
 	if err != nil {
 		// 检查错误类型
@@ -146,7 +145,7 @@ func (h *Handler) DeleteKey(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	err = h.service.DeleteKey(ctx, uint(keyId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
@@ -196,7 +195,7 @@ func (h *Handler) UpdateKey(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	updatedKey, err := h.service.UpdateKey(ctx, uint(keyId), key)
 	if err != nil {
 		// 检查错误类型
@@ -258,7 +257,7 @@ func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 	}
 
 	// 验证密钥是否存在
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	_, err = h.service.GetKey(ctx, uint(keyId))
 	if err != nil {
 		if err.Error() == fmt.Sprintf("未找到 ID 为 %d 的密钥", keyId) {
