@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -16,9 +17,8 @@ import (
 	"github.com/MeowSalty/pinai/logger"
 	"github.com/MeowSalty/pinai/router"
 	"github.com/MeowSalty/pinai/services"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/recover"
-	slogfiber "github.com/samber/slog-fiber"
+	"github.com/gin-gonic/gin"
+	sloggin "github.com/samber/slog-gin"
 )
 
 // Run 启动服务器
@@ -30,7 +30,7 @@ func Run(cfg *config.Config) {
 	}
 
 	// 创建日志组
-	fiberLogger := appLogger.WithGroup("fiber")
+	ginLogger := appLogger.WithGroup("gin")
 	gormLogger := appLogger.WithGroup("gorm")
 	frontendLogger := appLogger.WithGroup("frontend")
 	routerLogger := appLogger.WithGroup("router")
@@ -53,32 +53,27 @@ func Run(cfg *config.Config) {
 	}
 	defer db.Close()
 
-	// 创建 fiber 应用
-	fiberApp := fiber.New(fiber.Config{
-		Prefork: cfg.Prod,
-	})
+	// 创建 gin 应用
+	ginEngine := gin.New()
 
 	// 中间件
-	fiberApp.Use(recover.New(recover.Config{
-		EnableStackTrace: true,
-		StackTraceHandler: func(c *fiber.Ctx, e any) {
-			stack := debug.Stack()
-			// 将堆栈信息按行分割，以数组形式记录，提高 JSON 日志可读性
-			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-			fiberLogger.Error("发生 panic",
-				"panic", e,
-				"path", c.Path(),
-				"method", c.Method(),
-				"body", string(c.Body()),
-				"stack", stackLines,
-			)
-		},
+	ginEngine.Use(gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, err any) {
+		stack := debug.Stack()
+		// 将堆栈信息按行分割，以数组形式记录，提高 JSON 日志可读性
+		stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+		ginLogger.Error("发生 panic",
+			"panic", err,
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"stack", stackLines,
+		)
+		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
-	fiberApp.Use(slogfiber.NewWithConfig(fiberLogger, slogfiber.Config{
-		Filters: []slogfiber.Filter{
+	ginEngine.Use(sloggin.NewWithConfig(ginLogger, sloggin.Config{
+		Filters: []sloggin.Filter{
 			// 忽略 /completions 路径下的请求，避免干扰流式传输
-			slogfiber.IgnorePathContains("/completions"),
-			slogfiber.IgnorePathContains("/messages"),
+			sloggin.IgnorePathContains("/completions"),
+			sloggin.IgnorePathContains("/messages"),
 		},
 	}))
 
@@ -111,15 +106,20 @@ func Run(cfg *config.Config) {
 		UserAgent:          cfg.UserAgent,
 		WebDir:             cfg.WebDir,
 	}
-	if err := router.SetupRoutes(fiberApp, svcs, routerConfig, routerLogger); err != nil {
+	if err := router.SetupRoutes(ginEngine, svcs, routerConfig, routerLogger); err != nil {
 		appLogger.Error("路由设置失败", "error", err)
 		os.Exit(1)
 	}
 
 	// 启动 Web 服务
+	srv := &http.Server{
+		Addr:    cfg.Port,
+		Handler: ginEngine,
+	}
+
 	go func() {
-		if err := fiberApp.Listen(cfg.Port); err != nil {
-			fiberLogger.Error("无法启动 Web 服务", "error", err)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			ginLogger.Error("无法启动 Web 服务", "error", err)
 			os.Exit(1)
 		}
 	}()
@@ -142,16 +142,16 @@ func Run(cfg *config.Config) {
 	}
 
 	// 关闭 Web 服务
-	err = fiberApp.Shutdown()
-	if err != nil {
-		fiberLogger.Error("关闭 Web 服务失败", "error", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		ginLogger.Error("关闭 Web 服务失败", "error", err)
 	} else {
-		fiberLogger.Info("Web 服务已成功关闭")
+		ginLogger.Info("Web 服务已成功关闭")
 	}
 
 	// 关闭数据库连接
-	err = db.Close()
-	if err != nil {
+	if err := db.Close(); err != nil {
 		appLogger.Error("关闭数据库连接失败", "error", err)
 	} else {
 		appLogger.Info("数据库连接已成功关闭")
