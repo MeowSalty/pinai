@@ -131,13 +131,12 @@ func (h *Handler) GetKeysByPlatform(c *gin.Context) {
 // @Description  删除指定密钥
 // @Tags         keys
 // @Produce      json
-// @Param        platformId  path      int  true  "平台 ID"
 // @Param        keyId       path      int  true  "密钥 ID"
 // @Success      200         {object}  map[string]interface{}            "删除成功消息"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "平台或密钥未找到"
+// @Failure      404         {object}  map[string]interface{}            "密钥未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platforms/{platformId}/keys/{keyId} [delete]
+// @Router       /api/keys/{keyId} [delete]
 func (h *Handler) DeleteKey(c *gin.Context) {
 	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
@@ -173,14 +172,13 @@ func (h *Handler) DeleteKey(c *gin.Context) {
 // @Tags         keys
 // @Accept       json
 // @Produce      json
-// @Param        platformId  path      int                             true  "平台 ID"
 // @Param        keyId       path      int                             true  "密钥 ID"
 // @Param        request     body      types.APIKey                    true  "更新密钥的请求体"
 // @Success      200         {object}  types.APIKey                      "更新后的密钥信息 (不包含 value)"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "平台或密钥未找到"
+// @Failure      404         {object}  map[string]interface{}            "密钥未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platforms/{platformId}/keys/{keyId} [put]
+// @Router       /api/keys/{keyId} [put]
 func (h *Handler) UpdateKey(c *gin.Context) {
 	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
@@ -225,14 +223,13 @@ func (h *Handler) UpdateKey(c *gin.Context) {
 // @Tags         keys
 // @Accept       json
 // @Produce      json
-// @Param        platformId  path      int                  true  "平台 ID"
 // @Param        keyId       path      int                  true  "密钥 ID"
 // @Param        request     body      HealthUpdateRequest  true  "健康状态更新请求"
 // @Success      200  {object}  map[string]interface{}  "操作成功"
 // @Failure      400  {object}  map[string]interface{}  "请求参数错误"
 // @Failure      404  {object}  map[string]interface{}  "密钥未找到"
 // @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
-// @Router       /api/platforms/{platformId}/keys/{keyId}/health [patch]
+// @Router       /api/keys/{keyId}/health [patch]
 func (h *Handler) UpdateKeyHealth(c *gin.Context) {
 	var req HealthUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

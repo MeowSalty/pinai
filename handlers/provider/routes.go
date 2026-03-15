@@ -31,30 +31,35 @@ func SetupProviderRoutes(router *gin.RouterGroup, llmService provider.Service, h
 	models.POST("/batch", handler.BatchAddModelsToPlatform)
 	models.GET("", handler.GetModelsByPlatform)
 	models.PUT("/batch", handler.BatchUpdateModels)
-	models.PUT("/:modelId", handler.UpdateModel)
 	models.DELETE("/batch", handler.BatchDeleteModels)
-	models.DELETE("/:modelId", handler.DeleteModel)
 
-	// 模型健康状态管理路由
-	models.PATCH("/:modelId/health", handler.UpdateModelHealth)
+	// 模型 (Models) 单资源操作路由
+	modelRoutes := router.Group("/models")
+	modelRoutes.PUT("/:modelId", handler.UpdateModel)
+	modelRoutes.DELETE("/:modelId", handler.DeleteModel)
+	modelRoutes.PATCH("/:modelId/health", handler.UpdateModelHealth)
 
 	// 密钥 (Keys) 相关路由 (嵌套在平台下)
 	keys := platform.Group("/keys")
 	keys.POST("", handler.AddKeyToPlatform)
 	keys.GET("", handler.GetKeysByPlatform)
-	keys.PUT("/:keyId", handler.UpdateKey)
-	keys.DELETE("/:keyId", handler.DeleteKey)
 
-	// 密钥健康状态管理路由
-	keys.PATCH("/:keyId/health", handler.UpdateKeyHealth)
+	// 密钥 (Keys) 单资源操作路由
+	keyRoutes := router.Group("/keys")
+	keyRoutes.PUT("/:keyId", handler.UpdateKey)
+	keyRoutes.DELETE("/:keyId", handler.DeleteKey)
+	keyRoutes.PATCH("/:keyId/health", handler.UpdateKeyHealth)
 
 	// 端点 (Endpoints) 相关路由 (嵌套在平台下)
 	endpoints := platform.Group("/endpoints")
 	endpoints.POST("", handler.AddEndpointToPlatform)
 	endpoints.POST("/batch", handler.BatchAddEndpointsToPlatform)
 	endpoints.GET("", handler.GetEndpointsByPlatform)
-	endpoints.GET("/:endpointId", handler.GetEndpoint)
 	endpoints.PUT("/batch", handler.BatchUpdateEndpoints)
-	endpoints.PUT("/:endpointId", handler.UpdateEndpoint)
-	endpoints.DELETE("/:endpointId", handler.DeleteEndpoint)
+
+	// 端点 (Endpoints) 单资源操作路由
+	endpointRoutes := router.Group("/endpoints")
+	endpointRoutes.GET("/:endpointId", handler.GetEndpoint)
+	endpointRoutes.PUT("/:endpointId", handler.UpdateEndpoint)
+	endpointRoutes.DELETE("/:endpointId", handler.DeleteEndpoint)
 }

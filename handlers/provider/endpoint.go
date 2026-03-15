@@ -164,13 +164,12 @@ func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
 // @Description  获取指定端点详情
 // @Tags         endpoints
 // @Produce      json
-// @Param        platformId  path      int     true  "平台 ID"
 // @Param        endpointId  path      int     true  "端点 ID"
 // @Success      200         {object}  types.Endpoint                   "端点详情"
 // @Failure      400         {object}  map[string]interface{}           "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}           "端点未找到"
 // @Failure      500         {object}  map[string]interface{}           "服务器内部错误"
-// @Router       /api/platforms/{platformId}/endpoints/{endpointId} [get]
+// @Router       /api/endpoints/{endpointId} [get]
 func (h *Handler) GetEndpoint(c *gin.Context) {
 	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
 	if err != nil {
@@ -204,14 +203,13 @@ func (h *Handler) GetEndpoint(c *gin.Context) {
 // @Tags         endpoints
 // @Accept       json
 // @Produce      json
-// @Param        platformId  path      int                              true  "平台 ID"
 // @Param        endpointId  path      int                              true  "端点 ID"
 // @Param        request     body      types.Endpoint                   true  "更新端点的请求体"
 // @Success      200         {object}  types.Endpoint                    "更新后的端点信息"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "平台或端点未找到"
+// @Failure      404         {object}  map[string]interface{}            "端点未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platforms/{platformId}/endpoints/{endpointId} [put]
+// @Router       /api/endpoints/{endpointId} [put]
 func (h *Handler) UpdateEndpoint(c *gin.Context) {
 	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
 	if err != nil {
@@ -328,13 +326,12 @@ func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 // @Description  删除指定端点
 // @Tags         endpoints
 // @Produce      json
-// @Param        platformId  path      int  true  "平台 ID"
 // @Param        endpointId  path      int  true  "端点 ID"
 // @Success      200         {object}  map[string]interface{}            "删除成功消息"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "平台或端点未找到"
+// @Failure      404         {object}  map[string]interface{}            "端点未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platforms/{platformId}/endpoints/{endpointId} [delete]
+// @Router       /api/endpoints/{endpointId} [delete]
 func (h *Handler) DeleteEndpoint(c *gin.Context) {
 	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
 	if err != nil {

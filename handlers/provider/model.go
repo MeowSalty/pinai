@@ -194,14 +194,13 @@ func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 // @Tags         models
 // @Accept       json
 // @Produce      json
-// @Param        platformId  path      int                             true  "平台 ID"
 // @Param        modelId     path      int                             true  "模型 ID"
 // @Param        request     body      types.Model                     true  "更新模型的请求体"
 // @Success      200         {object}  types.Model                       "更新后的模型信息"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "平台或模型未找到"
+// @Failure      404         {object}  map[string]interface{}            "模型未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platforms/{platformId}/models/{modelId} [put]
+// @Router       /api/models/{modelId} [put]
 func (h *Handler) UpdateModel(c *gin.Context) {
 	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
 	if err != nil {
@@ -243,13 +242,12 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 // @Description  删除指定模型
 // @Tags         models
 // @Produce      json
-// @Param        platformId  path      int  true  "平台 ID"
 // @Param        modelId     path      int  true  "模型 ID"
 // @Success      200         {object}  map[string]interface{}            "删除成功消息"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "平台或模型未找到"
+// @Failure      404         {object}  map[string]interface{}            "模型未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
-// @Router       /api/platforms/{platformId}/models/{modelId} [delete]
+// @Router       /api/models/{modelId} [delete]
 func (h *Handler) DeleteModel(c *gin.Context) {
 	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
 	if err != nil {
@@ -366,14 +364,13 @@ func (h *Handler) BatchUpdateModels(c *gin.Context) {
 // @Tags         models
 // @Accept       json
 // @Produce      json
-// @Param        platformId  path      int                  true  "平台 ID"
 // @Param        modelId     path      int                  true  "模型 ID"
 // @Param        request     body      HealthUpdateRequest  true  "健康状态更新请求"
 // @Success      200  {object}  map[string]interface{}  "操作成功"
 // @Failure      400  {object}  map[string]interface{}  "请求参数错误"
 // @Failure      404  {object}  map[string]interface{}  "模型未找到"
 // @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
-// @Router       /api/platforms/{platformId}/models/{modelId}/health [patch]
+// @Router       /api/models/{modelId}/health [patch]
 func (h *Handler) UpdateModelHealth(c *gin.Context) {
 	var req HealthUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
