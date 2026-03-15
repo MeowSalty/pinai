@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/gofiber/fiber/v2"
-	"github.com/valyala/fasthttp"
 )
 
 // GitHubReleaseAsset 表示 GitHub 发布资产
@@ -139,20 +137,20 @@ func getLatestRelease(logger *slog.Logger) (*GitHubRelease, error) {
 
 	// 获取最新发布信息
 	logger.Info("获取最新发布信息", "url", releaseURL)
-	agent := fiber.Get(releaseURL).Timeout(5 * time.Second)
-	statusCode, body, errs := agent.Bytes()
-	if len(errs) > 0 {
-		// 构建错误信息，包含错误数量和每个错误的详细信息
-		errorMessages := make([]string, len(errs))
-		for i, err := range errs {
-			errorMessages[i] = err.Error()
-		}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(releaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("获取发布信息失败: %w", err)
+	}
+	defer resp.Body.Close()
 
-		return nil, fmt.Errorf("获取发布信息失败，共 %d 个错误: %s", len(errs), strings.Join(errorMessages, "; "))
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("获取发布信息失败，状态码：%d", resp.StatusCode)
 	}
 
-	if statusCode != fiber.StatusOK {
-		return nil, fmt.Errorf("获取发布信息失败，状态码：%d", statusCode)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取发布信息失败: %w", err)
 	}
 
 	// 解析响应
@@ -172,20 +170,20 @@ func downloadAndExtractFrontend(logger *slog.Logger, webDir *string, frontendAss
 	// 下载资产文件
 	logger.Info("下载前端资产文件...")
 
-	client := &fasthttp.Client{
-		ReadBufferSize: 8192, // 增加读取缓冲区大小以处理大的响应头
-	}
-
-	resp := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseResponse(resp)
-
-	statusCode, body, err := client.Get(resp.Body(), frontendAsset.BrowserDownloadURL)
+	client := &http.Client{}
+	resp, err := client.Get(frontendAsset.BrowserDownloadURL)
 	if err != nil {
 		return fmt.Errorf("下载文件失败：%w", err)
 	}
+	defer resp.Body.Close()
 
-	if statusCode != fasthttp.StatusOK {
-		return fmt.Errorf("下载文件失败，状态码：%d", statusCode)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("下载文件失败，状态码：%d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("读取下载内容失败：%w", err)
 	}
 
 	// 保存到临时文件
