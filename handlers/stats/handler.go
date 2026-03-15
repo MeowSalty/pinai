@@ -1,10 +1,11 @@
 package stats
 
 import (
+	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 
 	"github.com/MeowSalty/pinai/services/stats"
 )
@@ -12,38 +13,38 @@ import (
 // StatsHandlerInterface 定义统计处理器接口
 type StatsHandlerInterface interface {
 	// GetDashboard 获取仪表盘聚合数据
-	GetDashboard(c *fiber.Ctx) error
+	GetDashboard(c *gin.Context)
 
 	// GetOverview 获取全局概览数据
 	//
 	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetOverview(c *fiber.Ctx) error
+	GetOverview(c *gin.Context)
 
 	// ListRequestLogs 获取请求状态列表
-	ListRequestLogs(c *fiber.Ctx) error
+	ListRequestLogs(c *gin.Context)
 
 	// GetRealtime 获取实时数据
-	GetRealtime(c *fiber.Ctx) error
+	GetRealtime(c *gin.Context)
 
 	// GetModelCallRank 获取模型调用排名前 5
 	//
 	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetModelCallRank(c *fiber.Ctx) error
+	GetModelCallRank(c *gin.Context)
 
 	// GetPlatformCallRank 获取平台调用排名前 5
 	//
 	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetPlatformCallRank(c *fiber.Ctx) error
+	GetPlatformCallRank(c *gin.Context)
 
 	// GetModelUsageRank 获取模型用量排名前 5
 	//
 	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetModelUsageRank(c *fiber.Ctx) error
+	GetModelUsageRank(c *gin.Context)
 
 	// GetPlatformUsageRank 获取平台用量排名前 5
 	//
 	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetPlatformUsageRank(c *fiber.Ctx) error
+	GetPlatformUsageRank(c *gin.Context)
 }
 
 // StatsHandler 统计处理器结构体
@@ -75,26 +76,28 @@ func NewStatsHandler(statsService stats.Service) StatsHandlerInterface {
 // @Produce      json
 // @Param        range      query     string  false  "时间范围"  Enums(24h, 7d, 30d)  default(24h)
 // @Success      200        {object}  stats.DashboardResponse
-// @Failure      400        {object}  fiber.Error  "无效的时间范围参数"
-// @Failure      500        {object}  fiber.Error  "服务器内部错误"
+// @Failure      400        {object}  gin.H  "无效的时间范围参数"
+// @Failure      500        {object}  gin.H  "服务器内部错误"
 // @Router       /api/stats/dashboard [get]
-func (h *StatsHandler) GetDashboard(c *fiber.Ctx) error {
-	rangeStr := c.Query("range", string(stats.TrendRange24h))
+func (h *StatsHandler) GetDashboard(c *gin.Context) {
+	rangeStr := c.DefaultQuery("range", string(stats.TrendRange24h))
 	trendRange := stats.TrendRange(rangeStr)
 
 	switch trendRange {
 	case stats.TrendRange24h, stats.TrendRange7d, stats.TrendRange30d:
 		// 参数有效
 	default:
-		return fiber.NewError(fiber.StatusBadRequest, "无效的时间范围参数，可选值：24h, 7d, 30d")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的时间范围参数，可选值：24h, 7d, 30d"})
+		return
 	}
 
-	dashboard, err := h.StatsService.GetDashboard(c.Context(), trendRange)
+	dashboard, err := h.StatsService.GetDashboard(c.Request.Context(), trendRange)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "获取仪表盘数据失败："+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取仪表盘数据失败：" + err.Error()})
+		return
 	}
 
-	return c.JSON(dashboard)
+	c.JSON(http.StatusOK, dashboard)
 }
 
 // GetOverview 获取全局概览数据
@@ -105,19 +108,21 @@ func (h *StatsHandler) GetDashboard(c *fiber.Ctx) error {
 // 返回值：
 //   - 成功：全局概览数据
 //   - 失败：错误信息
-func (h *StatsHandler) GetOverview(c *fiber.Ctx) error {
-	durationStr := c.Query("duration", "24h")
+func (h *StatsHandler) GetOverview(c *gin.Context) {
+	durationStr := c.DefaultQuery("duration", "24h")
 	duration, err := time.ParseDuration(durationStr)
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 5m 等格式")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 5m 等格式"})
+		return
 	}
 
-	overview, err := h.StatsService.GetOverview(c.Context(), duration)
+	overview, err := h.StatsService.GetOverview(c.Request.Context(), duration)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "获取统计概览数据失败："+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取统计概览数据失败：" + err.Error()})
+		return
 	}
 
-	return c.JSON(overview)
+	c.JSON(http.StatusOK, overview)
 }
 
 // GetRealtime 获取实时数据
@@ -125,13 +130,14 @@ func (h *StatsHandler) GetOverview(c *fiber.Ctx) error {
 // 返回值：
 //   - 成功：实时数据
 //   - 失败：错误信息
-func (h *StatsHandler) GetRealtime(c *fiber.Ctx) error {
-	realtime, err := h.StatsService.GetRealtime(c.Context())
+func (h *StatsHandler) GetRealtime(c *gin.Context) {
+	realtime, err := h.StatsService.GetRealtime(c.Request.Context())
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "获取实时数据失败："+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取实时数据失败：" + err.Error()})
+		return
 	}
 
-	return c.JSON(realtime)
+	c.JSON(http.StatusOK, realtime)
 }
 
 // ListRequestLogs 获取请求状态列表
@@ -166,10 +172,10 @@ func (h *StatsHandler) GetRealtime(c *fiber.Ctx) error {
 // @Param        page          query     int     false  "页码"  default(1)
 // @Param        page_size     query     int     false  "每页大小"  default(10)
 // @Success      200           {object}  map[string]interface{}
-// @Failure      400           {object}  fiber.Error  "参数错误"
-// @Failure      500           {object}  fiber.Error  "服务器内部错误"
+// @Failure      400           {object}  gin.H  "参数错误"
+// @Failure      500           {object}  gin.H  "服务器内部错误"
 // @Router       /api/stats/requests [get]
-func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
+func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析查询参数
 	var opts stats.ListRequestLogsOptions
 
@@ -177,7 +183,8 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
 		startTime, err := parseTime(startTimeStr)
 		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "开始时间格式错误")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "开始时间格式错误"})
+			return
 		}
 		opts.StartTime = &startTime
 	}
@@ -185,14 +192,15 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 	if endTimeStr := c.Query("end_time"); endTimeStr != "" {
 		endTime, err := parseTime(endTimeStr)
 		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "结束时间格式错误")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "结束时间格式错误"})
+			return
 		}
 		opts.EndTime = &endTime
 	}
 
 	// 解析结果状态参数
 	if successStr := c.Query("success"); successStr != "" {
-		success := c.QueryBool("success")
+		success := c.Query("success") == "true"
 		opts.Success = &success
 	}
 
@@ -217,7 +225,7 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 
 	// 解析平台 ID 参数
 	if platformIDStr := c.Query("platform_id"); platformIDStr != "" {
-		platformID := c.QueryInt("platform_id")
+		platformID, _ := strconv.Atoi(platformIDStr)
 		if platformID > 0 {
 			platformIDUint := uint(platformID)
 			opts.PlatformID = &platformIDUint
@@ -225,12 +233,14 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 	}
 
 	// 解析分页参数
-	page := c.QueryInt("page", 1)
+	pageStr := c.DefaultQuery("page", "1")
+	page, _ := strconv.Atoi(pageStr)
 	if page <= 0 {
 		page = 1
 	}
 
-	pageSize := c.QueryInt("page_size", 10)
+	pageSizeStr := c.DefaultQuery("page_size", "10")
+	pageSize, _ := strconv.Atoi(pageSizeStr)
 	if pageSize <= 0 {
 		pageSize = 10
 	}
@@ -242,9 +252,10 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 	opts.PageSize = pageSize
 
 	// 调用服务获取数据
-	result, count, err := h.StatsService.ListRequestLogs(c.Context(), opts)
+	result, count, err := h.StatsService.ListRequestLogs(c.Request.Context(), opts)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "获取请求状态列表失败："+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取请求状态列表失败：" + err.Error()})
+		return
 	}
 
 	// 构造响应
@@ -253,7 +264,7 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 		"count": count,
 	}
 
-	return c.JSON(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetModelCallRank 获取模型调用排名前 5
@@ -264,19 +275,21 @@ func (h *StatsHandler) ListRequestLogs(c *fiber.Ctx) error {
 // 返回值：
 //   - 成功：模型调用排名数据
 //   - 失败：错误信息
-func (h *StatsHandler) GetModelCallRank(c *fiber.Ctx) error {
-	durationStr := c.Query("duration", "24h")
+func (h *StatsHandler) GetModelCallRank(c *gin.Context) {
+	durationStr := c.DefaultQuery("duration", "24h")
 	duration, err := time.ParseDuration(durationStr)
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 7d 等格式")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 7d 等格式"})
+		return
 	}
 
-	modelCallRank, err := h.StatsService.GetModelCallRank(c.Context(), duration)
+	modelCallRank, err := h.StatsService.GetModelCallRank(c.Request.Context(), duration)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "获取模型调用排名失败："+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取模型调用排名失败：" + err.Error()})
+		return
 	}
 
-	return c.JSON(modelCallRank)
+	c.JSON(http.StatusOK, modelCallRank)
 }
 
 // GetPlatformCallRank 获取平台调用排名前 5
@@ -287,19 +300,21 @@ func (h *StatsHandler) GetModelCallRank(c *fiber.Ctx) error {
 // 返回值：
 //   - 成功：平台调用排名数据
 //   - 失败：错误信息
-func (h *StatsHandler) GetPlatformCallRank(c *fiber.Ctx) error {
-	durationStr := c.Query("duration", "24h")
+func (h *StatsHandler) GetPlatformCallRank(c *gin.Context) {
+	durationStr := c.DefaultQuery("duration", "24h")
 	duration, err := time.ParseDuration(durationStr)
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 7d 等格式")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 7d 等格式"})
+		return
 	}
 
-	platformCallRank, err := h.StatsService.GetPlatformCallRank(c.Context(), duration)
+	platformCallRank, err := h.StatsService.GetPlatformCallRank(c.Request.Context(), duration)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "获取平台调用排名失败："+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取平台调用排名失败：" + err.Error()})
+		return
 	}
 
-	return c.JSON(platformCallRank)
+	c.JSON(http.StatusOK, platformCallRank)
 }
 
 // GetModelUsageRank 获取模型用量排名前 5
@@ -310,19 +325,21 @@ func (h *StatsHandler) GetPlatformCallRank(c *fiber.Ctx) error {
 // 返回值：
 //   - 成功：模型用量排名数据
 //   - 失败：错误信息
-func (h *StatsHandler) GetModelUsageRank(c *fiber.Ctx) error {
-	durationStr := c.Query("duration", "24h")
+func (h *StatsHandler) GetModelUsageRank(c *gin.Context) {
+	durationStr := c.DefaultQuery("duration", "24h")
 	duration, err := time.ParseDuration(durationStr)
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 7d 等格式")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 7d 等格式"})
+		return
 	}
 
-	modelUsageRank, err := h.StatsService.GetModelUsageRank(c.Context(), duration)
+	modelUsageRank, err := h.StatsService.GetModelUsageRank(c.Request.Context(), duration)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "获取模型用量排名失败："+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取模型用量排名失败：" + err.Error()})
+		return
 	}
 
-	return c.JSON(modelUsageRank)
+	c.JSON(http.StatusOK, modelUsageRank)
 }
 
 // GetPlatformUsageRank 获取平台用量排名前 5
@@ -333,19 +350,21 @@ func (h *StatsHandler) GetModelUsageRank(c *fiber.Ctx) error {
 // 返回值：
 //   - 成功：平台用量排名数据
 //   - 失败：错误信息
-func (h *StatsHandler) GetPlatformUsageRank(c *fiber.Ctx) error {
-	durationStr := c.Query("duration", "24h")
+func (h *StatsHandler) GetPlatformUsageRank(c *gin.Context) {
+	durationStr := c.DefaultQuery("duration", "24h")
 	duration, err := time.ParseDuration(durationStr)
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "时间范围格式错误，请使用如 24h, 7d 等格式")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 7d 等格式"})
+		return
 	}
 
-	platformUsageRank, err := h.StatsService.GetPlatformUsageRank(c.Context(), duration)
+	platformUsageRank, err := h.StatsService.GetPlatformUsageRank(c.Request.Context(), duration)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "获取平台用量排名失败："+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取平台用量排名失败：" + err.Error()})
+		return
 	}
 
-	return c.JSON(platformUsageRank)
+	c.JSON(http.StatusOK, platformUsageRank)
 }
 
 // parseTime 解析时间字符串，支持 RFC3339 格式和 Unix 时间戳 (毫秒)

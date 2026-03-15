@@ -1,22 +1,22 @@
 package stats
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 
 	"github.com/MeowSalty/pinai/services/stats"
 )
 
 // SetupStatsRoutes 配置统计相关的路由
-func SetupStatsRoutes(router fiber.Router, statsService stats.Service) {
+func SetupStatsRoutes(router *gin.RouterGroup, statsService stats.Service) {
 	handler := NewStatsHandler(statsService)
 
 	statsGroup := router.Group("/stats")
-	statsGroup.Get("/dashboard", handler.GetDashboard)
-	statsGroup.Get("/overview", handler.GetOverview)
-	statsGroup.Get("/requests", handler.ListRequestLogs)
-	statsGroup.Get("/realtime", handler.GetRealtime)
-	statsGroup.Get("/models/call-rank", handler.GetModelCallRank)
-	statsGroup.Get("/platforms/call-rank", handler.GetPlatformCallRank)
-	statsGroup.Get("/models/usage-rank", handler.GetModelUsageRank)
-	statsGroup.Get("/platforms/usage-rank", handler.GetPlatformUsageRank)
+	statsGroup.GET("/dashboard", handler.GetDashboard)
+	statsGroup.GET("/overview", handler.GetOverview)
+	statsGroup.GET("/requests", handler.ListRequestLogs)
+	statsGroup.GET("/realtime", handler.GetRealtime)
+	statsGroup.GET("/models/call-rank", handler.GetModelCallRank)
+	statsGroup.GET("/platforms/call-rank", handler.GetPlatformCallRank)
+	statsGroup.GET("/models/usage-rank", handler.GetModelUsageRank)
+	statsGroup.GET("/platforms/usage-rank", handler.GetPlatformUsageRank)
 }
