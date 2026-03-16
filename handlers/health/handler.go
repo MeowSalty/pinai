@@ -2,10 +2,10 @@ package health
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/MeowSalty/pinai/handlers/query"
 	"github.com/MeowSalty/pinai/services/health"
 )
 
@@ -55,20 +55,10 @@ func (h *Handler) GetHealthSummary(c *gin.Context) {
 //	成功 - 平台健康列表数据
 //	失败 - 错误信息
 func (h *Handler) GetPlatformHealthList(c *gin.Context) {
-	// 解析分页参数
-	pageStr := c.DefaultQuery("page", "1")
-	page, _ := strconv.Atoi(pageStr)
-	if page <= 0 {
-		page = 1
-	}
-
-	pageSizeStr := c.DefaultQuery("page_size", "10")
-	pageSize, _ := strconv.Atoi(pageSizeStr)
-	if pageSize <= 0 {
-		pageSize = 10
-	}
-	if pageSize > 100 {
-		pageSize = 100
+	page, pageSize, err := query.Pagination(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	// 调用服务获取平台健康列表
@@ -93,20 +83,10 @@ func (h *Handler) GetPlatformHealthList(c *gin.Context) {
 //	成功 - 密钥健康列表数据
 //	失败 - 错误信息
 func (h *Handler) GetAPIKeyHealthList(c *gin.Context) {
-	// 解析分页参数
-	pageStr := c.DefaultQuery("page", "1")
-	page, _ := strconv.Atoi(pageStr)
-	if page <= 0 {
-		page = 1
-	}
-
-	pageSizeStr := c.DefaultQuery("page_size", "10")
-	pageSize, _ := strconv.Atoi(pageSizeStr)
-	if pageSize <= 0 {
-		pageSize = 10
-	}
-	if pageSize > 100 {
-		pageSize = 100
+	page, pageSize, err := query.Pagination(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	// 调用服务获取密钥健康列表
@@ -131,20 +111,10 @@ func (h *Handler) GetAPIKeyHealthList(c *gin.Context) {
 //	成功 - 模型健康列表数据
 //	失败 - 错误信息
 func (h *Handler) GetModelHealthList(c *gin.Context) {
-	// 解析分页参数
-	pageStr := c.DefaultQuery("page", "1")
-	page, _ := strconv.Atoi(pageStr)
-	if page <= 0 {
-		page = 1
-	}
-
-	pageSizeStr := c.DefaultQuery("page_size", "10")
-	pageSize, _ := strconv.Atoi(pageSizeStr)
-	if pageSize <= 0 {
-		pageSize = 10
-	}
-	if pageSize > 100 {
-		pageSize = 100
+	page, pageSize, err := query.Pagination(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	// 调用服务获取模型健康列表

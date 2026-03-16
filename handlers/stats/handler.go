@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/MeowSalty/pinai/handlers/query"
 	"github.com/MeowSalty/pinai/services/stats"
 )
 
@@ -199,24 +200,28 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	}
 
 	// 解析结果状态参数
-	if successStr := c.Query("success"); successStr != "" {
-		success := c.Query("success") == "true"
-		opts.Success = &success
+	success, err := query.OptionalBool(c, "success")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
+	opts.Success = success
 
 	// 解析是否流式请求参数
-	if isStreamStr := c.Query("is_stream"); isStreamStr != "" {
-		if isStream, err := strconv.ParseBool(isStreamStr); err == nil {
-			opts.IsStream = &isStream
-		}
+	isStream, err := query.OptionalBool(c, "is_stream")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
+	opts.IsStream = isStream
 
 	// 解析是否原生请求参数
-	if isNativeStr := c.Query("is_native"); isNativeStr != "" {
-		if isNative, err := strconv.ParseBool(isNativeStr); err == nil {
-			opts.IsNative = &isNative
-		}
+	isNative, err := query.OptionalBool(c, "is_native")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
+	opts.IsNative = isNative
 
 	// 解析模型名称参数
 	if modelName := c.Query("model_name"); modelName != "" {
@@ -224,28 +229,18 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	}
 
 	// 解析平台 ID 参数
-	if platformIDStr := c.Query("platform_id"); platformIDStr != "" {
-		platformID, _ := strconv.Atoi(platformIDStr)
-		if platformID > 0 {
-			platformIDUint := uint(platformID)
-			opts.PlatformID = &platformIDUint
-		}
+	platformID, err := query.OptionalUint(c, "platform_id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
+	opts.PlatformID = platformID
 
 	// 解析分页参数
-	pageStr := c.DefaultQuery("page", "1")
-	page, _ := strconv.Atoi(pageStr)
-	if page <= 0 {
-		page = 1
-	}
-
-	pageSizeStr := c.DefaultQuery("page_size", "10")
-	pageSize, _ := strconv.Atoi(pageSizeStr)
-	if pageSize <= 0 {
-		pageSize = 10
-	}
-	if pageSize > 100 {
-		pageSize = 100
+	page, pageSize, err := query.Pagination(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	opts.Page = page
