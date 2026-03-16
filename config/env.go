@@ -20,6 +20,7 @@ type Env struct {
 	APIToken             string
 	AdminToken           string // 管理 API Token
 	GitHubProxy          string // GitHub 代理地址
+	ProxyEnabled         bool   // 启用代理功能
 	ModelMapping         string // 模型映射规则，格式：key1:value1,key2:value2
 	LogLevel             string // 日志输出等级
 	UserAgent            string // User-Agent 配置
@@ -44,6 +45,7 @@ func LoadEnv() *Env {
 		APIToken:             getEnvOrDefault("API_TOKEN", ""),
 		AdminToken:           getEnvOrDefault("ADMIN_TOKEN", ""),
 		GitHubProxy:          getEnvOrDefault("GITHUB_PROXY", ""),
+		ProxyEnabled:         getEnvOrDefault("PROXY_ENABLED", "") == "true",
 		ModelMapping:         getEnvOrDefault("MODEL_MAPPING", ""),
 		LogLevel:             getEnvOrDefault("LOG_LEVEL", "INFO"),
 		UserAgent:            getEnvOrDefault("USER_AGENT", ""),

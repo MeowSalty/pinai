@@ -70,6 +70,13 @@ func (h *Handler) Proxy(c *gin.Context) {
 		return
 	}
 
+	if err := validateURLScheme(req.URL); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("不允许的 URL：%v", err),
+		})
+		return
+	}
+
 	method := strings.ToUpper(strings.TrimSpace(req.Method))
 	if method == "" {
 		method = http.MethodGet
@@ -118,7 +125,7 @@ func (h *Handler) Proxy(c *gin.Context) {
 		logger.Info("代理请求审计")
 	}
 
-	client := &http.Client{Timeout: time.Duration(timeoutMS) * time.Millisecond}
+	client := newSafeClient(time.Duration(timeoutMS) * time.Millisecond)
 	upstreamResp, err := client.Do(upstreamReq)
 	if err != nil {
 		logger.Error("上游请求失败", slog.Any("error", err))

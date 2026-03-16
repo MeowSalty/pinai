@@ -102,8 +102,12 @@ func Run(cfg *config.Config) {
 		ApiToken:           cfg.APIToken,
 		EnableWeb:          cfg.EnableWeb,
 		PassthroughHeaders: cfg.PassthroughHeaders,
+		ProxyEnabled:       cfg.ProxyEnabled,
 		UserAgent:          cfg.UserAgent,
 		WebDir:             cfg.WebDir,
+	}
+	if cfg.ProxyEnabled && effectiveAdminToken == "" {
+		appLogger.Warn("代理功能已启用但未设置管理令牌，代理端点将不可用")
 	}
 	if err := router.SetupRoutes(ginEngine, svcs, routerConfig, routerLogger); err != nil {
 		appLogger.Error("路由设置失败", "error", err)

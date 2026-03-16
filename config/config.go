@@ -32,6 +32,9 @@ type Config struct {
 	// GitHub 代理配置
 	GitHubProxy string
 
+	// 代理功能开关
+	ProxyEnabled bool
+
 	// 模型映射规则配置
 	ModelMapping string
 
@@ -64,6 +67,7 @@ func LoadConfig() *Config {
 		APIToken:             env.APIToken,
 		AdminToken:           env.AdminToken,
 		GitHubProxy:          env.GitHubProxy,
+		ProxyEnabled:         env.ProxyEnabled,
 		ModelMapping:         env.ModelMapping,
 		LogLevel:             env.LogLevel,
 		UserAgent:            env.UserAgent,
@@ -101,6 +105,9 @@ func (c *Config) loadFlags() {
 
 	// GitHub 代理参数
 	flag.StringVar(&c.GitHubProxy, "github-proxy", c.GitHubProxy, "GitHub 代理地址，用于加速 GitHub 访问")
+
+	// 代理功能开关
+	flag.BoolVar(&c.ProxyEnabled, "proxy-enabled", c.ProxyEnabled, "启用代理功能（/api/proxy 端点）")
 
 	// 模型映射规则参数
 	flag.StringVar(&c.ModelMapping, "model-mapping", c.ModelMapping, "模型映射规则，格式：key1:value1,key2:value2")

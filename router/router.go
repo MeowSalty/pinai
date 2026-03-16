@@ -24,13 +24,13 @@ type Config struct {
 	AdminToken         string
 	UserAgent          string
 	PassthroughHeaders bool
+	ProxyEnabled       bool
 }
 
 // SetupRoutes 配置 API 路由
 func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger *slog.Logger) error {
 	web.Use(cors.Default())
 	webAPI := web.Group("/api")
-	proxyAPI := webAPI.Group("/proxy")
 	openaiAPI := web.Group("/openai/v1")
 	anthropicAPI := web.Group("/anthropic/v1")
 	multiAPI := web.Group("/multi")
@@ -49,7 +49,12 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 	// 如果设置了管理 token，为管理 API 端点添加身份验证
 	if config.AdminToken != "" {
 		webAPI.Use(createOpenAIAuthMiddleware(config.AdminToken))
-		proxyAPI.Use(createOpenAIAuthMiddleware(config.AdminToken))
+	}
+
+	// 条件注册代理路由（需 ProxyEnabled=true 且 AdminToken 非空）
+	if config.ProxyEnabled && config.AdminToken != "" {
+		proxyAPI := webAPI.Group("/proxy")
+		proxy.SetupProxyRoutes(proxyAPI, config.ApiToken, config.UserAgent, logger)
 	}
 
 	webAPI.GET("/ping", func(c *gin.Context) {
@@ -60,7 +65,6 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 
 	multi.SetupMultiRoutes(multiAPI, svcs.PortalService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
 
-	proxy.SetupProxyRoutes(proxyAPI, config.ApiToken, config.UserAgent, logger)
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
 	health.SetupHealthRoutes(webAPI, svcs.HealthService)
