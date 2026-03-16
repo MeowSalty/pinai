@@ -327,7 +327,7 @@ func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 // @Tags         endpoints
 // @Produce      json
 // @Param        endpointId  path      int  true  "端点 ID"
-// @Success      200         {object}  map[string]interface{}            "删除成功消息"
+// @Success      204         "删除成功"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "端点未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
@@ -356,8 +356,5 @@ func (h *Handler) DeleteEndpoint(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "端点已成功删除",
-	})
+	c.Status(http.StatusNoContent)
 }
-

@@ -243,7 +243,7 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 // @Tags         models
 // @Produce      json
 // @Param        modelId     path      int  true  "模型 ID"
-// @Success      200         {object}  map[string]interface{}            "删除成功消息"
+// @Success      204         "删除成功"
 // @Failure      400         {object}  map[string]interface{}            "请求参数错误"
 // @Failure      404         {object}  map[string]interface{}            "模型未找到"
 // @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
@@ -273,9 +273,7 @@ func (h *Handler) DeleteModel(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "模型已成功删除",
-	})
+	c.Status(http.StatusNoContent)
 }
 
 // BatchUpdateModels godoc
@@ -518,4 +516,3 @@ func (h *Handler) BatchDeleteModels(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
-
