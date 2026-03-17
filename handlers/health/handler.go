@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/MeowSalty/pinai/handlers/query"
+	"github.com/MeowSalty/pinai/handlers/response"
 	"github.com/MeowSalty/pinai/services/health"
 )
 
@@ -36,7 +37,7 @@ func NewHandler(healthService health.Service) *Handler {
 func (h *Handler) GetHealthSummary(c *gin.Context) {
 	summary, err := h.healthService.GetHealthSummary(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取健康状态统计失败：" + err.Error()})
+		response.InternalError(c, "获取健康状态统计失败："+err.Error())
 		return
 	}
 
@@ -57,14 +58,14 @@ func (h *Handler) GetHealthSummary(c *gin.Context) {
 func (h *Handler) GetPlatformHealthList(c *gin.Context) {
 	page, pageSize, err := query.Pagination(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
 	// 调用服务获取平台健康列表
 	result, err := h.healthService.GetPlatformHealthList(c.Request.Context(), page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取平台健康列表失败：" + err.Error()})
+		response.InternalError(c, "获取平台健康列表失败："+err.Error())
 		return
 	}
 
@@ -85,14 +86,14 @@ func (h *Handler) GetPlatformHealthList(c *gin.Context) {
 func (h *Handler) GetAPIKeyHealthList(c *gin.Context) {
 	page, pageSize, err := query.Pagination(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
 	// 调用服务获取密钥健康列表
 	result, err := h.healthService.GetAPIKeyHealthList(c.Request.Context(), page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取密钥健康列表失败：" + err.Error()})
+		response.InternalError(c, "获取密钥健康列表失败："+err.Error())
 		return
 	}
 
@@ -113,14 +114,14 @@ func (h *Handler) GetAPIKeyHealthList(c *gin.Context) {
 func (h *Handler) GetModelHealthList(c *gin.Context) {
 	page, pageSize, err := query.Pagination(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
 	// 调用服务获取模型健康列表
 	result, err := h.healthService.GetModelHealthList(c.Request.Context(), page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取模型健康列表失败：" + err.Error()})
+		response.InternalError(c, "获取模型健康列表失败："+err.Error())
 		return
 	}
 
@@ -136,7 +137,7 @@ func (h *Handler) GetModelHealthList(c *gin.Context) {
 func (h *Handler) GetIssues(c *gin.Context) {
 	result, err := h.healthService.GetIssues(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取异常资源列表失败：" + err.Error()})
+		response.InternalError(c, "获取异常资源列表失败："+err.Error())
 		return
 	}
 

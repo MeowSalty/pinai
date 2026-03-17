@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/MeowSalty/pinai/handlers/query"
+	"github.com/MeowSalty/pinai/handlers/response"
 	"github.com/MeowSalty/pinai/services/stats"
 )
 
@@ -63,13 +64,13 @@ func (h *StatsHandler) GetDashboard(c *gin.Context) {
 	case stats.TrendRange24h, stats.TrendRange7d, stats.TrendRange30d:
 		// 参数有效
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的时间范围参数，可选值：24h, 7d, 30d"})
+		response.BadRequest(c, "无效的时间范围参数，可选值：24h, 7d, 30d")
 		return
 	}
 
 	dashboard, err := h.StatsService.GetDashboard(c.Request.Context(), trendRange)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取仪表盘数据失败：" + err.Error()})
+		response.InternalError(c, "获取仪表盘数据失败："+err.Error())
 		return
 	}
 
@@ -84,7 +85,7 @@ func (h *StatsHandler) GetDashboard(c *gin.Context) {
 func (h *StatsHandler) GetRealtime(c *gin.Context) {
 	realtime, err := h.StatsService.GetRealtime(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取实时数据失败：" + err.Error()})
+		response.InternalError(c, "获取实时数据失败："+err.Error())
 		return
 	}
 
@@ -134,7 +135,7 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
 		startTime, err := parseTime(startTimeStr)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "开始时间格式错误"})
+			response.BadRequest(c, "开始时间格式错误")
 			return
 		}
 		opts.StartTime = &startTime
@@ -143,7 +144,7 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	if endTimeStr := c.Query("end_time"); endTimeStr != "" {
 		endTime, err := parseTime(endTimeStr)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "结束时间格式错误"})
+			response.BadRequest(c, "结束时间格式错误")
 			return
 		}
 		opts.EndTime = &endTime
@@ -152,7 +153,7 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析结果状态参数
 	success, err := query.OptionalBool(c, "success")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	opts.Success = success
@@ -160,7 +161,7 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析是否流式请求参数
 	isStream, err := query.OptionalBool(c, "is_stream")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	opts.IsStream = isStream
@@ -168,7 +169,7 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析是否原生请求参数
 	isNative, err := query.OptionalBool(c, "is_native")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	opts.IsNative = isNative
@@ -181,7 +182,7 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析平台 ID 参数
 	platformID, err := query.OptionalUint(c, "platform_id")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	opts.PlatformID = platformID
@@ -189,7 +190,7 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析分页参数
 	page, pageSize, err := query.Pagination(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
@@ -199,7 +200,7 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 调用服务获取数据
 	result, count, err := h.StatsService.ListRequestLogs(c.Request.Context(), opts)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取请求状态列表失败：" + err.Error()})
+		response.InternalError(c, "获取请求状态列表失败："+err.Error())
 		return
 	}
 

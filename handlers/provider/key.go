@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"github.com/MeowSalty/pinai/handlers/response"
 	provider "github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
@@ -34,17 +35,13 @@ type KeyWithHealth struct {
 func (h *Handler) AddKeyToPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var key types.APIKey
 	if err := c.ShouldBindJSON(&key); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
@@ -53,14 +50,10 @@ func (h *Handler) AddKeyToPlatform(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("为平台添加密钥失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("为平台添加密钥失败: %v", err))
 		return
 	}
 
@@ -84,9 +77,7 @@ func (h *Handler) AddKeyToPlatform(c *gin.Context) {
 func (h *Handler) GetKeysByPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
@@ -95,14 +86,10 @@ func (h *Handler) GetKeysByPlatform(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取平台密钥列表失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取平台密钥列表失败: %v", err))
 		return
 	}
 
@@ -141,9 +128,7 @@ func (h *Handler) GetKeysByPlatform(c *gin.Context) {
 func (h *Handler) DeleteKey(c *gin.Context) {
 	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的密钥 ID",
-		})
+		response.BadRequest(c, "无效的密钥 ID")
 		return
 	}
 
@@ -151,14 +136,10 @@ func (h *Handler) DeleteKey(c *gin.Context) {
 	err = h.service.DeleteKey(ctx, uint(keyId))
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "密钥未找到",
-			})
+			response.NotFound(c, "密钥未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("删除密钥失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("删除密钥失败: %v", err))
 		return
 	}
 
@@ -181,17 +162,13 @@ func (h *Handler) DeleteKey(c *gin.Context) {
 func (h *Handler) UpdateKey(c *gin.Context) {
 	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的密钥 ID",
-		})
+		response.BadRequest(c, "无效的密钥 ID")
 		return
 	}
 
 	var key types.APIKey
 	if err := c.ShouldBindJSON(&key); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
@@ -200,14 +177,10 @@ func (h *Handler) UpdateKey(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "密钥未找到",
-			})
+			response.NotFound(c, "密钥未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("更新密钥失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("更新密钥失败: %v", err))
 		return
 	}
 
@@ -232,9 +205,7 @@ func (h *Handler) UpdateKey(c *gin.Context) {
 func (h *Handler) UpdateKeyHealth(c *gin.Context) {
 	var req HealthUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 	h.updateKeyHealthWithEnabled(c, req.Enabled)
@@ -243,16 +214,12 @@ func (h *Handler) UpdateKeyHealth(c *gin.Context) {
 func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 	keyId, err := strconv.ParseUint(c.Param("keyId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的密钥 ID",
-		})
+		response.BadRequest(c, "无效的密钥 ID")
 		return
 	}
 
 	if enabled == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "必须提供 enabled 字段",
-		})
+		response.BadRequest(c, "必须提供 enabled 字段")
 		return
 	}
 
@@ -261,22 +228,16 @@ func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 	_, err = h.service.GetKey(ctx, uint(keyId))
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "密钥未找到",
-			})
+			response.NotFound(c, "密钥未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取密钥失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取密钥失败: %v", err))
 		return
 	}
 
 	if *enabled {
 		if err := h.healthService.EnableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("启用密钥健康状态失败: %v", err),
-			})
+			response.InternalError(c, fmt.Sprintf("启用密钥健康状态失败: %v", err))
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -288,9 +249,7 @@ func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 	}
 
 	if err := h.healthService.DisableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("禁用密钥健康状态失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("禁用密钥健康状态失败: %v", err))
 		return
 	}
 
@@ -300,4 +259,3 @@ func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 		"status":  "unavailable",
 	})
 }
-

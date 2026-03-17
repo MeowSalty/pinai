@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"github.com/MeowSalty/pinai/handlers/response"
 	"github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
@@ -28,17 +29,13 @@ import (
 func (h *Handler) AddEndpointToPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var endpoint types.Endpoint
 	if err := c.ShouldBindJSON(&endpoint); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
@@ -46,14 +43,10 @@ func (h *Handler) AddEndpointToPlatform(c *gin.Context) {
 	createdEndpoint, err := h.service.AddEndpointToPlatform(ctx, uint(platformId), endpoint)
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("为平台添加端点失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("为平台添加端点失败: %v", err))
 		return
 	}
 
@@ -76,24 +69,18 @@ func (h *Handler) AddEndpointToPlatform(c *gin.Context) {
 func (h *Handler) BatchAddEndpointsToPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var req provider.BatchCreateEndpointsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
 	if len(req.Endpoints) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "必须至少提供一个端点",
-		})
+		response.BadRequest(c, "必须至少提供一个端点")
 		return
 	}
 
@@ -101,14 +88,10 @@ func (h *Handler) BatchAddEndpointsToPlatform(c *gin.Context) {
 	createdEndpoints, err := h.service.BatchAddEndpointsToPlatform(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("批量创建端点失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("批量创建端点失败: %v", err))
 		return
 	}
 
@@ -135,9 +118,7 @@ func (h *Handler) BatchAddEndpointsToPlatform(c *gin.Context) {
 func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
@@ -145,14 +126,10 @@ func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
 	endpoints, err := h.service.GetEndpointsByPlatform(ctx, uint(platformId))
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取平台端点列表失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取平台端点列表失败: %v", err))
 		return
 	}
 
@@ -173,9 +150,7 @@ func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
 func (h *Handler) GetEndpoint(c *gin.Context) {
 	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的端点 ID",
-		})
+		response.BadRequest(c, "无效的端点 ID")
 		return
 	}
 
@@ -183,14 +158,10 @@ func (h *Handler) GetEndpoint(c *gin.Context) {
 	endpoint, err := h.service.GetEndpoint(ctx, uint(endpointId))
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "端点未找到",
-			})
+			response.NotFound(c, "端点未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取端点详情失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取端点详情失败: %v", err))
 		return
 	}
 
@@ -213,17 +184,13 @@ func (h *Handler) GetEndpoint(c *gin.Context) {
 func (h *Handler) UpdateEndpoint(c *gin.Context) {
 	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的端点 ID",
-		})
+		response.BadRequest(c, "无效的端点 ID")
 		return
 	}
 
 	var endpoint types.Endpoint
 	if err := c.ShouldBindJSON(&endpoint); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
@@ -231,14 +198,10 @@ func (h *Handler) UpdateEndpoint(c *gin.Context) {
 	updatedEndpoint, err := h.service.UpdateEndpoint(ctx, uint(endpointId), endpoint)
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "端点未找到",
-			})
+			response.NotFound(c, "端点未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("更新端点失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("更新端点失败: %v", err))
 		return
 	}
 
@@ -261,32 +224,24 @@ func (h *Handler) UpdateEndpoint(c *gin.Context) {
 func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var req provider.BatchUpdateEndpointsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
 	if len(req.Endpoints) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "必须至少提供一个端点更新项",
-		})
+		response.BadRequest(c, "必须至少提供一个端点更新项")
 		return
 	}
 
 	for i, item := range req.Endpoints {
 		if item.ID == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("端点更新项 %d 缺少必需的 ID 字段", i),
-			})
+			response.BadRequest(c, fmt.Sprintf("端点更新项 %d 缺少必需的 ID 字段", i))
 			return
 		}
 	}
@@ -295,20 +250,14 @@ func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 	updatedEndpoints, err := h.service.BatchUpdateEndpoints(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
 		if errors.Is(err, provider.ErrResourceNotFound) || errors.Is(err, provider.ErrResourceNotBelong) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			response.NotFound(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("批量更新端点失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("批量更新端点失败: %v", err))
 		return
 	}
 
@@ -335,9 +284,7 @@ func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 func (h *Handler) DeleteEndpoint(c *gin.Context) {
 	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的端点 ID",
-		})
+		response.BadRequest(c, "无效的端点 ID")
 		return
 	}
 
@@ -345,14 +292,10 @@ func (h *Handler) DeleteEndpoint(c *gin.Context) {
 	err = h.service.DeleteEndpoint(ctx, uint(endpointId))
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "端点未找到",
-			})
+			response.NotFound(c, "端点未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("删除端点失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("删除端点失败: %v", err))
 		return
 	}
 

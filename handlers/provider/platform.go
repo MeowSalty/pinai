@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"github.com/MeowSalty/pinai/handlers/response"
 	provider "github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
@@ -44,18 +45,14 @@ type PlatformWithHealth struct {
 func (h *Handler) CreatePlatform(c *gin.Context) {
 	var platform types.Platform
 	if err := c.ShouldBindJSON(&platform); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
 	ctx := c.Request.Context()
 	createdPlatform, err := h.service.CreatePlatform(ctx, platform)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("创建平台失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("创建平台失败: %v", err))
 		return
 	}
 
@@ -74,26 +71,20 @@ func (h *Handler) GetPlatforms(c *gin.Context) {
 	ctx := c.Request.Context()
 	platforms, err := h.service.GetPlatforms(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取平台列表失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取平台列表失败: %v", err))
 		return
 	}
 
 	keyCounts, modelCounts, err := h.service.GetPlatformResourceCounts(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取平台资源统计失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取平台资源统计失败: %v", err))
 		return
 	}
 
 	// 获取资源到平台的映射，用于按平台统计健康状态
 	keyMap, modelMap, err := h.service.GetResourcePlatformMaps(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取资源平台映射失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取资源平台映射失败: %v", err))
 		return
 	}
 
@@ -152,9 +143,7 @@ func (h *Handler) GetPlatforms(c *gin.Context) {
 func (h *Handler) GetPlatform(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
@@ -163,14 +152,10 @@ func (h *Handler) GetPlatform(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型，如果未找到则返回 404
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取平台详情失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取平台详情失败: %v", err))
 		return
 	}
 
@@ -193,17 +178,13 @@ func (h *Handler) GetPlatform(c *gin.Context) {
 func (h *Handler) UpdatePlatform(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var platform types.Platform
 	if err := c.ShouldBindJSON(&platform); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
@@ -212,14 +193,10 @@ func (h *Handler) UpdatePlatform(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("更新平台失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("更新平台失败: %v", err))
 		return
 	}
 
@@ -240,9 +217,7 @@ func (h *Handler) UpdatePlatform(c *gin.Context) {
 func (h *Handler) DeletePlatform(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
@@ -251,14 +226,10 @@ func (h *Handler) DeletePlatform(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("删除平台失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("删除平台失败: %v", err))
 		return
 	}
 
@@ -281,17 +252,13 @@ func (h *Handler) DeletePlatform(c *gin.Context) {
 func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var req HealthUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
@@ -300,29 +267,21 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 	_, err = h.service.GetPlatform(ctx, uint(platformId))
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取平台失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取平台失败: %v", err))
 		return
 	}
 
 	if req.Enabled == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "必须提供 enabled 字段",
-		})
+		response.BadRequest(c, "必须提供 enabled 字段")
 		return
 	}
 
 	if *req.Enabled {
 		if err := h.healthService.EnableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("启用平台健康状态失败: %v", err),
-			})
+			response.InternalError(c, fmt.Sprintf("启用平台健康状态失败: %v", err))
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -334,9 +293,7 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 	}
 
 	if err := h.healthService.DisableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("禁用平台健康状态失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("禁用平台健康状态失败: %v", err))
 		return
 	}
 
@@ -346,4 +303,3 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 		"status":      "unavailable",
 	})
 }
-

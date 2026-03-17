@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"github.com/MeowSalty/pinai/handlers/response"
 	"github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
@@ -34,17 +35,13 @@ type ModelWithHealth struct {
 func (h *Handler) AddModelToPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var model types.Model
 	if err := c.ShouldBindJSON(&model); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
@@ -53,14 +50,10 @@ func (h *Handler) AddModelToPlatform(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("为平台添加模型失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("为平台添加模型失败: %v", err))
 		return
 	}
 
@@ -83,25 +76,19 @@ func (h *Handler) AddModelToPlatform(c *gin.Context) {
 func (h *Handler) BatchAddModelsToPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var req provider.BatchCreateModelsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
 	// 验证至少有一个模型
 	if len(req.Models) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "必须至少提供一个模型",
-		})
+		response.BadRequest(c, "必须至少提供一个模型")
 		return
 	}
 
@@ -110,14 +97,10 @@ func (h *Handler) BatchAddModelsToPlatform(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("批量创建模型失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("批量创建模型失败: %v", err))
 		return
 	}
 
@@ -145,9 +128,7 @@ func (h *Handler) BatchAddModelsToPlatform(c *gin.Context) {
 func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
@@ -156,14 +137,10 @@ func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取平台模型列表失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取平台模型列表失败: %v", err))
 		return
 	}
 
@@ -204,17 +181,13 @@ func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 func (h *Handler) UpdateModel(c *gin.Context) {
 	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的模型 ID",
-		})
+		response.BadRequest(c, "无效的模型 ID")
 		return
 	}
 
 	var model types.Model
 	if err := c.ShouldBindJSON(&model); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
@@ -223,14 +196,10 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "模型未找到",
-			})
+			response.NotFound(c, "模型未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("更新模型失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("更新模型失败: %v", err))
 		return
 	}
 
@@ -251,9 +220,7 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 func (h *Handler) DeleteModel(c *gin.Context) {
 	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的模型 ID",
-		})
+		response.BadRequest(c, "无效的模型 ID")
 		return
 	}
 
@@ -262,14 +229,10 @@ func (h *Handler) DeleteModel(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "模型未找到",
-			})
+			response.NotFound(c, "模型未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("删除模型失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("删除模型失败: %v", err))
 		return
 	}
 
@@ -292,34 +255,26 @@ func (h *Handler) DeleteModel(c *gin.Context) {
 func (h *Handler) BatchUpdateModels(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var req provider.BatchUpdateModelsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
 	// 验证至少有一个模型更新项
 	if len(req.Models) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "必须至少提供一个模型更新项",
-		})
+		response.BadRequest(c, "必须至少提供一个模型更新项")
 		return
 	}
 
 	// 验证每个模型更新项必须包含 ID
 	for i, item := range req.Models {
 		if item.ID == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("模型更新项 %d 缺少必需的 ID 字段", i),
-			})
+			response.BadRequest(c, fmt.Sprintf("模型更新项 %d 缺少必需的 ID 字段", i))
 			return
 		}
 	}
@@ -329,21 +284,15 @@ func (h *Handler) BatchUpdateModels(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
 		// 检查是否是模型不存在或不属于平台的错误
 		if errors.Is(err, provider.ErrResourceNotFound) || errors.Is(err, provider.ErrResourceNotBelong) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			response.NotFound(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("批量更新模型失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("批量更新模型失败: %v", err))
 		return
 	}
 
@@ -372,9 +321,7 @@ func (h *Handler) BatchUpdateModels(c *gin.Context) {
 func (h *Handler) UpdateModelHealth(c *gin.Context) {
 	var req HealthUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 	h.updateModelHealthWithEnabled(c, req.Enabled)
@@ -383,16 +330,12 @@ func (h *Handler) UpdateModelHealth(c *gin.Context) {
 func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的模型 ID",
-		})
+		response.BadRequest(c, "无效的模型 ID")
 		return
 	}
 
 	if enabled == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "必须提供 enabled 字段",
-		})
+		response.BadRequest(c, "必须提供 enabled 字段")
 		return
 	}
 
@@ -401,22 +344,16 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 	_, err = h.service.GetModel(ctx, uint(modelId))
 	if err != nil {
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "模型未找到",
-			})
+			response.NotFound(c, "模型未找到")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取模型失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("获取模型失败: %v", err))
 		return
 	}
 
 	if *enabled {
 		if err := h.healthService.EnableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("启用模型健康状态失败: %v", err),
-			})
+			response.InternalError(c, fmt.Sprintf("启用模型健康状态失败: %v", err))
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -428,9 +365,7 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 	}
 
 	if err := h.healthService.DisableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("禁用模型健康状态失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("禁用模型健康状态失败: %v", err))
 		return
 	}
 
@@ -457,25 +392,19 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 func (h *Handler) BatchDeleteModels(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的平台 ID",
-		})
+		response.BadRequest(c, "无效的平台 ID")
 		return
 	}
 
 	var req provider.BatchDeleteModelsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无法解析请求体: %v", err),
-		})
+		response.BadRequest(c, fmt.Sprintf("无法解析请求体: %v", err))
 		return
 	}
 
 	// 验证至少有一个模型 ID
 	if len(req.ModelIDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "必须至少提供一个模型 ID",
-		})
+		response.BadRequest(c, "必须至少提供一个模型 ID")
 		return
 	}
 
@@ -484,28 +413,20 @@ func (h *Handler) BatchDeleteModels(c *gin.Context) {
 	if err != nil {
 		// 检查错误类型
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "平台未找到",
-			})
+			response.NotFound(c, "平台未找到")
 			return
 		}
 		// 检查是否是模型不存在的错误
 		if errors.Is(err, provider.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			response.NotFound(c, err.Error())
 			return
 		}
 		// 检查是否是模型不属于平台的错误
 		if errors.Is(err, provider.ErrResourceNotBelong) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": err.Error(),
-			})
+			response.BadRequest(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("批量删除模型失败: %v", err),
-		})
+		response.InternalError(c, fmt.Sprintf("批量删除模型失败: %v", err))
 		return
 	}
 
