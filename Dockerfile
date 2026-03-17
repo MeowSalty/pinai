@@ -1,5 +1,5 @@
 # 构建应用程序二进制文件
-FROM golang:1.23-alpine AS build
+FROM golang:1.25-alpine AS build
 
 # 安装 CGO 构建依赖
 RUN apk add --no-cache build-base
