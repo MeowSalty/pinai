@@ -12,18 +12,6 @@ import (
 	"github.com/MeowSalty/pinai/services/stats"
 )
 
-// StatsHandlerInterface 定义统计处理器接口
-type StatsHandlerInterface interface {
-	// GetDashboard 获取仪表盘聚合数据
-	GetDashboard(c *gin.Context)
-
-	// ListRequestLogs 获取请求状态列表
-	ListRequestLogs(c *gin.Context)
-
-	// GetRealtime 获取实时数据
-	GetRealtime(c *gin.Context)
-}
-
 // StatsHandler 统计处理器结构体
 type StatsHandler struct {
 	StatsService stats.Service
@@ -35,8 +23,8 @@ type StatsHandler struct {
 //   - statsService: 统计服务接口实例
 //
 // 返回值：
-//   - StatsHandlerInterface: 统计处理器接口实例
-func NewStatsHandler(statsService stats.Service) StatsHandlerInterface {
+//   - *StatsHandler: 统计处理器实例
+func NewStatsHandler(statsService stats.Service) *StatsHandler {
 	return &StatsHandler{
 		StatsService: statsService,
 	}
