@@ -74,7 +74,9 @@ func Run(cfg *config.Config) {
 		)
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
-	ginEngine.Use(sloggin.New(ginLogger))
+	slogGinConfig := sloggin.DefaultConfig()
+	slogGinConfig.HandleGinDebug = true
+	ginEngine.Use(sloggin.NewWithConfig(ginLogger, slogGinConfig))
 
 	// 初始化服务
 	appContext := context.Background()
