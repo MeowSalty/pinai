@@ -12,11 +12,6 @@ func SetupStatsRoutes(router *gin.RouterGroup, statsService stats.Service) {
 
 	statsGroup := router.Group("/stats")
 	statsGroup.GET("/dashboard", handler.GetDashboard)
-	statsGroup.GET("/overview", handler.GetOverview)
 	statsGroup.GET("/requests", handler.ListRequestLogs)
 	statsGroup.GET("/realtime", handler.GetRealtime)
-	statsGroup.GET("/models/call-rank", handler.GetModelCallRank)
-	statsGroup.GET("/platforms/call-rank", handler.GetPlatformCallRank)
-	statsGroup.GET("/models/usage-rank", handler.GetModelUsageRank)
-	statsGroup.GET("/platforms/usage-rank", handler.GetPlatformUsageRank)
 }

@@ -16,36 +16,11 @@ type StatsHandlerInterface interface {
 	// GetDashboard 获取仪表盘聚合数据
 	GetDashboard(c *gin.Context)
 
-	// GetOverview 获取全局概览数据
-	//
-	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetOverview(c *gin.Context)
-
 	// ListRequestLogs 获取请求状态列表
 	ListRequestLogs(c *gin.Context)
 
 	// GetRealtime 获取实时数据
 	GetRealtime(c *gin.Context)
-
-	// GetModelCallRank 获取模型调用排名前 5
-	//
-	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetModelCallRank(c *gin.Context)
-
-	// GetPlatformCallRank 获取平台调用排名前 5
-	//
-	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetPlatformCallRank(c *gin.Context)
-
-	// GetModelUsageRank 获取模型用量排名前 5
-	//
-	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetModelUsageRank(c *gin.Context)
-
-	// GetPlatformUsageRank 获取平台用量排名前 5
-	//
-	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。
-	GetPlatformUsageRank(c *gin.Context)
 }
 
 // StatsHandler 统计处理器结构体
@@ -99,31 +74,6 @@ func (h *StatsHandler) GetDashboard(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dashboard)
-}
-
-// GetOverview 获取全局概览数据
-//
-// 查询参数：
-//   - duration: 时间范围 (可选，支持 24h, 7d 等格式，默认为 24h)
-//
-// 返回值：
-//   - 成功：全局概览数据
-//   - 失败：错误信息
-func (h *StatsHandler) GetOverview(c *gin.Context) {
-	durationStr := c.DefaultQuery("duration", "24h")
-	duration, err := time.ParseDuration(durationStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 5m 等格式"})
-		return
-	}
-
-	overview, err := h.StatsService.GetOverview(c.Request.Context(), duration)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取统计概览数据失败：" + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, overview)
 }
 
 // GetRealtime 获取实时数据
@@ -260,106 +210,6 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
-}
-
-// GetModelCallRank 获取模型调用排名前 5
-//
-// 查询参数：
-//   - duration: 时间范围 (可选，支持 24h, 7d 等格式，默认为 24h)
-//
-// 返回值：
-//   - 成功：模型调用排名数据
-//   - 失败：错误信息
-func (h *StatsHandler) GetModelCallRank(c *gin.Context) {
-	durationStr := c.DefaultQuery("duration", "24h")
-	duration, err := time.ParseDuration(durationStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 7d 等格式"})
-		return
-	}
-
-	modelCallRank, err := h.StatsService.GetModelCallRank(c.Request.Context(), duration)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取模型调用排名失败：" + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, modelCallRank)
-}
-
-// GetPlatformCallRank 获取平台调用排名前 5
-//
-// 查询参数：
-//   - duration: 时间范围 (可选，支持 24h, 7d 等格式，默认为 24h)
-//
-// 返回值：
-//   - 成功：平台调用排名数据
-//   - 失败：错误信息
-func (h *StatsHandler) GetPlatformCallRank(c *gin.Context) {
-	durationStr := c.DefaultQuery("duration", "24h")
-	duration, err := time.ParseDuration(durationStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 7d 等格式"})
-		return
-	}
-
-	platformCallRank, err := h.StatsService.GetPlatformCallRank(c.Request.Context(), duration)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取平台调用排名失败：" + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, platformCallRank)
-}
-
-// GetModelUsageRank 获取模型用量排名前 5
-//
-// 查询参数：
-//   - duration: 时间范围 (可选，支持 24h, 7d 等格式，默认为 24h)
-//
-// 返回值：
-//   - 成功：模型用量排名数据
-//   - 失败：错误信息
-func (h *StatsHandler) GetModelUsageRank(c *gin.Context) {
-	durationStr := c.DefaultQuery("duration", "24h")
-	duration, err := time.ParseDuration(durationStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 7d 等格式"})
-		return
-	}
-
-	modelUsageRank, err := h.StatsService.GetModelUsageRank(c.Request.Context(), duration)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取模型用量排名失败：" + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, modelUsageRank)
-}
-
-// GetPlatformUsageRank 获取平台用量排名前 5
-//
-// 查询参数：
-//   - duration: 时间范围 (可选，支持 24h, 7d 等格式，默认为 24h)
-//
-// 返回值：
-//   - 成功：平台用量排名数据
-//   - 失败：错误信息
-func (h *StatsHandler) GetPlatformUsageRank(c *gin.Context) {
-	durationStr := c.DefaultQuery("duration", "24h")
-	duration, err := time.ParseDuration(durationStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "时间范围格式错误，请使用如 24h, 7d 等格式"})
-		return
-	}
-
-	platformUsageRank, err := h.StatsService.GetPlatformUsageRank(c.Request.Context(), duration)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取平台用量排名失败：" + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, platformUsageRank)
 }
 
 // parseTime 解析时间字符串，支持 RFC3339 格式和 Unix 时间戳 (毫秒)
