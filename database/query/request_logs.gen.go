@@ -41,6 +41,17 @@ func newRequestLog(db *gorm.DB, opts ...gen.DOOption) requestLog {
 	_requestLog.FirstByteTime = field.NewInt64(tableName, "first_byte_time")
 	_requestLog.Success = field.NewBool(tableName, "success")
 	_requestLog.ErrorMsg = field.NewString(tableName, "error_msg")
+	_requestLog.ErrorCode = field.NewString(tableName, "error_code")
+	_requestLog.ErrorLevel = field.NewString(tableName, "error_level")
+	_requestLog.HTTPStatus = field.NewInt(tableName, "http_status")
+	_requestLog.ErrorFrom = field.NewString(tableName, "error_from")
+	_requestLog.UpstreamErrorType = field.NewString(tableName, "upstream_error_type")
+	_requestLog.UpstreamErrorCode = field.NewString(tableName, "upstream_error_code")
+	_requestLog.UpstreamErrorParam = field.NewString(tableName, "upstream_error_param")
+	_requestLog.UpstreamErrorMessage = field.NewString(tableName, "upstream_error_message")
+	_requestLog.UpstreamRequestID = field.NewString(tableName, "upstream_request_id")
+	_requestLog.ResponseBodyIsJSON = field.NewBool(tableName, "response_body_is_json")
+	_requestLog.ResponseBodyRaw = field.NewString(tableName, "response_body_raw")
 	_requestLog.PromptTokens = field.NewInt(tableName, "prompt_tokens")
 	_requestLog.CompletionTokens = field.NewInt(tableName, "completion_tokens")
 	_requestLog.TotalTokens = field.NewInt(tableName, "total_tokens")
@@ -53,23 +64,34 @@ func newRequestLog(db *gorm.DB, opts ...gen.DOOption) requestLog {
 type requestLog struct {
 	requestLogDo
 
-	ALL               field.Asterisk
-	ID                field.Uint
-	Timestamp         field.Time
-	ModelName         field.String
-	OriginalModelName field.String
-	IsStream          field.Bool
-	IsNative          field.Bool
-	PlatformID        field.Uint
-	APIKeyID          field.Uint
-	ModelID           field.Uint
-	Duration          field.Int64
-	FirstByteTime     field.Int64
-	Success           field.Bool
-	ErrorMsg          field.String
-	PromptTokens      field.Int
-	CompletionTokens  field.Int
-	TotalTokens       field.Int
+	ALL                  field.Asterisk
+	ID                   field.Uint
+	Timestamp            field.Time
+	ModelName            field.String
+	OriginalModelName    field.String
+	IsStream             field.Bool
+	IsNative             field.Bool
+	PlatformID           field.Uint
+	APIKeyID             field.Uint
+	ModelID              field.Uint
+	Duration             field.Int64
+	FirstByteTime        field.Int64
+	Success              field.Bool
+	ErrorMsg             field.String
+	ErrorCode            field.String
+	ErrorLevel           field.String
+	HTTPStatus           field.Int
+	ErrorFrom            field.String
+	UpstreamErrorType    field.String
+	UpstreamErrorCode    field.String
+	UpstreamErrorParam   field.String
+	UpstreamErrorMessage field.String
+	UpstreamRequestID    field.String
+	ResponseBodyIsJSON   field.Bool
+	ResponseBodyRaw      field.String
+	PromptTokens         field.Int
+	CompletionTokens     field.Int
+	TotalTokens          field.Int
 
 	fieldMap map[string]field.Expr
 }
@@ -99,6 +121,17 @@ func (r *requestLog) updateTableName(table string) *requestLog {
 	r.FirstByteTime = field.NewInt64(table, "first_byte_time")
 	r.Success = field.NewBool(table, "success")
 	r.ErrorMsg = field.NewString(table, "error_msg")
+	r.ErrorCode = field.NewString(table, "error_code")
+	r.ErrorLevel = field.NewString(table, "error_level")
+	r.HTTPStatus = field.NewInt(table, "http_status")
+	r.ErrorFrom = field.NewString(table, "error_from")
+	r.UpstreamErrorType = field.NewString(table, "upstream_error_type")
+	r.UpstreamErrorCode = field.NewString(table, "upstream_error_code")
+	r.UpstreamErrorParam = field.NewString(table, "upstream_error_param")
+	r.UpstreamErrorMessage = field.NewString(table, "upstream_error_message")
+	r.UpstreamRequestID = field.NewString(table, "upstream_request_id")
+	r.ResponseBodyIsJSON = field.NewBool(table, "response_body_is_json")
+	r.ResponseBodyRaw = field.NewString(table, "response_body_raw")
 	r.PromptTokens = field.NewInt(table, "prompt_tokens")
 	r.CompletionTokens = field.NewInt(table, "completion_tokens")
 	r.TotalTokens = field.NewInt(table, "total_tokens")
@@ -118,7 +151,7 @@ func (r *requestLog) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (r *requestLog) fillFieldMap() {
-	r.fieldMap = make(map[string]field.Expr, 16)
+	r.fieldMap = make(map[string]field.Expr, 27)
 	r.fieldMap["id"] = r.ID
 	r.fieldMap["timestamp"] = r.Timestamp
 	r.fieldMap["model_name"] = r.ModelName
@@ -132,6 +165,17 @@ func (r *requestLog) fillFieldMap() {
 	r.fieldMap["first_byte_time"] = r.FirstByteTime
 	r.fieldMap["success"] = r.Success
 	r.fieldMap["error_msg"] = r.ErrorMsg
+	r.fieldMap["error_code"] = r.ErrorCode
+	r.fieldMap["error_level"] = r.ErrorLevel
+	r.fieldMap["http_status"] = r.HTTPStatus
+	r.fieldMap["error_from"] = r.ErrorFrom
+	r.fieldMap["upstream_error_type"] = r.UpstreamErrorType
+	r.fieldMap["upstream_error_code"] = r.UpstreamErrorCode
+	r.fieldMap["upstream_error_param"] = r.UpstreamErrorParam
+	r.fieldMap["upstream_error_message"] = r.UpstreamErrorMessage
+	r.fieldMap["upstream_request_id"] = r.UpstreamRequestID
+	r.fieldMap["response_body_is_json"] = r.ResponseBodyIsJSON
+	r.fieldMap["response_body_raw"] = r.ResponseBodyRaw
 	r.fieldMap["prompt_tokens"] = r.PromptTokens
 	r.fieldMap["completion_tokens"] = r.CompletionTokens
 	r.fieldMap["total_tokens"] = r.TotalTokens

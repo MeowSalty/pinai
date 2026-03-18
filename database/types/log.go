@@ -28,6 +28,23 @@ type RequestLog struct {
 	Success  bool    `gorm:"index" json:"success"` // 是否成功
 	ErrorMsg *string `json:"error_msg,omitempty"`  // 错误信息（失败时）
 
+	// 结构化错误字段
+	ErrorCode  *string `json:"error_code,omitempty"`
+	ErrorLevel *string `json:"error_level,omitempty"`
+	HTTPStatus *int    `json:"http_status,omitempty"`
+	ErrorFrom  *string `json:"error_from,omitempty"`
+
+	// 上游错误字段
+	UpstreamErrorType    *string `json:"upstream_error_type,omitempty"`
+	UpstreamErrorCode    *string `json:"upstream_error_code,omitempty"`
+	UpstreamErrorParam   *string `json:"upstream_error_param,omitempty"`
+	UpstreamErrorMessage *string `json:"upstream_error_message,omitempty"`
+	UpstreamRequestID    *string `json:"upstream_request_id,omitempty"`
+
+	// 响应体解析状态
+	ResponseBodyIsJSON *bool   `json:"response_body_is_json,omitempty"`
+	ResponseBodyRaw    *string `json:"response_body_raw,omitempty"`
+
 	// Token 使用统计
 	PromptTokens     *int `json:"prompt_tokens"`     // 提示 Token 数
 	CompletionTokens *int `json:"completion_tokens"` // 完成 Token 数
