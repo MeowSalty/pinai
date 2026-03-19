@@ -32,9 +32,12 @@ import (
 // @Router       /multi/v1/messages [post]
 // @Security     ApiKeyAuth
 func (h *Handler) Messages(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+
 	// 解析请求
 	var req anthropicTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("Anthropic Messages 请求参数校验失败", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求格式： %v", err),
 		})
@@ -110,9 +113,18 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 
 	isErr := false
 	for event := range eventChan {
+		if event == nil {
+			continue
+		}
+
 		// 检查是否有错误字段
 		if event.Error != nil {
 			isErr = true
+			logger.Warn("上游返回 Anthropic 流式错误事件",
+				"event_type", event.Error.Type,
+				"error_type", event.Error.Error.Error.Type,
+				"error_message", event.Error.Error.Error.Message,
+			)
 
 			// 序列化错误事件
 			jsonBytes, marshalErr := json.Marshal(event.Error)
@@ -138,7 +150,12 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 		}
 
 		// 发送事件
-		data, _ := json.Marshal(event)
+		data, marshalErr := json.Marshal(event)
+		if marshalErr != nil {
+			cancel()
+			logger.Error("无法序列化流式事件", "error", marshalErr)
+			break
+		}
 		_, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, data)
 
 		if err != nil {

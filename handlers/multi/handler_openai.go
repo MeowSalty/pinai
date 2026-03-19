@@ -33,9 +33,12 @@ import (
 // @Router       /multi/v1/chat/completions [post]
 // @Security     ApiKeyAuth
 func (h *Handler) ChatCompletions(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+
 	// 解析请求
 	var req openaiChatTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("OpenAI ChatCompletion 请求参数校验失败", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求格式： %v", err),
 		})
@@ -83,8 +86,11 @@ func (h *Handler) ChatCompletions(c *gin.Context) {
 // @Router       /multi/v1/responses [post]
 // @Security     ApiKeyAuth
 func (h *Handler) Responses(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+
 	var req openaiResponsesTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("OpenAI Responses 请求参数校验失败", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求格式： %v", err),
 		})
@@ -130,8 +136,6 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
 			logger.Error("流式响应处理发生 panic",
 				"panic", r,
-				"path", c.Request.URL.Path,
-				"method", c.Request.Method,
 				"stack", stackLines,
 			)
 			sendStreamError(c.Writer, "internal_error", fmt.Sprintf("服务器内部错误: %v", r), "internal_error")
@@ -184,8 +188,6 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
 			logger.Error("流式响应处理发生 panic",
 				"panic", r,
-				"path", c.Request.URL.Path,
-				"method", c.Request.Method,
 				"stack", stackLines,
 			)
 			sendStreamError(c.Writer, "internal_error", fmt.Sprintf("服务器内部错误: %v", r), "internal_error")

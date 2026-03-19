@@ -33,8 +33,11 @@ import (
 // @Router       /multi/v1beta/models/{model}:generateContent [post]
 // @Security     ApiKeyAuth
 func (h *Handler) GeminiGenerateContent(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("Gemini generateContent 请求参数校验失败", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求体: %v", err),
 		})
@@ -48,6 +51,7 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
+		logger.Warn("Gemini generateContent 缺少模型参数")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "缺少模型查询参数",
 		})
@@ -88,8 +92,11 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 // @Router       /multi/v1beta/models/{model}:streamGenerateContent [post]
 // @Security     ApiKeyAuth
 func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("Gemini streamGenerateContent 请求参数校验失败", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求体: %v", err),
 		})
@@ -103,6 +110,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
+		logger.Warn("Gemini streamGenerateContent 缺少模型参数")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "缺少模型查询参数",
 		})
