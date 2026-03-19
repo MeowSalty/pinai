@@ -31,7 +31,7 @@ type Storage struct {
 //   - *Storage: 存储实例
 //   - error: 初始化错误
 func NewStorage(ctx context.Context, logger *slog.Logger) (*Storage, error) {
-	storageLogger := logger.WithGroup("health_storage")
+	storageLogger := logger.WithGroup("health_storage").With("component", "health_storage")
 	storageLogger.Info("初始化健康状态存储")
 
 	storage := &Storage{
@@ -92,7 +92,7 @@ func (s *Storage) Set(status *types.Health) error {
 
 	// 持久化到数据库
 	if err := s.saveToDatabase(context.Background(), status); err != nil {
-		s.logger.Error("保存健康状态到数据库失败",
+		s.logger.Debug("保存健康状态到数据库失败",
 			"error", err,
 			"resource_type", status.ResourceType,
 			"resource_id", status.ResourceID)
@@ -112,7 +112,7 @@ func (s *Storage) Set(status *types.Health) error {
 func (s *Storage) Delete(resourceType types.ResourceType, resourceID uint) error {
 	key := s.makeKey(resourceType, resourceID)
 
-	s.logger.Info("删除健康状态",
+	s.logger.Debug("删除健康状态",
 		"resource_type", resourceType,
 		"resource_id", resourceID,
 		"key", key)
@@ -122,14 +122,14 @@ func (s *Storage) Delete(resourceType types.ResourceType, resourceID uint) error
 
 	// 从数据库删除
 	if err := s.deleteFromDatabase(context.Background(), resourceType, resourceID); err != nil {
-		s.logger.Error("从数据库删除健康状态失败",
+		s.logger.Debug("从数据库删除健康状态失败",
 			"error", err,
 			"resource_type", resourceType,
 			"resource_id", resourceID)
 		return fmt.Errorf("删除健康状态失败：%w", err)
 	}
 
-	s.logger.Info("健康状态删除成功",
+	s.logger.Debug("健康状态删除成功",
 		"resource_type", resourceType,
 		"resource_id", resourceID)
 	return nil
@@ -160,7 +160,7 @@ func (s *Storage) loadFromDatabase(ctx context.Context) error {
 		s.cache.Store(key, health)
 	}
 
-	s.logger.Info("从数据库加载健康状态完成", "count", len(healths))
+	s.logger.Debug("从数据库加载健康状态完成", "count", len(healths))
 	return nil
 }
 
@@ -174,7 +174,7 @@ func (s *Storage) saveToDatabase(ctx context.Context, status *types.Health) erro
 
 	// 使用 Save 进行 upsert 操作
 	if err := q.WithContext(ctx).Health.Save(status); err != nil {
-		s.logger.Error("保存到数据库失败",
+		s.logger.Debug("保存到数据库失败",
 			"error", err,
 			"resource_type", status.ResourceType,
 			"resource_id", status.ResourceID)
@@ -202,7 +202,7 @@ func (s *Storage) deleteFromDatabase(ctx context.Context, resourceType types.Res
 	).Delete()
 
 	if err != nil {
-		s.logger.Error("从数据库删除失败",
+		s.logger.Debug("从数据库删除失败",
 			"error", err,
 			"resource_type", resourceType,
 			"resource_id", resourceID)

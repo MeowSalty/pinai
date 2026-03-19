@@ -76,7 +76,7 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
-	health.SetupHealthRoutes(webAPI, svcs.HealthService)
+	health.SetupHealthRoutes(webAPI, svcs.HealthService, logger)
 
 	// 如果启用了前端支持，则设置前端路由
 	if config.EnableWeb {

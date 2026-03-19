@@ -139,7 +139,7 @@ type service struct {
 //	Service - 健康服务实例
 //	error - 初始化错误
 func NewService(ctx context.Context, logger *slog.Logger) (Service, error) {
-	logger.Info("开始初始化健康服务")
+	logger.Debug("开始初始化健康服务")
 
 	// 在 health 包内部初始化存储
 	storage, err := NewStorage(ctx, logger)
@@ -148,7 +148,7 @@ func NewService(ctx context.Context, logger *slog.Logger) (Service, error) {
 		return nil, fmt.Errorf("初始化健康服务失败：%w", err)
 	}
 
-	serviceLogger := logger.WithGroup("health_service")
+	serviceLogger := logger.WithGroup("health_service").With("component", "health_service")
 	serviceLogger.Info("健康服务初始化完成")
 	return &service{
 		storage: storage,
@@ -181,22 +181,23 @@ func (s *service) GetStorage() *Storage {
 //
 //	error - 操作错误
 func (s *service) EnableHealth(resourceType types.ResourceType, resourceID uint) error {
-	s.logger.Info("启用资源健康状态",
+	logger := s.logger.With(
+		"operation", "enable_health",
+		"resource_type", resourceType,
+		"resource_id", resourceID,
+	)
+
+	logger.Info("启用资源健康状态",
 		"resource_type", resourceType,
 		"resource_id", resourceID)
 
 	// 删除健康记录，让系统重新评估
 	if err := s.storage.Delete(resourceType, resourceID); err != nil {
-		s.logger.Error("启用资源健康状态失败",
-			"error", err,
-			"resource_type", resourceType,
-			"resource_id", resourceID)
+		logger.Error("启用资源健康状态失败", "error", err)
 		return fmt.Errorf("启用资源健康状态失败：%w", err)
 	}
 
-	s.logger.Info("资源健康状态已启用",
-		"resource_type", resourceType,
-		"resource_id", resourceID)
+	logger.Info("资源健康状态已启用")
 	return nil
 }
 
@@ -213,9 +214,13 @@ func (s *service) EnableHealth(resourceType types.ResourceType, resourceID uint)
 //
 //	error - 操作错误
 func (s *service) DisableHealth(resourceType types.ResourceType, resourceID uint) error {
-	s.logger.Info("禁用资源健康状态",
+	logger := s.logger.With(
+		"operation", "disable_health",
 		"resource_type", resourceType,
-		"resource_id", resourceID)
+		"resource_id", resourceID,
+	)
+
+	logger.Info("禁用资源健康状态")
 
 	// 创建 Unavailable 状态的健康记录
 	now := time.Now()
@@ -231,16 +236,11 @@ func (s *service) DisableHealth(resourceType types.ResourceType, resourceID uint
 
 	// 保存到存储
 	if err := s.storage.Set(health); err != nil {
-		s.logger.Error("禁用资源健康状态失败",
-			"error", err,
-			"resource_type", resourceType,
-			"resource_id", resourceID)
+		logger.Error("禁用资源健康状态失败", "error", err)
 		return fmt.Errorf("禁用资源健康状态失败：%w", err)
 	}
 
-	s.logger.Info("资源健康状态已禁用",
-		"resource_type", resourceType,
-		"resource_id", resourceID)
+	logger.Info("资源健康状态已禁用")
 	return nil
 }
 
@@ -258,26 +258,27 @@ func (s *service) DisableHealth(resourceType types.ResourceType, resourceID uint
 //	*HealthSummaryResponse - 健康状态统计响应
 //	error - 操作错误
 func (s *service) GetHealthSummary(ctx context.Context) (*HealthSummaryResponse, error) {
-	s.logger.Debug("开始获取健康状态统计")
+	logger := s.logger.With("operation", "get_summary")
+	logger.Debug("开始获取健康状态统计")
 
 	q := query.Q
 
 	// 获取各资源类型的总数
 	platformTotal, err := q.Platform.WithContext(ctx).Count()
 	if err != nil {
-		s.logger.Error("获取平台总数失败", "error", err)
+		logger.Error("获取平台总数失败", "error", err)
 		return nil, fmt.Errorf("获取平台总数失败：%w", err)
 	}
 
 	apiKeyTotal, err := q.APIKey.WithContext(ctx).Count()
 	if err != nil {
-		s.logger.Error("获取密钥总数失败", "error", err)
+		logger.Error("获取密钥总数失败", "error", err)
 		return nil, fmt.Errorf("获取密钥总数失败：%w", err)
 	}
 
 	modelTotal, err := q.Model.WithContext(ctx).Count()
 	if err != nil {
-		s.logger.Error("获取模型总数失败", "error", err)
+		logger.Error("获取模型总数失败", "error", err)
 		return nil, fmt.Errorf("获取模型总数失败：%w", err)
 	}
 
@@ -311,7 +312,7 @@ func (s *service) GetHealthSummary(ctx context.Context) (*HealthSummaryResponse,
 		},
 	}
 
-	s.logger.Info("成功获取健康状态统计",
+	logger.Debug("成功获取健康状态统计",
 		"platform_total", platformTotal,
 		"api_key_total", apiKeyTotal,
 		"model_total", modelTotal)
@@ -335,7 +336,13 @@ func (s *service) GetHealthSummary(ctx context.Context) (*HealthSummaryResponse,
 //	*PlatformHealthListResponse - 平台健康列表响应
 //	error - 操作错误
 func (s *service) GetPlatformHealthList(ctx context.Context, page, pageSize int) (*PlatformHealthListResponse, error) {
-	s.logger.Debug("开始获取平台健康列表",
+	logger := s.logger.With(
+		"operation", "list_platforms",
+		"page", page,
+		"page_size", pageSize,
+	)
+
+	logger.Debug("开始获取平台健康列表",
 		"page", page,
 		"page_size", pageSize)
 
@@ -344,7 +351,7 @@ func (s *service) GetPlatformHealthList(ctx context.Context, page, pageSize int)
 
 	// 如果没有健康记录，返回空列表
 	if len(platformHealths) == 0 {
-		s.logger.Info("没有找到任何平台健康记录")
+		logger.Debug("没有找到任何平台健康记录")
 		return &PlatformHealthListResponse{
 			Items:    []PlatformHealthItem{},
 			Total:    0,
@@ -376,10 +383,8 @@ func (s *service) GetPlatformHealthList(ctx context.Context, page, pageSize int)
 
 	// 提取当前页的平台 ID
 	platformIDs := make([]uint, 0, len(pagedHealths))
-	healthMap := make(map[uint]*types.Health, len(pagedHealths))
 	for _, health := range pagedHealths {
 		platformIDs = append(platformIDs, health.ResourceID)
-		healthMap[health.ResourceID] = health
 	}
 
 	// 只查询当前页需要的平台信息
@@ -389,7 +394,7 @@ func (s *service) GetPlatformHealthList(ctx context.Context, page, pageSize int)
 		Where(q.Platform.ID.In(platformIDs...)).
 		Find()
 	if err != nil {
-		s.logger.Error("查询平台信息失败", "error", err)
+		logger.Error("查询平台信息失败", "error", err)
 		return nil, fmt.Errorf("查询平台信息失败：%w", err)
 	}
 
@@ -418,11 +423,11 @@ func (s *service) GetPlatformHealthList(ctx context.Context, page, pageSize int)
 		}
 	}
 
-	s.logger.Info("成功获取平台健康列表",
+	logger.Debug("成功获取平台健康列表",
 		"total", total,
 		"page", page,
 		"page_size", pageSize,
-		"returned_count", len(items))
+		"item_count", len(items))
 
 	return &PlatformHealthListResponse{
 		Items:    items,
@@ -448,7 +453,13 @@ func (s *service) GetPlatformHealthList(ctx context.Context, page, pageSize int)
 //	*APIKeyHealthListResponse - 密钥健康列表响应
 //	error - 操作错误
 func (s *service) GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (*APIKeyHealthListResponse, error) {
-	s.logger.Debug("开始获取密钥健康列表",
+	logger := s.logger.With(
+		"operation", "list_keys",
+		"page", page,
+		"page_size", pageSize,
+	)
+
+	logger.Debug("开始获取密钥健康列表",
 		"page", page,
 		"page_size", pageSize)
 
@@ -457,7 +468,7 @@ func (s *service) GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (
 
 	// 如果没有健康记录，返回空列表
 	if len(keyHealths) == 0 {
-		s.logger.Info("没有找到任何密钥健康记录")
+		logger.Debug("没有找到任何密钥健康记录")
 		return &APIKeyHealthListResponse{
 			Items:    []APIKeyHealthItem{},
 			Total:    0,
@@ -489,10 +500,8 @@ func (s *service) GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (
 
 	// 提取当前页的密钥 ID
 	keyIDs := make([]uint, 0, len(pagedHealths))
-	healthMap := make(map[uint]*types.Health, len(pagedHealths))
 	for _, health := range pagedHealths {
 		keyIDs = append(keyIDs, health.ResourceID)
-		healthMap[health.ResourceID] = health
 	}
 
 	// 只查询当前页需要的密钥信息
@@ -502,7 +511,7 @@ func (s *service) GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (
 		Where(q.APIKey.ID.In(keyIDs...)).
 		Find()
 	if err != nil {
-		s.logger.Error("查询密钥信息失败", "error", err)
+		logger.Error("查询密钥信息失败", "error", err)
 		return nil, fmt.Errorf("查询密钥信息失败：%w", err)
 	}
 
@@ -537,11 +546,11 @@ func (s *service) GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (
 		}
 	}
 
-	s.logger.Info("成功获取密钥健康列表",
+	logger.Debug("成功获取密钥健康列表",
 		"total", total,
 		"page", page,
 		"page_size", pageSize,
-		"returned_count", len(items))
+		"item_count", len(items))
 
 	return &APIKeyHealthListResponse{
 		Items:    items,
@@ -567,7 +576,13 @@ func (s *service) GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (
 //	*ModelHealthListResponse - 模型健康列表响应
 //	error - 操作错误
 func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*ModelHealthListResponse, error) {
-	s.logger.Debug("开始获取模型健康列表",
+	logger := s.logger.With(
+		"operation", "list_models",
+		"page", page,
+		"page_size", pageSize,
+	)
+
+	logger.Debug("开始获取模型健康列表",
 		"page", page,
 		"page_size", pageSize)
 
@@ -576,7 +591,7 @@ func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*
 
 	// 如果没有健康记录，返回空列表
 	if len(modelHealths) == 0 {
-		s.logger.Info("没有找到任何模型健康记录")
+		logger.Debug("没有找到任何模型健康记录")
 		return &ModelHealthListResponse{
 			Items:    []ModelHealthItem{},
 			Total:    0,
@@ -608,10 +623,8 @@ func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*
 
 	// 提取当前页的模型 ID
 	modelIDs := make([]uint, 0, len(pagedHealths))
-	healthMap := make(map[uint]*types.Health, len(pagedHealths))
 	for _, health := range pagedHealths {
 		modelIDs = append(modelIDs, health.ResourceID)
-		healthMap[health.ResourceID] = health
 	}
 
 	// 只查询当前页需要的模型信息
@@ -621,7 +634,7 @@ func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*
 		Where(q.Model.ID.In(modelIDs...)).
 		Find()
 	if err != nil {
-		s.logger.Error("查询模型信息失败", "error", err)
+		logger.Error("查询模型信息失败", "error", err)
 		return nil, fmt.Errorf("查询模型信息失败：%w", err)
 	}
 
@@ -651,11 +664,11 @@ func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*
 		}
 	}
 
-	s.logger.Info("成功获取模型健康列表",
+	logger.Debug("成功获取模型健康列表",
 		"total", total,
 		"page", page,
 		"page_size", pageSize,
-		"returned_count", len(items))
+		"item_count", len(items))
 
 	return &ModelHealthListResponse{
 		Items:    items,
@@ -678,14 +691,15 @@ func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*
 //	*IssuesListResponse - 异常资源列表响应
 //	error - 操作错误
 func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
-	s.logger.Debug("开始获取异常资源列表")
+	logger := s.logger.With("operation", "list_issues")
+	logger.Debug("开始获取异常资源列表")
 
 	// 从存储中获取所有 Unavailable 状态的健康记录
 	unavailableHealths := s.storage.GetByStatus(types.HealthStatusUnavailable)
 
 	// 如果没有异常记录，返回空列表
 	if len(unavailableHealths) == 0 {
-		s.logger.Info("没有找到任何异常资源")
+		logger.Debug("没有找到任何异常资源")
 		return &IssuesListResponse{
 			Items: []IssueItem{},
 		}, nil
@@ -700,12 +714,7 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 	platformIDs := make([]uint, 0)
 	keyIDs := make([]uint, 0)
 	modelIDs := make([]uint, 0)
-	healthMap := make(map[string]*types.Health)
-
 	for _, health := range unavailableHealths {
-		key := fmt.Sprintf("%d:%d", health.ResourceType, health.ResourceID)
-		healthMap[key] = health
-
 		switch health.ResourceType {
 		case types.ResourceTypePlatform:
 			platformIDs = append(platformIDs, health.ResourceID)
@@ -727,7 +736,7 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 			Where(q.APIKey.ID.In(keyIDs...)).
 			Find()
 		if err != nil {
-			s.logger.Error("查询密钥信息失败", "error", err)
+			logger.Error("查询密钥信息失败", "error", err)
 			return nil, fmt.Errorf("查询密钥信息失败：%w", err)
 		}
 		for _, key := range keys {
@@ -745,7 +754,7 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 			Where(q.Model.ID.In(modelIDs...)).
 			Find()
 		if err != nil {
-			s.logger.Error("查询模型信息失败", "error", err)
+			logger.Error("查询模型信息失败", "error", err)
 			return nil, fmt.Errorf("查询模型信息失败：%w", err)
 		}
 		for _, model := range models {
@@ -780,7 +789,7 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 			Where(q.Platform.ID.In(needQueryPlatformIDs...)).
 			Find()
 		if err != nil {
-			s.logger.Error("查询平台信息失败", "error", err)
+			logger.Error("查询平台信息失败", "error", err)
 			return nil, fmt.Errorf("查询平台信息失败：%w", err)
 		}
 		for _, platform := range platforms {
@@ -825,7 +834,7 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 		}
 	}
 
-	s.logger.Info("成功获取异常资源列表", "count", len(items))
+	logger.Debug("成功获取异常资源列表", "item_count", len(items))
 
 	return &IssuesListResponse{
 		Items: items,

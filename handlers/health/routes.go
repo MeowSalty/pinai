@@ -1,14 +1,20 @@
 package health
 
 import (
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/MeowSalty/pinai/services/health"
 )
 
 // SetupHealthRoutes 配置健康状态统计相关的路由
-func SetupHealthRoutes(router *gin.RouterGroup, healthService health.Service) {
-	handler := NewHandler(healthService)
+func SetupHealthRoutes(router *gin.RouterGroup, healthService health.Service, logger *slog.Logger) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	handler := NewHandler(healthService, logger.WithGroup("health_handler"))
 
 	healthGroup := router.Group("/health")
 	healthGroup.GET("/summary", handler.GetHealthSummary)
