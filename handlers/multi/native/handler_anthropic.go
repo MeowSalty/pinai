@@ -32,6 +32,10 @@ import (
 func (h *Handler) AnthropicMessages(c *gin.Context) {
 	var req anthropicTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("请求参数绑定失败",
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"error", err)
 		c.JSON(http.StatusBadRequest, anthropicTypes.ErrorResponse{
 			Type: "error",
 			Error: anthropicTypes.Error{

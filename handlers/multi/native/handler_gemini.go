@@ -33,6 +33,10 @@ import (
 func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("请求参数绑定失败",
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"error", err)
 		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
 			Error: geminiTypes.ErrorDetail{
 				Code:    http.StatusBadRequest,
@@ -56,6 +60,10 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
+		h.logger.Warn("缺少模型参数",
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"error", "缺少模型参数")
 		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
 			Error: geminiTypes.ErrorDetail{
 				Code:    http.StatusBadRequest,
@@ -99,6 +107,10 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("请求参数绑定失败",
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"error", err)
 		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
 			Error: geminiTypes.ErrorDetail{
 				Code:    http.StatusBadRequest,
@@ -122,6 +134,10 @@ func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
+		h.logger.Warn("缺少模型参数",
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"error", "缺少模型参数")
 		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
 			Error: geminiTypes.ErrorDetail{
 				Code:    http.StatusBadRequest,
