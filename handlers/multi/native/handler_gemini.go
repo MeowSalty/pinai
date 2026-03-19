@@ -155,6 +155,7 @@ func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 	eventChan := h.portalService.NativeGeminiStreamGenerateContent(ctx, req)
 
 	collector := stats.GetCollector()
@@ -174,13 +175,11 @@ func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 	for event := range eventChan {
 		data, err := json.Marshal(event)
 		if err != nil {
-			cancel()
 			logger.Error("序列化流事件失败", "error", err)
 			break
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
-			cancel()
 			logger.Error("写入流事件失败", "error", err)
 			break
 		}

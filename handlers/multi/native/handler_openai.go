@@ -140,6 +140,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 	eventChan := h.portalService.NativeOpenAIChatCompletionStream(ctx, req)
 
 	collector := stats.GetCollector()
@@ -160,14 +161,12 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	for event := range eventChan {
 		data, err := json.Marshal(event)
 		if err != nil {
-			cancel()
 			logger.Error("序列化流事件失败", "error", err)
 			h.sendOpenAIStreamError(c.Writer, "internal_error", fmt.Sprintf("序列化流事件失败: %v", err), "internal_error")
 			break
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
-			cancel()
 			logger.Error("写入流事件失败", "error", err)
 			h.sendOpenAIStreamError(c.Writer, "internal_error", fmt.Sprintf("写入流事件失败: %v", err), "internal_error")
 			break
@@ -178,7 +177,6 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 
 	if sendDone {
 		if _, err := fmt.Fprintf(c.Writer, "data: [DONE]\n\n"); err != nil {
-			cancel()
 			logger.Error("写入流结束标识失败", "error", err)
 		}
 		flusher.Flush()
@@ -220,6 +218,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 	eventChan := h.portalService.NativeOpenAIResponsesStream(ctx, req)
 
 	collector := stats.GetCollector()
@@ -240,14 +239,12 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	for event := range eventChan {
 		data, err := json.Marshal(event)
 		if err != nil {
-			cancel()
 			logger.Error("序列化流事件失败", "error", err)
 			h.sendOpenAIResponsesStreamError(c.Writer, "internal_error", fmt.Sprintf("序列化流事件失败: %v", err), "internal_error")
 			break
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
-			cancel()
 			logger.Error("写入流事件失败", "error", err)
 			h.sendOpenAIResponsesStreamError(c.Writer, "internal_error", fmt.Sprintf("写入流事件失败: %v", err), "internal_error")
 			break
@@ -258,7 +255,6 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 
 	if sendDone {
 		if _, err := fmt.Fprintf(c.Writer, "data: [DONE]\n\n"); err != nil {
-			cancel()
 			logger.Error("写入流结束标识失败", "error", err)
 		}
 		flusher.Flush()

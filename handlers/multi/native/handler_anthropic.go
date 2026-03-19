@@ -76,6 +76,7 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 	eventChan := h.portalService.NativeAnthropicMessagesStream(ctx, req)
 
 	collector := stats.GetCollector()
@@ -100,13 +101,11 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 
 		data, err := json.Marshal(event)
 		if err != nil {
-			cancel()
 			logger.Error("序列化流事件失败", "error", err)
 			break
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, data); err != nil {
-			cancel()
 			logger.Error("写入流事件失败", "error", err)
 			break
 		}
