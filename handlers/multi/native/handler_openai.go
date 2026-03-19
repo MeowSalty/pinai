@@ -40,6 +40,11 @@ func stringPtr(s string) *string {
 func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 	var req openaiChatTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("解析 OpenAI Chat 请求体失败",
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"error", err,
+		)
 		c.JSON(http.StatusBadRequest, openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("无效的请求体: %v", err),
@@ -92,6 +97,11 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 func (h *Handler) OpenAIResponses(c *gin.Context) {
 	var req openaiResponsesTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("解析 OpenAI Responses 请求体失败",
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"error", err,
+		)
 		c.JSON(http.StatusBadRequest, openaiSharedTypes.HTTPError{
 			Error: openaiSharedTypes.ErrorDetail{
 				Message: fmt.Sprintf("无效的请求体: %v", err),
@@ -243,7 +253,6 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 			break
 		}
 
-		logger.Debug("写入流事件成功")
 		flusher.Flush()
 	}
 
