@@ -11,6 +11,7 @@ type Config struct {
 
 	// 前端配置
 	EnableWeb            bool
+	CORSAllowAll         bool
 	WebDir               string
 	EnableFrontendUpdate bool
 	PassthroughHeaders   bool
@@ -53,6 +54,7 @@ func LoadConfig() *Config {
 	cfg := &Config{
 		Port:                 env.Port,
 		EnableWeb:            env.EnableWeb,
+		CORSAllowAll:         env.CORSAllowAll,
 		WebDir:               env.WebDir,
 		EnableFrontendUpdate: env.EnableFrontendUpdate,
 		PassthroughHeaders:   env.PassthroughHeaders,
@@ -85,6 +87,7 @@ func (c *Config) loadFlags() {
 
 	// 前端相关参数
 	flag.BoolVar(&c.EnableWeb, "enable-web", c.EnableWeb, "启用前端支持")
+	flag.BoolVar(&c.CORSAllowAll, "cors-allow-all", c.CORSAllowAll, "启用宽松跨域策略（允许所有来源）")
 	flag.StringVar(&c.WebDir, "web-dir", c.WebDir, "前端文件目录")
 	flag.BoolVar(&c.EnableFrontendUpdate, "enable-frontend-update", c.EnableFrontendUpdate, "启用前端更新检查")
 	flag.BoolVar(&c.PassthroughHeaders, "passthrough-headers", c.PassthroughHeaders, "是否透传 HTTP 请求头到 portal 请求 headers")

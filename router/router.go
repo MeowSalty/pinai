@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/MeowSalty/pinai/handlers/health"
 	"github.com/MeowSalty/pinai/handlers/multi"
@@ -22,6 +23,7 @@ import (
 
 type Config struct {
 	EnableWeb          bool
+	CORSAllowAll       bool
 	WebDir             string
 	ApiToken           string
 	AdminToken         string
@@ -32,7 +34,11 @@ type Config struct {
 
 // SetupRoutes 配置 API 路由
 func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger *slog.Logger) error {
-	web.Use(cors.Default())
+	if config.CORSAllowAll {
+		web.Use(cors.New(createAllowAllCORSConfig()))
+	} else {
+		web.Use(cors.Default())
+	}
 	webAPI := web.Group("/api")
 	openaiAPI := web.Group("/openai/v1")
 	anthropicAPI := web.Group("/anthropic/v1")
@@ -114,6 +120,37 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 	}
 
 	return nil
+}
+
+// createAllowAllCORSConfig 创建宽松跨域配置。
+func createAllowAllCORSConfig() cors.Config {
+	return cors.Config{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{
+			http.MethodGet,
+			http.MethodPost,
+			http.MethodPut,
+			http.MethodPatch,
+			http.MethodDelete,
+			http.MethodOptions,
+			http.MethodHead,
+		},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Type",
+			"Accept",
+			"Authorization",
+			"X-Requested-With",
+			"x-api-key",
+			"anthropic-version",
+		},
+		ExposeHeaders: []string{
+			"Content-Length",
+			"Content-Type",
+		},
+		AllowCredentials: false,
+		MaxAge:           24 * time.Hour,
+	}
 }
 
 // normalizeRequestPath 规范化请求路径，确保结果始终以 / 开头。

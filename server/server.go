@@ -102,6 +102,7 @@ func Run(cfg *config.Config) {
 	routerConfig := router.Config{
 		AdminToken:         effectiveAdminToken,
 		ApiToken:           cfg.APIToken,
+		CORSAllowAll:       cfg.CORSAllowAll,
 		EnableWeb:          cfg.EnableWeb,
 		PassthroughHeaders: cfg.PassthroughHeaders,
 		ProxyEnabled:       cfg.ProxyEnabled,

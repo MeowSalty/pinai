@@ -6,6 +6,7 @@ import "os"
 type Env struct {
 	Port                 string
 	EnableWeb            bool
+	CORSAllowAll         bool
 	WebDir               string
 	EnableFrontendUpdate bool
 	PassthroughHeaders   bool
@@ -31,6 +32,7 @@ func LoadEnv() *Env {
 	return &Env{
 		Port:                 getEnvOrDefault("PORT", ":3000"),
 		EnableWeb:            getEnvOrDefault("ENABLE_WEB", "") == "true",
+		CORSAllowAll:         getEnvOrDefault("CORS_ALLOW_ALL", "") == "true",
 		WebDir:               getEnvOrDefault("WEB_DIR", "web"),
 		EnableFrontendUpdate: getEnvOrDefault("ENABLE_FRONTEND_UPDATE", "true") == "true",
 		PassthroughHeaders:   getEnvOrDefault("PASSTHROUGH_HEADERS", "true") == "true",
