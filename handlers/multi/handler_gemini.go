@@ -132,6 +132,7 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 	eventChan := h.portalService.NativeGeminiStreamGenerateContent(ctx, req, portal.WithCompatMode())
 
 	collector := stats.GetCollector()

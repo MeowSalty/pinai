@@ -122,6 +122,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 	eventChan := h.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
 
 	collector := stats.GetCollector()
@@ -174,6 +175,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	common.SetBaseSSEHeaders(c)
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 	eventChan := h.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
 
 	collector := stats.GetCollector()

@@ -76,6 +76,7 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 
 	// 创建可取消的上下文
 	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 
 	// 获取流式响应通道
 	eventChan := h.portalService.NativeAnthropicMessagesStream(ctx, req, portal.WithCompatMode())
