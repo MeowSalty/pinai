@@ -25,8 +25,9 @@ type RequestLog struct {
 	FirstByteTime *int64 `json:"first_byte_time,omitempty"` // 首字用时（微秒，仅流式）
 
 	// 结果状态
-	Success  bool    `gorm:"index" json:"success"` // 是否成功
-	ErrorMsg *string `json:"error_msg,omitempty"`  // 错误信息（失败时）
+	Success      bool    `gorm:"index" json:"success"`    // 是否成功
+	ErrorMsg     *string `json:"error_msg,omitempty"`     // 错误信息（失败时）
+	CauseMessage *string `json:"cause_message,omitempty"` // 底层原因文本，用于排障与审计；非稳定展示字段
 
 	// 结构化错误字段
 	ErrorCode  *string `json:"error_code,omitempty"`
