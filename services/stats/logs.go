@@ -3,6 +3,7 @@ package stats
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
@@ -10,7 +11,10 @@ import (
 
 // ListRequestLogs 实现获取请求状态列表的业务逻辑
 func (s *service) ListRequestLogs(ctx context.Context, opts ListRequestLogsOptions) ([]*types.RequestLog, int64, error) {
-	s.logger.InfoContext(ctx, "开始获取请求日志列表",
+	start := time.Now()
+	logger := s.logger.With("operation", "list_request_logs")
+
+	logger.DebugContext(ctx, "开始获取请求日志列表",
 		"page", opts.Page,
 		"page_size", opts.PageSize,
 	)
@@ -61,13 +65,18 @@ func (s *service) ListRequestLogs(ctx context.Context, opts ListRequestLogsOptio
 	// 执行分页查询
 	result, count, err := queryBuilder.FindByPage(offset, opts.PageSize)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "获取请求日志列表失败", "error", err)
+		logger.ErrorContext(ctx, "获取请求日志列表失败",
+			"error", err,
+			"error_type", "database_error",
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
 		return nil, 0, fmt.Errorf("获取请求状态列表失败：%w", err)
 	}
 
-	s.logger.InfoContext(ctx, "成功获取请求日志列表",
+	logger.DebugContext(ctx, "成功获取请求日志列表",
 		"count", count,
 		"result_size", len(result),
+		"latency_ms", time.Since(start).Milliseconds(),
 	)
 
 	return result, count, nil

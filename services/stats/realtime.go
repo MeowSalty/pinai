@@ -2,13 +2,17 @@ package stats
 
 import (
 	"context"
+	"time"
 )
 
 // GetRealtime 实现获取实时数据的业务逻辑
 //
 // 通过采集器获取 API 接口的实时调用数据
 func (s *service) GetRealtime(ctx context.Context) (*StatsRealtimeResponse, error) {
-	s.logger.DebugContext(ctx, "开始获取实时数据")
+	start := time.Now()
+	logger := s.logger.With("operation", "get_realtime")
+
+	logger.DebugContext(ctx, "开始获取实时数据")
 
 	collector := GetCollector()
 
@@ -18,9 +22,10 @@ func (s *service) GetRealtime(ctx context.Context) (*StatsRealtimeResponse, erro
 	// 获取当前活动连接数
 	activeConnections := collector.GetActiveConnections()
 
-	s.logger.InfoContext(ctx, "成功获取实时数据",
+	logger.DebugContext(ctx, "成功获取实时数据",
 		"rpm", rpm,
 		"active_connections", activeConnections,
+		"latency_ms", time.Since(start).Milliseconds(),
 	)
 
 	return &StatsRealtimeResponse{

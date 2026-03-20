@@ -36,6 +36,9 @@ type dashboardUsageAgg struct {
 
 // GetDashboard 获取仪表盘所有数据（单次查询优化版本）
 func (s *service) GetDashboard(ctx context.Context, trendRange TrendRange) (*DashboardResponse, error) {
+	start := time.Now()
+	logger := s.logger.With("operation", "get_dashboard")
+
 	if trendRange == "" {
 		trendRange = TrendRange24h
 	}
@@ -49,7 +52,7 @@ func (s *service) GetDashboard(ctx context.Context, trendRange TrendRange) (*Das
 	bucketEnd := ceilToHour(now)
 	bucketStart := bucketEnd.Add(-cfg.Granularity * time.Duration(cfg.Points))
 
-	s.logger.InfoContext(ctx, "开始聚合仪表盘数据",
+	logger.DebugContext(ctx, "开始聚合仪表盘数据",
 		"range", trendRange,
 		"granularity", cfg.Label,
 		"bucket_start", bucketStart,
@@ -65,13 +68,21 @@ func (s *service) GetDashboard(ctx context.Context, trendRange TrendRange) (*Das
 		Order("timestamp ASC").
 		Scan(&rows).Error
 	if err != nil {
-		s.logger.ErrorContext(ctx, "查询仪表盘原始数据失败", "error", err)
+		logger.ErrorContext(ctx, "查询仪表盘原始数据失败",
+			"error", err,
+			"error_type", "database_error",
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
 		return nil, fmt.Errorf("查询仪表盘数据失败：%w", err)
 	}
 
 	platformNameMap, err := s.loadPlatformNameMap(ctx)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "加载平台名称映射失败", "error", err)
+		logger.ErrorContext(ctx, "加载平台名称映射失败",
+			"error", err,
+			"error_type", "database_error",
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
 		return nil, fmt.Errorf("加载平台名称失败：%w", err)
 	}
 
@@ -195,11 +206,12 @@ func (s *service) GetDashboard(ctx context.Context, trendRange TrendRange) (*Das
 		},
 	}
 
-	s.logger.InfoContext(ctx, "成功聚合仪表盘数据",
+	logger.DebugContext(ctx, "成功聚合仪表盘数据",
 		"range", trendRange,
 		"rows", len(rows),
 		"total_requests", resp.Overview.TotalRequests,
 		"total_tokens", resp.Overview.TotalTokens,
+		"latency_ms", time.Since(start).Milliseconds(),
 	)
 
 	return resp, nil
