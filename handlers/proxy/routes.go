@@ -13,6 +13,6 @@ func SetupProxyRoutes(router *gin.RouterGroup, apiToken string, userAgent string
 		logger = slog.Default()
 	}
 
-	handler := New(userAgent, logger.WithGroup("proxy"))
+	handler := New(userAgent, logger.WithGroup("handlers").With("component", "proxy_handler"))
 	router.POST("", handler.Proxy)
 }

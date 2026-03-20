@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -55,8 +57,41 @@ func New(userAgent string, logger *slog.Logger) *Handler {
 
 // Proxy 处理后端代理请求并透传上游响应。
 func (h *Handler) Proxy(c *gin.Context) {
+	start := time.Now()
+	logger := h.newRequestLogger(c)
+
+	auditTargetID := ""
+	writeAuditLog := func(result string, statusCode int, errorType string, method string) {
+		if method == http.MethodGet || method == http.MethodHead {
+			return
+		}
+
+		auditLogger := logger.With(
+			"target_type", "proxy_request",
+			"target_id", auditTargetID,
+		)
+
+		attrs := []any{
+			"result", result,
+			"status_code", statusCode,
+			"latency_ms", time.Since(start).Milliseconds(),
+		}
+		if errorType != "" {
+			attrs = append(attrs, "error_type", errorType)
+		}
+
+		auditLogger.Info("代理请求审计", attrs...)
+	}
+
 	var req ProxyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数校验失败",
+			"error", err,
+			"error_type", "validation_error",
+			"content_type", c.ContentType(),
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		writeAuditLog("failed", http.StatusBadRequest, "validation_error", c.Request.Method)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的请求格式：%v", err),
 		})
@@ -64,13 +99,28 @@ func (h *Handler) Proxy(c *gin.Context) {
 	}
 
 	if strings.TrimSpace(req.URL) == "" {
+		logger.Warn("请求参数校验失败",
+			"error", errors.New("缺少 url 参数"),
+			"error_type", "validation_error",
+			"content_type", c.ContentType(),
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		writeAuditLog("failed", http.StatusBadRequest, "validation_error", c.Request.Method)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "缺少 url 参数",
 		})
 		return
 	}
+	auditTargetID = summarizeTargetID(req.URL)
 
 	if err := validateURLScheme(req.URL); err != nil {
+		logger.Warn("请求参数校验失败",
+			"error", err,
+			"error_type", "validation_error",
+			"target_id", auditTargetID,
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		writeAuditLog("failed", http.StatusBadRequest, "validation_error", c.Request.Method)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("不允许的 URL：%v", err),
 		})
@@ -81,6 +131,7 @@ func (h *Handler) Proxy(c *gin.Context) {
 	if method == "" {
 		method = http.MethodGet
 	}
+	logger = logger.With("upstream_method", method)
 
 	ctx := c.Request.Context()
 	if ctx == nil {
@@ -94,6 +145,13 @@ func (h *Handler) Proxy(c *gin.Context) {
 
 	upstreamReq, err := http.NewRequestWithContext(ctx, method, req.URL, bodyReader)
 	if err != nil {
+		logger.Warn("创建上游请求失败",
+			"error", err,
+			"error_type", "validation_error",
+			"target_id", auditTargetID,
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		writeAuditLog("failed", http.StatusBadRequest, "validation_error", method)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("创建上游请求失败：%v", err),
 		})
@@ -120,15 +178,23 @@ func (h *Handler) Proxy(c *gin.Context) {
 		timeoutMS = defaultTimeoutMS
 	}
 
-	logger := h.logger.With("method", method, "url", req.URL)
-	if method != http.MethodGet && method != http.MethodHead {
-		logger.Info("代理请求审计")
-	}
+	targetHost, targetScheme := splitTarget(req.URL)
+	logger = logger.With(
+		"target_host", targetHost,
+		"scheme", targetScheme,
+		"timeout_ms", timeoutMS,
+		"body_size", len(req.Body),
+	)
 
 	client := newSafeClient(time.Duration(timeoutMS) * time.Millisecond)
 	upstreamResp, err := client.Do(upstreamReq)
 	if err != nil {
-		logger.Error("上游请求失败", slog.Any("error", err))
+		logger.Error("上游请求失败",
+			"error", err,
+			"error_type", "upstream_error",
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		writeAuditLog("failed", http.StatusBadGateway, "upstream_error", method)
 		c.JSON(http.StatusBadGateway, gin.H{
 			"error": fmt.Sprintf("上游请求失败：%v", err),
 		})
@@ -139,7 +205,13 @@ func (h *Handler) Proxy(c *gin.Context) {
 	limitedBody := io.LimitReader(upstreamResp.Body, maxResponseBodyBytes+1)
 	bodyBytes, err := io.ReadAll(limitedBody)
 	if err != nil {
-		logger.Error("读取上游响应失败", slog.Any("error", err))
+		logger.Error("读取上游响应失败",
+			"error", err,
+			"error_type", "read_response_error",
+			"status_code", upstreamResp.StatusCode,
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		writeAuditLog("failed", http.StatusBadGateway, "read_response_error", method)
 		c.JSON(http.StatusBadGateway, gin.H{
 			"error": fmt.Sprintf("读取上游响应失败：%v", err),
 		})
@@ -147,7 +219,13 @@ func (h *Handler) Proxy(c *gin.Context) {
 	}
 
 	if len(bodyBytes) > maxResponseBodyBytes {
-		logger.Warn("上游响应过大", slog.Int("size", len(bodyBytes)))
+		logger.Warn("上游响应过大",
+			"error_type", "response_too_large",
+			"status_code", upstreamResp.StatusCode,
+			"response_size", len(bodyBytes),
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		writeAuditLog("failed", http.StatusBadGateway, "response_too_large", method)
 		c.JSON(http.StatusBadGateway, gin.H{
 			"error": "上游响应过大，已超过限制",
 		})
@@ -164,7 +242,75 @@ func (h *Handler) Proxy(c *gin.Context) {
 	}
 
 	contentType := upstreamResp.Header.Get("Content-Type")
+	logger.Debug("代理请求处理成功",
+		"status_code", upstreamResp.StatusCode,
+		"latency_ms", time.Since(start).Milliseconds(),
+	)
+	writeAuditLog("success", upstreamResp.StatusCode, "", method)
 	c.Data(upstreamResp.StatusCode, contentType, bodyBytes)
+}
+
+func (h *Handler) newRequestLogger(c *gin.Context) *slog.Logger {
+	if c == nil || c.Request == nil {
+		return h.logger.With(
+			"operation", "proxy",
+			"path", "",
+			"method", "",
+			"request_id", "",
+			"client_ip", "",
+		)
+	}
+
+	return h.logger.With(
+		"operation", "proxy",
+		"path", c.Request.URL.Path,
+		"method", c.Request.Method,
+		"request_id", requestIDFromContext(c),
+		"client_ip", c.ClientIP(),
+	)
+}
+
+func requestIDFromContext(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+
+	if v, ok := c.Get("request_id"); ok {
+		if s, ok := v.(string); ok {
+			return strings.TrimSpace(s)
+		}
+	}
+
+	headers := []string{"X-Request-ID", "X-Correlation-ID", "Request-Id"}
+	for _, key := range headers {
+		if value := strings.TrimSpace(c.GetHeader(key)); value != "" {
+			return value
+		}
+	}
+
+	return ""
+}
+
+func summarizeTargetID(rawURL string) string {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return ""
+	}
+
+	if u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+
+	return u.Scheme + "://" + u.Host
+}
+
+func splitTarget(rawURL string) (string, string) {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return "", ""
+	}
+
+	return u.Host, u.Scheme
 }
 
 func isHopByHopHeader(key string) bool {
