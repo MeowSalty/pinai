@@ -27,9 +27,9 @@ import (
 // @Param        model    path      string                           true   "模型名称"
 // @Param        request  body      geminiTypes.Request  true  "生成内容请求"
 // @Success      200      {object}  geminiTypes.Response
-// @Failure      400      {object}  gin.H
-// @Failure      401      {object}  gin.H
-// @Failure      500      {object}  gin.H
+// @Failure      400      {object}  geminiTypes.ErrorResponse
+// @Failure      401      {object}  geminiTypes.ErrorResponse
+// @Failure      500      {object}  geminiTypes.ErrorResponse
 // @Router       /multi/v1beta/models/{model}:generateContent [post]
 // @Security     ApiKeyAuth
 func (h *Handler) GeminiGenerateContent(c *gin.Context) {
@@ -38,9 +38,7 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("Gemini generateContent 请求参数校验失败", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无效的请求体: %v", err),
-		})
+		common.WriteGeminiJSONError(c, http.StatusBadRequest, fmt.Sprintf("无效的请求体: %v", err), err)
 		return
 	}
 
@@ -52,9 +50,7 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 	}
 	if req.Model == "" {
 		logger.Warn("Gemini generateContent 缺少模型参数")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "缺少模型查询参数",
-		})
+		common.WriteGeminiJSONError(c, http.StatusBadRequest, "缺少模型查询参数", nil)
 		return
 	}
 
@@ -65,9 +61,7 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 
 	resp, err := h.portalService.NativeGeminiGenerateContent(c.Request.Context(), &req, portal.WithCompatMode())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("处理请求时出错：%v", err),
-		})
+		common.WriteGeminiJSONError(c, http.StatusInternalServerError, fmt.Sprintf("处理请求时出错：%v", err), err)
 		return
 	}
 
@@ -86,9 +80,9 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 // @Param        model    path      string                           true   "模型名称"
 // @Param        request  body      geminiTypes.Request  true  "生成内容请求"
 // @Success      200      {object}  geminiTypes.Candidate
-// @Failure      400      {object}  gin.H
-// @Failure      401      {object}  gin.H
-// @Failure      500      {object}  gin.H
+// @Failure      400      {object}  geminiTypes.ErrorResponse
+// @Failure      401      {object}  geminiTypes.ErrorResponse
+// @Failure      500      {object}  geminiTypes.ErrorResponse
 // @Router       /multi/v1beta/models/{model}:streamGenerateContent [post]
 // @Security     ApiKeyAuth
 func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
@@ -97,9 +91,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("Gemini streamGenerateContent 请求参数校验失败", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无效的请求体: %v", err),
-		})
+		common.WriteGeminiJSONError(c, http.StatusBadRequest, fmt.Sprintf("无效的请求体: %v", err), err)
 		return
 	}
 
@@ -111,9 +103,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 	}
 	if req.Model == "" {
 		logger.Warn("Gemini streamGenerateContent 缺少模型参数")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "缺少模型查询参数",
-		})
+		common.WriteGeminiJSONError(c, http.StatusBadRequest, "缺少模型查询参数", nil)
 		return
 	}
 
@@ -143,10 +133,10 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
 	defer func() {
 		if r := recover(); r != nil {
+			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
 			logger.Error("流式响应处理发生 panic", "panic", r, "stack", stackLines)
-			sendStreamError(c.Writer, "internal_error", fmt.Sprintf("服务器内部错误: %v", r), "internal_error")
 		}
 	}()
 
@@ -155,23 +145,16 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 		if err != nil {
 			cancel()
 			logger.Error("无法序列化事件", "error", err)
-			sendStreamError(c.Writer, "internal_error", fmt.Sprintf("无法序列化事件: %v", err), "internal_error")
 			break
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
 			cancel()
 			logger.Error("写入流式响应失败", "error", err)
-			sendStreamError(c.Writer, "internal_error", fmt.Sprintf("写入流式响应失败: %v", err), "internal_error")
 			break
 		}
 
 		flusher.Flush()
-	}
-
-	if _, err := fmt.Fprintf(c.Writer, "data: [DONE]\n\n"); err != nil {
-		cancel()
-		logger.Error("写入流结束标记失败", "error", err)
 	}
 
 	flusher.Flush()

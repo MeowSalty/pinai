@@ -37,13 +37,7 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 			"path", c.Request.URL.Path,
 			"method", c.Request.Method,
 			"error", err)
-		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
-			Error: geminiTypes.ErrorDetail{
-				Code:    http.StatusBadRequest,
-				Message: fmt.Sprintf("无效的请求体: %v", err),
-				Status:  "INVALID_ARGUMENT",
-			},
-		})
+		common.WriteGeminiJSONError(c, http.StatusBadRequest, fmt.Sprintf("无效的请求体: %v", err), err)
 		return
 	}
 
@@ -64,25 +58,13 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 			"path", c.Request.URL.Path,
 			"method", c.Request.Method,
 			"error", "缺少模型参数")
-		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
-			Error: geminiTypes.ErrorDetail{
-				Code:    http.StatusBadRequest,
-				Message: "缺少模型查询参数",
-				Status:  "INVALID_ARGUMENT",
-			},
-		})
+		common.WriteGeminiJSONError(c, http.StatusBadRequest, "缺少模型查询参数", nil)
 		return
 	}
 
 	resp, err := h.portalService.NativeGeminiGenerateContent(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, geminiTypes.ErrorResponse{
-			Error: geminiTypes.ErrorDetail{
-				Code:    http.StatusInternalServerError,
-				Message: fmt.Sprintf("请求失败: %v", err),
-				Status:  "INTERNAL",
-			},
-		})
+		common.WriteGeminiJSONError(c, http.StatusInternalServerError, fmt.Sprintf("请求失败: %v", err), err)
 		return
 	}
 
@@ -111,13 +93,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 			"path", c.Request.URL.Path,
 			"method", c.Request.Method,
 			"error", err)
-		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
-			Error: geminiTypes.ErrorDetail{
-				Code:    http.StatusBadRequest,
-				Message: fmt.Sprintf("无效的请求体: %v", err),
-				Status:  "INVALID_ARGUMENT",
-			},
-		})
+		common.WriteGeminiJSONError(c, http.StatusBadRequest, fmt.Sprintf("无效的请求体: %v", err), err)
 		return
 	}
 
@@ -138,13 +114,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 			"path", c.Request.URL.Path,
 			"method", c.Request.Method,
 			"error", "缺少模型参数")
-		c.JSON(http.StatusBadRequest, geminiTypes.ErrorResponse{
-			Error: geminiTypes.ErrorDetail{
-				Code:    http.StatusBadRequest,
-				Message: "缺少模型查询参数",
-				Status:  "INVALID_ARGUMENT",
-			},
-		})
+		common.WriteGeminiJSONError(c, http.StatusBadRequest, "缺少模型查询参数", nil)
 		return
 	}
 
