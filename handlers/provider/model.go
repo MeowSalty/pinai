@@ -1,7 +1,6 @@
 ﻿package provider
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -48,12 +47,7 @@ func (h *Handler) AddModelToPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	createdModel, err := h.service.AddModelToPlatform(ctx, uint(platformId), model)
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("为平台添加模型失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "为平台添加模型失败")
 		return
 	}
 
@@ -95,12 +89,7 @@ func (h *Handler) BatchAddModelsToPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	createdModels, err := h.service.BatchAddModelsToPlatform(ctx, uint(platformId), req.Models)
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("批量创建模型失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "批量创建模型失败")
 		return
 	}
 
@@ -135,12 +124,7 @@ func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	models, err := h.service.GetModelsByPlatform(ctx, uint(platformId))
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("获取平台模型列表失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "获取平台模型列表失败")
 		return
 	}
 
@@ -194,12 +178,7 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 	ctx := c.Request.Context()
 	updatedModel, err := h.service.UpdateModel(ctx, uint(modelId), model)
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "模型未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("更新模型失败: %v", err))
+		respondProviderServiceError(c, err, "模型未找到", "更新模型失败")
 		return
 	}
 
@@ -227,12 +206,7 @@ func (h *Handler) DeleteModel(c *gin.Context) {
 	ctx := c.Request.Context()
 	err = h.service.DeleteModel(ctx, uint(modelId))
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "模型未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("删除模型失败: %v", err))
+		respondProviderServiceError(c, err, "模型未找到", "删除模型失败")
 		return
 	}
 
@@ -282,17 +256,7 @@ func (h *Handler) BatchUpdateModels(c *gin.Context) {
 	ctx := c.Request.Context()
 	updatedModels, err := h.service.BatchUpdateModels(ctx, uint(platformId), req.Models)
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		// 检查是否是模型不存在或不属于平台的错误
-		if errors.Is(err, provider.ErrResourceNotFound) || errors.Is(err, provider.ErrResourceNotBelong) {
-			response.NotFound(c, err.Error())
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("批量更新模型失败: %v", err))
+		respondProviderServiceError(c, err, "模型未找到", "批量更新模型失败")
 		return
 	}
 
@@ -343,17 +307,13 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 	ctx := c.Request.Context()
 	_, err = h.service.GetModel(ctx, uint(modelId))
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "模型未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("获取模型失败: %v", err))
+		respondProviderServiceError(c, err, "模型未找到", "获取模型失败")
 		return
 	}
 
 	if *enabled {
 		if err := h.healthService.EnableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
-			response.InternalError(c, fmt.Sprintf("启用模型健康状态失败: %v", err))
+			response.InternalError(c, "启用模型健康状态失败")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -365,7 +325,7 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 	}
 
 	if err := h.healthService.DisableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
-		response.InternalError(c, fmt.Sprintf("禁用模型健康状态失败: %v", err))
+		response.InternalError(c, "禁用模型健康状态失败")
 		return
 	}
 
@@ -411,22 +371,7 @@ func (h *Handler) BatchDeleteModels(c *gin.Context) {
 	ctx := c.Request.Context()
 	deletedCount, err := h.service.BatchDeleteModels(ctx, uint(platformId), req.ModelIDs)
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		// 检查是否是模型不存在的错误
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, err.Error())
-			return
-		}
-		// 检查是否是模型不属于平台的错误
-		if errors.Is(err, provider.ErrResourceNotBelong) {
-			response.BadRequest(c, err.Error())
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("批量删除模型失败: %v", err))
+		respondProviderServiceError(c, err, "模型未找到", "批量删除模型失败")
 		return
 	}
 

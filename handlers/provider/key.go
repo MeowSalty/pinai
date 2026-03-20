@@ -1,14 +1,12 @@
 ﻿package provider
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/pinai/handlers/response"
-	provider "github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
 )
@@ -48,12 +46,7 @@ func (h *Handler) AddKeyToPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	createdKey, err := h.service.AddKeyToPlatform(ctx, uint(platformId), key)
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("为平台添加密钥失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "为平台添加密钥失败")
 		return
 	}
 
@@ -84,12 +77,7 @@ func (h *Handler) GetKeysByPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	keys, err := h.service.GetKeysByPlatform(ctx, uint(platformId))
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("获取平台密钥列表失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "获取平台密钥列表失败")
 		return
 	}
 
@@ -135,11 +123,7 @@ func (h *Handler) DeleteKey(c *gin.Context) {
 	ctx := c.Request.Context()
 	err = h.service.DeleteKey(ctx, uint(keyId))
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "密钥未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("删除密钥失败: %v", err))
+		respondProviderServiceError(c, err, "密钥未找到", "删除密钥失败")
 		return
 	}
 
@@ -175,12 +159,7 @@ func (h *Handler) UpdateKey(c *gin.Context) {
 	ctx := c.Request.Context()
 	updatedKey, err := h.service.UpdateKey(ctx, uint(keyId), key)
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "密钥未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("更新密钥失败: %v", err))
+		respondProviderServiceError(c, err, "密钥未找到", "更新密钥失败")
 		return
 	}
 
@@ -227,17 +206,13 @@ func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 	ctx := c.Request.Context()
 	_, err = h.service.GetKey(ctx, uint(keyId))
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "密钥未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("获取密钥失败: %v", err))
+		respondProviderServiceError(c, err, "密钥未找到", "获取密钥失败")
 		return
 	}
 
 	if *enabled {
 		if err := h.healthService.EnableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-			response.InternalError(c, fmt.Sprintf("启用密钥健康状态失败: %v", err))
+			response.InternalError(c, "启用密钥健康状态失败")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -249,7 +224,7 @@ func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 	}
 
 	if err := h.healthService.DisableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-		response.InternalError(c, fmt.Sprintf("禁用密钥健康状态失败: %v", err))
+		response.InternalError(c, "禁用密钥健康状态失败")
 		return
 	}
 

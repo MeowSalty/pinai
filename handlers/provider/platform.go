@@ -1,14 +1,12 @@
 ﻿package provider
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/pinai/handlers/response"
-	provider "github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
 )
@@ -52,7 +50,7 @@ func (h *Handler) CreatePlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	createdPlatform, err := h.service.CreatePlatform(ctx, platform)
 	if err != nil {
-		response.InternalError(c, fmt.Sprintf("创建平台失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "创建平台失败")
 		return
 	}
 
@@ -71,20 +69,20 @@ func (h *Handler) GetPlatforms(c *gin.Context) {
 	ctx := c.Request.Context()
 	platforms, err := h.service.GetPlatforms(ctx)
 	if err != nil {
-		response.InternalError(c, fmt.Sprintf("获取平台列表失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "获取平台列表失败")
 		return
 	}
 
 	keyCounts, modelCounts, err := h.service.GetPlatformResourceCounts(ctx)
 	if err != nil {
-		response.InternalError(c, fmt.Sprintf("获取平台资源统计失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "获取平台资源统计失败")
 		return
 	}
 
 	// 获取资源到平台的映射，用于按平台统计健康状态
 	keyMap, modelMap, err := h.service.GetResourcePlatformMaps(ctx)
 	if err != nil {
-		response.InternalError(c, fmt.Sprintf("获取资源平台映射失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "获取资源平台映射失败")
 		return
 	}
 
@@ -150,12 +148,7 @@ func (h *Handler) GetPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	platform, err := h.service.GetPlatform(ctx, uint(id))
 	if err != nil {
-		// 检查错误类型，如果未找到则返回 404
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("获取平台详情失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "获取平台详情失败")
 		return
 	}
 
@@ -191,12 +184,7 @@ func (h *Handler) UpdatePlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	updatedPlatform, err := h.service.UpdatePlatform(ctx, uint(id), platform)
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("更新平台失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "更新平台失败")
 		return
 	}
 
@@ -224,12 +212,7 @@ func (h *Handler) DeletePlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	err = h.service.DeletePlatform(ctx, uint(id))
 	if err != nil {
-		// 检查错误类型
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("删除平台失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "删除平台失败")
 		return
 	}
 
@@ -266,11 +249,7 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 	ctx := c.Request.Context()
 	_, err = h.service.GetPlatform(ctx, uint(platformId))
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("获取平台失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "获取平台失败")
 		return
 	}
 
@@ -281,7 +260,7 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 
 	if *req.Enabled {
 		if err := h.healthService.EnableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
-			response.InternalError(c, fmt.Sprintf("启用平台健康状态失败: %v", err))
+			response.InternalError(c, "启用平台健康状态失败")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -293,7 +272,7 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 	}
 
 	if err := h.healthService.DisableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
-		response.InternalError(c, fmt.Sprintf("禁用平台健康状态失败: %v", err))
+		response.InternalError(c, "禁用平台健康状态失败")
 		return
 	}
 

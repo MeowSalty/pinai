@@ -1,7 +1,6 @@
 ﻿package provider
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -42,11 +41,7 @@ func (h *Handler) AddEndpointToPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	createdEndpoint, err := h.service.AddEndpointToPlatform(ctx, uint(platformId), endpoint)
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("为平台添加端点失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "为平台添加端点失败")
 		return
 	}
 
@@ -87,11 +82,7 @@ func (h *Handler) BatchAddEndpointsToPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	createdEndpoints, err := h.service.BatchAddEndpointsToPlatform(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("批量创建端点失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "批量创建端点失败")
 		return
 	}
 
@@ -125,11 +116,7 @@ func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
 	ctx := c.Request.Context()
 	endpoints, err := h.service.GetEndpointsByPlatform(ctx, uint(platformId))
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("获取平台端点列表失败: %v", err))
+		respondProviderServiceError(c, err, "平台未找到", "获取平台端点列表失败")
 		return
 	}
 
@@ -157,11 +144,7 @@ func (h *Handler) GetEndpoint(c *gin.Context) {
 	ctx := c.Request.Context()
 	endpoint, err := h.service.GetEndpoint(ctx, uint(endpointId))
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "端点未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("获取端点详情失败: %v", err))
+		respondProviderServiceError(c, err, "端点未找到", "获取端点详情失败")
 		return
 	}
 
@@ -197,11 +180,7 @@ func (h *Handler) UpdateEndpoint(c *gin.Context) {
 	ctx := c.Request.Context()
 	updatedEndpoint, err := h.service.UpdateEndpoint(ctx, uint(endpointId), endpoint)
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "端点未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("更新端点失败: %v", err))
+		respondProviderServiceError(c, err, "端点未找到", "更新端点失败")
 		return
 	}
 
@@ -249,15 +228,7 @@ func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 	ctx := c.Request.Context()
 	updatedEndpoints, err := h.service.BatchUpdateEndpoints(ctx, uint(platformId), req.Endpoints)
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "平台未找到")
-			return
-		}
-		if errors.Is(err, provider.ErrResourceNotFound) || errors.Is(err, provider.ErrResourceNotBelong) {
-			response.NotFound(c, err.Error())
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("批量更新端点失败: %v", err))
+		respondProviderServiceError(c, err, "端点未找到", "批量更新端点失败")
 		return
 	}
 
@@ -291,11 +262,7 @@ func (h *Handler) DeleteEndpoint(c *gin.Context) {
 	ctx := c.Request.Context()
 	err = h.service.DeleteEndpoint(ctx, uint(endpointId))
 	if err != nil {
-		if errors.Is(err, provider.ErrResourceNotFound) {
-			response.NotFound(c, "端点未找到")
-			return
-		}
-		response.InternalError(c, fmt.Sprintf("删除端点失败: %v", err))
+		respondProviderServiceError(c, err, "端点未找到", "删除端点失败")
 		return
 	}
 
