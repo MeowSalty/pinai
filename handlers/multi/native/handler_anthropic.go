@@ -25,8 +25,8 @@ import (
 //	@Produce      json
 //	@Param        request  body      anthropicTypes.Request  true  "请求体"
 //	@Success      200      {object}  anthropicTypes.Response  "成功"
-//	@Failure      400      {object}  map[string]string        "无效的请求体"
-//	@Failure      500      {object}  map[string]string        "请求失败"
+//	@Failure      400      {object}  anthropicTypes.ErrorResponse  "无效的请求体"
+//	@Failure      500      {object}  anthropicTypes.ErrorResponse  "请求失败"
 //	@Router       /multi/native/v1/messages [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) AnthropicMessages(c *gin.Context) {
@@ -36,13 +36,7 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 			"path", c.Request.URL.Path,
 			"method", c.Request.Method,
 			"error", err)
-		c.JSON(http.StatusBadRequest, anthropicTypes.ErrorResponse{
-			Type: "error",
-			Error: anthropicTypes.Error{
-				Type:    "invalid_request_error",
-				Message: fmt.Sprintf("无效的请求体: %v", err),
-			},
-		})
+		c.JSON(http.StatusBadRequest, common.NewAnthropicErrorResponse(fmt.Sprintf("无效的请求体: %v", err), http.StatusBadRequest, err))
 		return
 	}
 
@@ -59,13 +53,7 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 
 	resp, err := h.portalService.NativeAnthropicMessages(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, anthropicTypes.ErrorResponse{
-			Type: "error",
-			Error: anthropicTypes.Error{
-				Type:    "api_error",
-				Message: fmt.Sprintf("请求失败: %v", err),
-			},
-		})
+		c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse(fmt.Sprintf("请求失败: %v", err), http.StatusInternalServerError, err))
 		return
 	}
 
@@ -90,6 +78,12 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
 			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
+			if err := common.WriteAnthropicSSEError(c.Writer, fmt.Sprintf("服务器内部错误: %v", r), http.StatusInternalServerError, fmt.Errorf("panic: %v", r)); err != nil {
+				logger.Error("panic 后发送 Anthropic 标准错误事件失败", "error", err)
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
 		}
 	}()
 

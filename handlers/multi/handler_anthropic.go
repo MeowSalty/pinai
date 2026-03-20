@@ -26,9 +26,9 @@ import (
 // @Produce      json
 // @Param        request  body      anthropicTypes.Request  true  "消息请求"
 // @Success      200      {object}  anthropicTypes.MessageResponse
-// @Failure      400      {object}  gin.H
-// @Failure      401      {object}  gin.H
-// @Failure      500      {object}  gin.H
+// @Failure      400      {object}  anthropicTypes.ErrorResponse
+// @Failure      401      {object}  anthropicTypes.ErrorResponse
+// @Failure      500      {object}  anthropicTypes.ErrorResponse
 // @Router       /multi/v1/messages [post]
 // @Security     ApiKeyAuth
 func (h *Handler) Messages(c *gin.Context) {
@@ -38,9 +38,7 @@ func (h *Handler) Messages(c *gin.Context) {
 	var req anthropicTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("Anthropic Messages 请求参数校验失败", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无效的请求格式： %v", err),
-		})
+		c.JSON(http.StatusBadRequest, common.NewAnthropicErrorResponse(fmt.Sprintf("无效的请求格式： %v", err), http.StatusBadRequest, err))
 		return
 	}
 
@@ -59,9 +57,7 @@ func (h *Handler) Messages(c *gin.Context) {
 	// 非流式响应
 	resp, err := h.portalService.NativeAnthropicMessages(c.Request.Context(), &req, portal.WithCompatMode())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("处理请求时出错：%v", err),
-		})
+		c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse(fmt.Sprintf("处理请求时出错：%v", err), http.StatusInternalServerError, err))
 		return
 	}
 
@@ -98,21 +94,15 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 				"panic", r,
 				"stack", stackLines,
 			)
-			// 尝试发送错误信息给客户端
-			errorEvent := map[string]any{
-				"error": map[string]any{
-					"type":    "internal_error",
-					"message": fmt.Sprintf("服务器内部错误: %v", r),
-				},
+			if err := common.WriteAnthropicSSEError(c.Writer, fmt.Sprintf("服务器内部错误: %v", r), http.StatusInternalServerError, fmt.Errorf("panic: %v", r)); err != nil {
+				logger.Error("panic 后发送 Anthropic 错误事件失败", "error", err)
 			}
-			if jsonBytes, err := json.Marshal(errorEvent); err == nil {
-				fmt.Fprintf(c.Writer, "data: %s\n\n", string(jsonBytes))
+			if flusher != nil {
 				flusher.Flush()
 			}
 		}
 	}()
 
-	isErr := false
 	for event := range eventChan {
 		if event == nil {
 			continue
@@ -120,28 +110,21 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 
 		// 检查是否有错误字段
 		if event.Error != nil {
-			isErr = true
 			logger.Warn("上游返回 Anthropic 流式错误事件",
 				"event_type", event.Error.Type,
 				"error_type", event.Error.Error.Error.Type,
 				"error_message", event.Error.Error.Error.Message,
 			)
 
-			// 序列化错误事件
-			jsonBytes, marshalErr := json.Marshal(event.Error)
-			if marshalErr != nil {
+			if writeErr := common.WriteAnthropicSSEError(c.Writer, event.Error.Error.Error.Message, http.StatusInternalServerError, fmt.Errorf("%s", event.Error.Error.Error.Message)); writeErr != nil {
 				cancel()
-				logger.Error("无法序列化错误事件", "error", marshalErr)
+				logger.Error("无法发送标准 Anthropic 错误事件", "error", writeErr)
 				break
 			}
 
-			// 发送错误事件
-			if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", string(jsonBytes)); err != nil {
-				cancel()
-				logger.Error("无法发送错误事件，写入流失败", "error", err)
-				break
+			if flusher != nil {
+				flusher.Flush()
 			}
-			flusher.Flush()
 			break
 		}
 
@@ -166,20 +149,10 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 		}
 
 		// 刷新缓冲区
-		flusher.Flush()
+		if flusher != nil {
+			flusher.Flush()
+		}
 	}
-	if isErr {
-		return
-	}
-
-	// 发送流结束标记
-	_, err := fmt.Fprintf(c.Writer, "data: [DONE]\n\n")
-	if err != nil {
-		cancel()
-		logger.Error("写入流结束标记失败", "error", err)
-	}
-
-	flusher.Flush()
 }
 
 func anthropicEventType(event *anthropicTypes.StreamEvent) (anthropicTypes.StreamEventType, bool) {
