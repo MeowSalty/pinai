@@ -3,6 +3,7 @@
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -29,19 +30,21 @@ func (s *service) AddEndpointToPlatform(ctx context.Context, platformId uint, en
 
 	err := query.Q.Transaction(func(tx *query.Query) error {
 		if err := tx.Endpoint.WithContext(ctx).Create(&endpoint); err != nil {
-			logger.Error("创建端点失败", slog.Any("error", err))
 			return fmt.Errorf("创建端点失败：%w", err)
 		}
 		if endpoint.IsDefault {
 			if err := s.validatePlatformDefaultUniqueWithQuery(ctx, tx, platformId); err != nil {
-				logger.Warn("默认端点校验失败", slog.Any("error", err))
-				return err
+				return fmt.Errorf("默认端点校验失败：%w", err)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		logger.Error("创建端点事务失败", slog.Any("error", err))
+		if errors.Is(err, ErrDefaultConflict) || errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrInvalidArgument) {
+			logger.Warn("创建端点失败", slog.Any("error", err))
+		} else {
+			logger.Error("创建端点失败", slog.Any("error", err))
+		}
 		return nil, err
 	}
 
@@ -85,20 +88,22 @@ func (s *service) BatchAddEndpointsToPlatform(ctx context.Context, platformId ui
 
 	err := query.Q.Transaction(func(tx *query.Query) error {
 		if err := tx.Endpoint.WithContext(ctx).CreateInBatches(createdEndpoints, batchSize); err != nil {
-			logger.Error("创建端点失败", slog.Any("error", err))
 			return fmt.Errorf("创建端点失败：%w", err)
 		}
 		if containsDefault {
 			if err := s.validatePlatformDefaultUniqueWithQuery(ctx, tx, platformId); err != nil {
-				logger.Warn("默认端点校验失败", slog.Any("error", err))
-				return err
+				return fmt.Errorf("默认端点校验失败：%w", err)
 			}
 		}
 		return nil
 	})
 
 	if err != nil {
-		logger.Error("批量创建端点事务失败", slog.Any("error", err))
+		if errors.Is(err, ErrDefaultConflict) || errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrInvalidArgument) {
+			logger.Warn("批量创建端点失败", slog.Any("error", err))
+		} else {
+			logger.Error("批量创建端点失败", slog.Any("error", err))
+		}
 		return nil, err
 	}
 
@@ -156,7 +161,6 @@ func (s *service) UpdateEndpoint(ctx context.Context, endpointId uint, endpoint 
 			if err == gorm.ErrRecordNotFound {
 				return fmt.Errorf("未找到 ID 为 %d 的端点：%w", endpointId, ErrResourceNotFound)
 			}
-			logger.Warn("端点查询失败", slog.Any("error", err))
 			return fmt.Errorf("查询端点失败：%w", err)
 		}
 
@@ -196,32 +200,32 @@ func (s *service) UpdateEndpoint(ctx context.Context, endpointId uint, endpoint 
 				Where(tx.Endpoint.ID.Eq(endpointId)).
 				Updates(payload)
 			if err != nil {
-				logger.Error("更新端点失败", slog.Any("error", err))
 				return fmt.Errorf("更新 ID 为 %d 的端点失败：%w", endpointId, err)
 			}
 			if result.RowsAffected == 0 {
-				logger.Warn("端点不存在")
 				return fmt.Errorf("未找到 ID 为 %d 的端点：%w", endpointId, ErrResourceNotFound)
 			}
 		}
 
 		if endpoint.IsDefault {
 			if err := s.validatePlatformDefaultUniqueWithQuery(ctx, tx, existing.PlatformID); err != nil {
-				logger.Warn("默认端点校验失败", slog.Any("error", err))
-				return err
+				return fmt.Errorf("默认端点校验失败：%w", err)
 			}
 		}
 
 		updatedEndpoint, err = tx.Endpoint.WithContext(ctx).Where(tx.Endpoint.ID.Eq(endpointId)).First()
 		if err != nil {
-			logger.Error("获取更新后的端点失败", slog.Any("error", err))
-			return err
+			return fmt.Errorf("获取更新后的端点失败：%w", err)
 		}
 
 		return nil
 	})
 	if err != nil {
-		logger.Error("更新端点事务失败", slog.Any("error", err))
+		if errors.Is(err, ErrDefaultConflict) || errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrInvalidArgument) {
+			logger.Warn("更新端点失败", slog.Any("error", err))
+		} else {
+			logger.Error("更新端点失败", slog.Any("error", err))
+		}
 		return nil, err
 	}
 
@@ -348,8 +352,7 @@ func (s *service) BatchUpdateEndpoints(ctx context.Context, platformId uint, upd
 
 		if containsDefault {
 			if err := s.validatePlatformDefaultUniqueWithQuery(ctx, tx, platformId); err != nil {
-				logger.Warn("默认端点校验失败", slog.Any("error", err))
-				return err
+				return fmt.Errorf("默认端点校验失败：%w", err)
 			}
 		}
 
@@ -364,7 +367,11 @@ func (s *service) BatchUpdateEndpoints(ctx context.Context, platformId uint, upd
 	})
 
 	if err != nil {
-		logger.Error("批量更新端点事务失败", slog.Any("error", err))
+		if errors.Is(err, ErrDefaultConflict) || errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrInvalidArgument) {
+			logger.Warn("批量更新端点失败", slog.Any("error", err))
+		} else {
+			logger.Error("批量更新端点失败", slog.Any("error", err))
+		}
 		return nil, err
 	}
 
@@ -475,7 +482,11 @@ func (s *service) DeleteEndpoint(ctx context.Context, endpointId uint) error {
 
 	if endpoint.IsDefault {
 		if err := s.ensurePlatformDefaultExists(ctx, endpoint.PlatformID); err != nil {
-			logger.Warn("修复默认端点失败", slog.Any("error", err))
+			if errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrDefaultConflict) || errors.Is(err, ErrInvalidArgument) {
+				logger.Warn("修复默认端点失败", slog.Any("error", err))
+			} else {
+				logger.Error("修复默认端点失败", slog.Any("error", err))
+			}
 			return err
 		}
 	}

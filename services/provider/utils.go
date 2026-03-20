@@ -2,6 +2,7 @@
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -119,7 +120,7 @@ func (s *service) validateAndGetAPIKeys(ctx context.Context, platformId uint, ap
 	// 验证至少关联一个密钥
 	if len(apiKeys) == 0 {
 		logger.Warn("未提供 API 密钥")
-		return nil, fmt.Errorf("模型必须至少关联一个 API 密钥")
+		return nil, fmt.Errorf("模型必须至少关联一个 API 密钥：%w", ErrInvalidArgument)
 	}
 
 	// 提取 API 密钥 ID
@@ -137,7 +138,7 @@ func (s *service) validateAndGetAPIKeys(ctx context.Context, platformId uint, ap
 	// 检查是否所有密钥都有效
 	if len(validKeys) != len(apiKeyIDs) {
 		logger.Warn("部分 API 密钥不存在或不属于该平台")
-		return nil, fmt.Errorf("部分 API 密钥不存在或不属于平台 ID %d: %w", platformId, ErrResourceNotBelong)
+		return nil, fmt.Errorf("部分 API 密钥不存在或不属于平台 ID %d：%w", platformId, ErrResourceNotBelong)
 	}
 
 	return validKeys, nil
@@ -151,7 +152,7 @@ func (s *service) validatePlatformDefaultUniqueWithQuery(ctx context.Context, q 
 		return fmt.Errorf("查询默认端点失败：%w", err)
 	}
 	if count > 1 {
-		return fmt.Errorf("平台 ID %d 存在多个默认端点", platformId)
+		return fmt.Errorf("平台 ID %d 存在多个默认端点：%w", platformId, ErrDefaultConflict)
 	}
 	return nil
 }
@@ -181,6 +182,9 @@ func (s *service) ensurePlatformDefaultExists(ctx context.Context, platformId ui
 	if _, err := query.Q.Endpoint.WithContext(ctx).
 		Where(query.Q.Endpoint.ID.Eq(endpoint.ID)).
 		Updates(types.Endpoint{IsDefault: true}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("默认端点不存在：%w", ErrResourceNotFound)
+		}
 		return fmt.Errorf("设置默认端点失败：%w", err)
 	}
 
@@ -264,4 +268,3 @@ func (s *service) removeOrphanedModels(ctx context.Context, platformId uint, log
 
 	return result.RowsAffected, nil
 }
-

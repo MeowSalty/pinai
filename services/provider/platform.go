@@ -2,6 +2,7 @@
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -96,7 +97,11 @@ func (s *service) GetPlatform(ctx context.Context, id uint) (*types.Platform, er
 
 	platform, err := s.getPlatformByID(ctx, id)
 	if err != nil {
-		logger.Error("获取平台详情失败", slog.Any("error", err))
+		if errors.Is(err, ErrResourceNotFound) {
+			logger.Warn("平台不存在")
+		} else {
+			logger.Error("获取平台详情失败", slog.Any("error", err))
+		}
 		return nil, err
 	}
 
@@ -298,4 +303,3 @@ func (s *service) GetResourcePlatformMaps(ctx context.Context) (keyMap, modelMap
 		slog.Int("model_count", len(modelMap)))
 	return keyMap, modelMap, nil
 }
-
