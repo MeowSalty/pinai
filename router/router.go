@@ -75,7 +75,7 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 	multi.SetupMultiRoutes(multiAPI, svcs.PortalService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
 
 	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
-	stats.SetupStatsRoutes(webAPI, svcs.StatsService)
+	stats.SetupStatsRoutes(webAPI, svcs.StatsService, logger)
 	health.SetupHealthRoutes(webAPI, svcs.HealthService, logger)
 
 	// 如果启用了前端支持，则设置前端路由

@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,6 +16,7 @@ import (
 // StatsHandler 统计处理器结构体
 type StatsHandler struct {
 	StatsService stats.Service
+	logger       *slog.Logger
 }
 
 // NewStatsHandler 创建统计处理器实例
@@ -24,9 +26,14 @@ type StatsHandler struct {
 //
 // 返回值：
 //   - *StatsHandler: 统计处理器实例
-func NewStatsHandler(statsService stats.Service) *StatsHandler {
+func NewStatsHandler(statsService stats.Service, logger *slog.Logger) *StatsHandler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	return &StatsHandler{
 		StatsService: statsService,
+		logger:       logger.With("component", "stats_handler"),
 	}
 }
 
@@ -45,6 +52,9 @@ func NewStatsHandler(statsService stats.Service) *StatsHandler {
 // @Failure      500        {object}  gin.H  "服务器内部错误"
 // @Router       /api/stats/dashboard [get]
 func (h *StatsHandler) GetDashboard(c *gin.Context) {
+	start := time.Now()
+	logger := h.newRequestLogger(c, "get_dashboard")
+
 	rangeStr := c.DefaultQuery("range", string(stats.TrendRange24h))
 	trendRange := stats.TrendRange(rangeStr)
 
@@ -52,15 +62,33 @@ func (h *StatsHandler) GetDashboard(c *gin.Context) {
 	case stats.TrendRange24h, stats.TrendRange7d, stats.TrendRange30d:
 		// 参数有效
 	default:
+		logger.Warn("请求参数校验失败",
+			"error_type", "validation_error",
+			"error", "无效的时间范围参数",
+			"range", rangeStr,
+			"client_ip", c.ClientIP(),
+		)
 		response.BadRequest(c, "无效的时间范围参数，可选值：24h, 7d, 30d")
 		return
 	}
 
+	logger = logger.With("range", rangeStr)
+
 	dashboard, err := h.StatsService.GetDashboard(c.Request.Context(), trendRange)
 	if err != nil {
-		response.InternalError(c, "获取仪表盘数据失败："+err.Error())
+		logger.Error("获取仪表盘数据失败",
+			"error", err,
+			"error_type", "service_error",
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		response.InternalError(c, "获取仪表盘数据失败")
 		return
 	}
+
+	logger.Debug("获取仪表盘数据成功",
+		"status_code", http.StatusOK,
+		"latency_ms", time.Since(start).Milliseconds(),
+	)
 
 	c.JSON(http.StatusOK, dashboard)
 }
@@ -71,11 +99,24 @@ func (h *StatsHandler) GetDashboard(c *gin.Context) {
 //   - 成功：实时数据
 //   - 失败：错误信息
 func (h *StatsHandler) GetRealtime(c *gin.Context) {
+	start := time.Now()
+	logger := h.newRequestLogger(c, "get_realtime")
+
 	realtime, err := h.StatsService.GetRealtime(c.Request.Context())
 	if err != nil {
-		response.InternalError(c, "获取实时数据失败："+err.Error())
+		logger.Error("获取实时数据失败",
+			"error", err,
+			"error_type", "service_error",
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		response.InternalError(c, "获取实时数据失败")
 		return
 	}
+
+	logger.Debug("获取实时数据成功",
+		"status_code", http.StatusOK,
+		"latency_ms", time.Since(start).Milliseconds(),
+	)
 
 	c.JSON(http.StatusOK, realtime)
 }
@@ -116,6 +157,9 @@ func (h *StatsHandler) GetRealtime(c *gin.Context) {
 // @Failure      500           {object}  gin.H  "服务器内部错误"
 // @Router       /api/stats/requests [get]
 func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
+	start := time.Now()
+	logger := h.newRequestLogger(c, "list_request_logs")
+
 	// 解析查询参数
 	var opts stats.ListRequestLogsOptions
 
@@ -123,6 +167,12 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
 		startTime, err := parseTime(startTimeStr)
 		if err != nil {
+			logger.Warn("请求参数校验失败",
+				"error", err,
+				"error_type", "validation_error",
+				"field", "start_time",
+				"client_ip", c.ClientIP(),
+			)
 			response.BadRequest(c, "开始时间格式错误")
 			return
 		}
@@ -132,6 +182,12 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	if endTimeStr := c.Query("end_time"); endTimeStr != "" {
 		endTime, err := parseTime(endTimeStr)
 		if err != nil {
+			logger.Warn("请求参数校验失败",
+				"error", err,
+				"error_type", "validation_error",
+				"field", "end_time",
+				"client_ip", c.ClientIP(),
+			)
 			response.BadRequest(c, "结束时间格式错误")
 			return
 		}
@@ -141,6 +197,12 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析结果状态参数
 	success, err := query.OptionalBool(c, "success")
 	if err != nil {
+		logger.Warn("请求参数校验失败",
+			"error", err,
+			"error_type", "validation_error",
+			"field", "success",
+			"client_ip", c.ClientIP(),
+		)
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -149,6 +211,12 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析是否流式请求参数
 	isStream, err := query.OptionalBool(c, "is_stream")
 	if err != nil {
+		logger.Warn("请求参数校验失败",
+			"error", err,
+			"error_type", "validation_error",
+			"field", "is_stream",
+			"client_ip", c.ClientIP(),
+		)
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -157,6 +225,12 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析是否原生请求参数
 	isNative, err := query.OptionalBool(c, "is_native")
 	if err != nil {
+		logger.Warn("请求参数校验失败",
+			"error", err,
+			"error_type", "validation_error",
+			"field", "is_native",
+			"client_ip", c.ClientIP(),
+		)
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -170,6 +244,12 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析平台 ID 参数
 	platformID, err := query.OptionalUint(c, "platform_id")
 	if err != nil {
+		logger.Warn("请求参数校验失败",
+			"error", err,
+			"error_type", "validation_error",
+			"field", "platform_id",
+			"client_ip", c.ClientIP(),
+		)
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -178,6 +258,13 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	// 解析分页参数
 	page, pageSize, err := query.Pagination(c)
 	if err != nil {
+		logger.Warn("分页参数解析失败",
+			"error", err,
+			"error_type", "validation_error",
+			"page_raw", c.Query("page"),
+			"page_size_raw", c.Query("page_size"),
+			"client_ip", c.ClientIP(),
+		)
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -185,10 +272,26 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	opts.Page = page
 	opts.PageSize = pageSize
 
+	logger = logger.With(
+		"page", page,
+		"page_size", pageSize,
+	)
+	if opts.ModelName != nil {
+		logger = logger.With("model", *opts.ModelName)
+	}
+	if opts.PlatformID != nil {
+		logger = logger.With("platform_id", *opts.PlatformID)
+	}
+
 	// 调用服务获取数据
 	result, count, err := h.StatsService.ListRequestLogs(c.Request.Context(), opts)
 	if err != nil {
-		response.InternalError(c, "获取请求状态列表失败："+err.Error())
+		logger.Error("获取请求状态列表失败",
+			"error", err,
+			"error_type", "service_error",
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		response.InternalError(c, "获取请求状态列表失败")
 		return
 	}
 
@@ -198,7 +301,37 @@ func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 		"count": count,
 	}
 
+	logger.Debug("获取请求状态列表成功",
+		"status_code", http.StatusOK,
+		"latency_ms", time.Since(start).Milliseconds(),
+		"count", count,
+		"item_count", len(result),
+	)
+
 	c.JSON(http.StatusOK, response)
+}
+
+func (h *StatsHandler) newRequestLogger(c *gin.Context, operation string) *slog.Logger {
+	return h.logger.With(
+		"operation", operation,
+		"path", c.FullPath(),
+		"method", c.Request.Method,
+		"request_id", requestIDFromContext(c),
+	)
+}
+
+func requestIDFromContext(c *gin.Context) string {
+	if rid, ok := c.Get("request_id"); ok {
+		if requestID, ok := rid.(string); ok {
+			return requestID
+		}
+	}
+
+	if requestID := c.GetHeader("X-Request-ID"); requestID != "" {
+		return requestID
+	}
+
+	return c.GetHeader("X-Request-Id")
 }
 
 // parseTime 解析时间字符串，支持 RFC3339 格式和 Unix 时间戳 (毫秒)
