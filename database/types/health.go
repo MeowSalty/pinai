@@ -52,9 +52,16 @@ type Health struct {
 	BackoffDuration int64      `gorm:"default:0"` // 当前退避时长 (秒)
 
 	// 状态详情
-	LastError     string     `gorm:"type:text"` // 最后错误信息
-	LastErrorCode int        `gorm:"default:0"` // 最后错误码
-	LastCheckAt   time.Time  `gorm:"not null"`  // 最后检查时间
+	LastError     string `gorm:"type:text"` // 最后错误信息
+	LastErrorCode int    `gorm:"default:0"` // 最后错误码
+
+	LastErrorMessage        string `gorm:"type:text"` // 最后错误展示消息
+	LastStructuredErrorCode string `gorm:"type:text"` // 最后稳定错误码
+	LastHTTPStatus          *int   // 最后 HTTP 状态码（无 HTTP 响应时为空）
+	LastErrorFrom           string `gorm:"type:text"` // 最后错误来源
+	LastCauseMessage        string `gorm:"type:text"` // 最后根因文本
+
+	LastCheckAt   time.Time  `gorm:"not null"` // 最后检查时间
 	LastSuccessAt *time.Time // 最后成功时间
 
 	// 统计信息
