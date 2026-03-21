@@ -20,6 +20,8 @@ github.com/MeowSalty/portal v0.8.1-0.20260321150420-abe0ead00b4c h1:p9+d3w5RXMn+
 github.com/MeowSalty/portal v0.8.1-0.20260321150420-abe0ead00b4c/go.mod h1:KMc2A9RT9rtAQMVoNUXgmfaPani+zqw/Sc9flsbDruY=
 github.com/MeowSalty/portal v0.8.1-0.20260321163829-6916cb5da9c9 h1:ww5prE1805+BfZfI21qdhgFbXgFsuq4xiWzPGGA6JTs=
 github.com/MeowSalty/portal v0.8.1-0.20260321163829-6916cb5da9c9/go.mod h1:KMc2A9RT9rtAQMVoNUXgmfaPani+zqw/Sc9flsbDruY=
+github.com/MeowSalty/portal v0.8.1-0.20260321172525-d3503127d0d2 h1:Vzq+pADGudz29Hd/+csCON5O7Ml0aPqs5KzxojzjCJs=
+github.com/MeowSalty/portal v0.8.1-0.20260321172525-d3503127d0d2/go.mod h1:KMc2A9RT9rtAQMVoNUXgmfaPani+zqw/Sc9flsbDruY=
 github.com/bytedance/gopkg v0.1.3 h1:TPBSwH8RsouGCBcMBktLt1AymVo2TVsBVCY4b6TnZ/M=
 github.com/bytedance/gopkg v0.1.3/go.mod h1:576VvJ+eJgyCzdjS+c4+77QF3p7ubbtiKARP3TxducM=
 github.com/bytedance/sonic v1.15.0 h1:/PXeWFaR5ElNcVE84U0dOHjiMHQOwNIx3K4ymzh/uSE=
