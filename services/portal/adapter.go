@@ -2,13 +2,12 @@ package portal
 
 import (
 	"github.com/MeowSalty/pinai/database/types"
-	"github.com/MeowSalty/pinai/services/health"
 	coreHealth "github.com/MeowSalty/portal/routing/health"
 )
 
 // healthStorageAdapter 适配器，将内部 health.Storage 转换为 portal 需要的 health.Storage 接口
 type healthStorageAdapter struct {
-	storage *health.Storage
+	storage HealthStorage
 }
 
 // Get 实现 portal health.Storage 接口的 Get 方法

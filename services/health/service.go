@@ -11,7 +11,6 @@ import (
 
 // Service 定义健康服务接口
 type Service interface {
-	GetStorage() *Storage
 	EnableHealth(resourceType types.ResourceType, resourceID uint) error
 	DisableHealth(resourceType types.ResourceType, resourceID uint) error
 	GetHealthSummary(ctx context.Context) (*HealthSummaryResponse, error)
@@ -29,25 +28,21 @@ type service struct {
 
 // NewService 创建健康服务实例
 //
-// 该函数会在 health 包内部初始化 Storage，确保存储的初始化逻辑封装在 health 包中
-//
 // 参数：
 //
-//	ctx - 上下文，用于初始化存储
+//	storage - 健康状态存储实例，由组装层创建后注入
 //	logger - 日志记录器
 //
 // 返回值：
 //
 //	Service - 健康服务实例
 //	error - 初始化错误
-func NewService(ctx context.Context, logger *slog.Logger) (Service, error) {
+func NewService(storage *Storage, logger *slog.Logger) (Service, error) {
 	logger.Debug("开始初始化健康服务")
 
-	// 在 health 包内部初始化存储
-	storage, err := NewStorage(ctx, logger)
-	if err != nil {
-		logger.Error("初始化健康状态存储失败", "error", err)
-		return nil, fmt.Errorf("初始化健康服务失败：%w", err)
+	if storage == nil {
+		logger.Error("初始化健康服务失败", "error", "health storage 不能为空")
+		return nil, fmt.Errorf("初始化健康服务失败：health storage 不能为空")
 	}
 
 	serviceLogger := logger.WithGroup("health_service").With("component", "health_service")
@@ -56,17 +51,6 @@ func NewService(ctx context.Context, logger *slog.Logger) (Service, error) {
 		storage: storage,
 		logger:  serviceLogger,
 	}, nil
-}
-
-// GetStorage 获取健康状态存储实例
-//
-// 该方法用于导出内部的健康状态存储实例，供其他服务（如 Portal Service）使用
-//
-// 返回值：
-//
-//	*Storage - 健康状态存储实例
-func (s *service) GetStorage() *Storage {
-	return s.storage
 }
 
 // EnableHealth 启用/恢复资源健康状态

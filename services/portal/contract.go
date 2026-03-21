@@ -5,8 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MeowSalty/pinai/database/types"
 	adapterTypes "github.com/MeowSalty/portal/request/adapter/types"
 )
+
+// HealthStorage 定义 Portal 服务依赖的最小健康存储契约。
+type HealthStorage interface {
+	Get(resourceType types.ResourceType, resourceID uint) (*types.Health, error)
+	Set(status *types.Health) error
+	Delete(resourceType types.ResourceType, resourceID uint) error
+}
 
 // ChatCompletion 处理聊天完成请求
 //

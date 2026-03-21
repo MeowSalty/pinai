@@ -83,7 +83,7 @@ func (h *Handler) GetKeysByPlatform(c *gin.Context) {
 
 	// 检查是否需要包含健康状态
 	if c.Query("include") == "health" {
-		storage := h.healthService.GetStorage()
+		storage := h.healthStorage
 		result := make([]KeyWithHealth, len(keys))
 		for i, k := range keys {
 			result[i].APIKey = k

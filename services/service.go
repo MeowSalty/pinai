@@ -34,14 +34,17 @@ type Services struct {
 //	*Services - 包含所有服务实例的结构体
 //	error - 初始化过程中可能出现的错误
 func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) (*Services, error) {
-	// 初始化健康服务（内部会创建 Storage）
-	healthService, err := health.NewService(ctx, logger.WithGroup("health"))
+	// 初始化共享健康存储
+	healthStorage, err := health.NewStorage(ctx, logger.WithGroup("health_storage"))
 	if err != nil {
 		return nil, err
 	}
 
-	// 从健康服务获取共享的 Storage 实例
-	healthStorage := healthService.GetStorage()
+	// 基于共享存储初始化健康服务
+	healthService, err := health.NewService(healthStorage, logger.WithGroup("health"))
+	if err != nil {
+		return nil, err
+	}
 
 	// 使用共享的 Storage 创建 Portal 服务
 	portalService, err := portal.New(ctx, logger.WithGroup("portal"), modelMapping, healthStorage)

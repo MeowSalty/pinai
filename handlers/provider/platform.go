@@ -86,7 +86,7 @@ func (h *Handler) GetPlatforms(c *gin.Context) {
 		return
 	}
 
-	storage := h.healthService.GetStorage()
+	storage := h.healthStorage
 
 	// 按平台统计密钥和模型的健康分布
 	keyHealthCounts := storage.CountByPlatform(types.ResourceTypeAPIKey, keyMap)

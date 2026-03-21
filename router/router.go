@@ -74,7 +74,7 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 
 	multi.SetupMultiRoutes(multiAPI, svcs.PortalService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
 
-	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
+	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService, svcs.HealthStorage)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService, logger)
 	health.SetupHealthRoutes(webAPI, svcs.HealthService, logger)
 
