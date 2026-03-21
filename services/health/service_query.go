@@ -175,15 +175,23 @@ func (s *service) GetPlatformHealthList(ctx context.Context, page, pageSize int)
 		platform := platformMap[health.ResourceID]
 		if platform != nil {
 			items = append(items, PlatformHealthItem{
-				PlatformID:    platform.ID,
-				PlatformName:  platform.Name,
-				Status:        health.Status,
-				RetryCount:    health.RetryCount,
-				LastError:     health.LastError,
-				LastCheckAt:   health.LastCheckAt,
-				LastSuccessAt: health.LastSuccessAt,
-				SuccessCount:  health.SuccessCount,
-				ErrorCount:    health.ErrorCount,
+				PlatformID:              platform.ID,
+				PlatformName:            platform.Name,
+				Status:                  health.Status,
+				RetryCount:              health.RetryCount,
+				NextAvailableAt:         health.NextAvailableAt,
+				BackoffDuration:         health.BackoffDuration,
+				LastError:               health.LastError,
+				LastErrorCode:           health.LastErrorCode,
+				LastErrorMessage:        health.LastErrorMessage,
+				LastStructuredErrorCode: health.LastStructuredErrorCode,
+				LastHTTPStatus:          health.LastHTTPStatus,
+				LastErrorFrom:           health.LastErrorFrom,
+				LastCauseMessage:        health.LastCauseMessage,
+				LastCheckAt:             health.LastCheckAt,
+				LastSuccessAt:           health.LastSuccessAt,
+				SuccessCount:            health.SuccessCount,
+				ErrorCount:              health.ErrorCount,
 			})
 		}
 	}
@@ -292,15 +300,23 @@ func (s *service) GetAPIKeyHealthList(ctx context.Context, page, pageSize int) (
 		key := keyMap[health.ResourceID]
 		if key != nil {
 			items = append(items, APIKeyHealthItem{
-				KeyID:         key.ID,
-				KeyValue:      key.Value,
-				Status:        health.Status,
-				RetryCount:    health.RetryCount,
-				LastError:     health.LastError,
-				LastCheckAt:   health.LastCheckAt,
-				LastSuccessAt: health.LastSuccessAt,
-				SuccessCount:  health.SuccessCount,
-				ErrorCount:    health.ErrorCount,
+				KeyID:                   key.ID,
+				KeyValue:                key.Value,
+				Status:                  health.Status,
+				RetryCount:              health.RetryCount,
+				NextAvailableAt:         health.NextAvailableAt,
+				BackoffDuration:         health.BackoffDuration,
+				LastError:               health.LastError,
+				LastErrorCode:           health.LastErrorCode,
+				LastErrorMessage:        health.LastErrorMessage,
+				LastStructuredErrorCode: health.LastStructuredErrorCode,
+				LastHTTPStatus:          health.LastHTTPStatus,
+				LastErrorFrom:           health.LastErrorFrom,
+				LastCauseMessage:        health.LastCauseMessage,
+				LastCheckAt:             health.LastCheckAt,
+				LastSuccessAt:           health.LastSuccessAt,
+				SuccessCount:            health.SuccessCount,
+				ErrorCount:              health.ErrorCount,
 			})
 		}
 	}
@@ -409,16 +425,24 @@ func (s *service) GetModelHealthList(ctx context.Context, page, pageSize int) (*
 		model := modelMap[health.ResourceID]
 		if model != nil {
 			items = append(items, ModelHealthItem{
-				ModelID:       model.ID,
-				ModelName:     model.Name,
-				ModelAlias:    model.Alias,
-				Status:        health.Status,
-				RetryCount:    health.RetryCount,
-				LastError:     health.LastError,
-				LastCheckAt:   health.LastCheckAt,
-				LastSuccessAt: health.LastSuccessAt,
-				SuccessCount:  health.SuccessCount,
-				ErrorCount:    health.ErrorCount,
+				ModelID:                 model.ID,
+				ModelName:               model.Name,
+				ModelAlias:              model.Alias,
+				Status:                  health.Status,
+				RetryCount:              health.RetryCount,
+				NextAvailableAt:         health.NextAvailableAt,
+				BackoffDuration:         health.BackoffDuration,
+				LastError:               health.LastError,
+				LastErrorCode:           health.LastErrorCode,
+				LastErrorMessage:        health.LastErrorMessage,
+				LastStructuredErrorCode: health.LastStructuredErrorCode,
+				LastHTTPStatus:          health.LastHTTPStatus,
+				LastErrorFrom:           health.LastErrorFrom,
+				LastCauseMessage:        health.LastCauseMessage,
+				LastCheckAt:             health.LastCheckAt,
+				LastSuccessAt:           health.LastSuccessAt,
+				SuccessCount:            health.SuccessCount,
+				ErrorCount:              health.ErrorCount,
 			})
 		}
 	}

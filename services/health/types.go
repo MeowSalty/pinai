@@ -24,15 +24,23 @@ type HealthSummaryResponse struct {
 
 // PlatformHealthItem 单个平台健康状态项
 type PlatformHealthItem struct {
-	PlatformID    uint               `json:"platform_id"`     // 平台 ID
-	PlatformName  string             `json:"platform_name"`   // 平台名称
-	Status        types.HealthStatus `json:"status"`          // 健康状态
-	RetryCount    int                `json:"retry_count"`     // 重试次数
-	LastError     string             `json:"last_error"`      // 最后错误信息
-	LastCheckAt   time.Time          `json:"last_check_at"`   // 最后检查时间
-	LastSuccessAt *time.Time         `json:"last_success_at"` // 最后成功时间
-	SuccessCount  int                `json:"success_count"`   // 成功次数
-	ErrorCount    int                `json:"error_count"`     // 错误次数
+	PlatformID              uint               `json:"platform_id"`                // 平台 ID
+	PlatformName            string             `json:"platform_name"`              // 平台名称
+	Status                  types.HealthStatus `json:"status"`                     // 健康状态
+	RetryCount              int                `json:"retry_count"`                // 重试次数
+	NextAvailableAt         *time.Time         `json:"next_available_at"`          // 下次可用时间
+	BackoffDuration         int64              `json:"backoff_duration"`           // 当前退避时长（秒）
+	LastError               string             `json:"last_error"`                 // 最后错误信息
+	LastErrorCode           int                `json:"last_error_code"`            // 最后错误码
+	LastErrorMessage        string             `json:"last_error_message"`         // 最后错误展示消息
+	LastStructuredErrorCode string             `json:"last_structured_error_code"` // 最后稳定错误码
+	LastHTTPStatus          *int               `json:"last_http_status"`           // 最后 HTTP 状态码
+	LastErrorFrom           string             `json:"last_error_from"`            // 最后错误来源
+	LastCauseMessage        string             `json:"last_cause_message"`         // 最后根因文本
+	LastCheckAt             time.Time          `json:"last_check_at"`              // 最后检查时间
+	LastSuccessAt           *time.Time         `json:"last_success_at"`            // 最后成功时间
+	SuccessCount            int                `json:"success_count"`              // 成功次数
+	ErrorCount              int                `json:"error_count"`                // 错误次数
 }
 
 // PlatformHealthListResponse 平台健康列表响应
@@ -45,15 +53,23 @@ type PlatformHealthListResponse struct {
 
 // APIKeyHealthItem 单个密钥健康状态项
 type APIKeyHealthItem struct {
-	KeyID         uint               `json:"key_id"`          // 密钥 ID
-	KeyValue      string             `json:"key_value"`       // 密钥值
-	Status        types.HealthStatus `json:"status"`          // 健康状态
-	RetryCount    int                `json:"retry_count"`     // 重试次数
-	LastError     string             `json:"last_error"`      // 最后错误信息
-	LastCheckAt   time.Time          `json:"last_check_at"`   // 最后检查时间
-	LastSuccessAt *time.Time         `json:"last_success_at"` // 最后成功时间
-	SuccessCount  int                `json:"success_count"`   // 成功次数
-	ErrorCount    int                `json:"error_count"`     // 错误次数
+	KeyID                   uint               `json:"key_id"`                     // 密钥 ID
+	KeyValue                string             `json:"key_value"`                  // 密钥值
+	Status                  types.HealthStatus `json:"status"`                     // 健康状态
+	RetryCount              int                `json:"retry_count"`                // 重试次数
+	NextAvailableAt         *time.Time         `json:"next_available_at"`          // 下次可用时间
+	BackoffDuration         int64              `json:"backoff_duration"`           // 当前退避时长（秒）
+	LastError               string             `json:"last_error"`                 // 最后错误信息
+	LastErrorCode           int                `json:"last_error_code"`            // 最后错误码
+	LastErrorMessage        string             `json:"last_error_message"`         // 最后错误展示消息
+	LastStructuredErrorCode string             `json:"last_structured_error_code"` // 最后稳定错误码
+	LastHTTPStatus          *int               `json:"last_http_status"`           // 最后 HTTP 状态码
+	LastErrorFrom           string             `json:"last_error_from"`            // 最后错误来源
+	LastCauseMessage        string             `json:"last_cause_message"`         // 最后根因文本
+	LastCheckAt             time.Time          `json:"last_check_at"`              // 最后检查时间
+	LastSuccessAt           *time.Time         `json:"last_success_at"`            // 最后成功时间
+	SuccessCount            int                `json:"success_count"`              // 成功次数
+	ErrorCount              int                `json:"error_count"`                // 错误次数
 }
 
 // APIKeyHealthListResponse 密钥健康列表响应
@@ -66,16 +82,24 @@ type APIKeyHealthListResponse struct {
 
 // ModelHealthItem 单个模型健康状态项
 type ModelHealthItem struct {
-	ModelID       uint               `json:"model_id"`        // 模型 ID
-	ModelName     string             `json:"model_name"`      // 模型名称
-	ModelAlias    string             `json:"model_alias"`     // 模型别名
-	Status        types.HealthStatus `json:"status"`          // 健康状态
-	RetryCount    int                `json:"retry_count"`     // 重试次数
-	LastError     string             `json:"last_error"`      // 最后错误信息
-	LastCheckAt   time.Time          `json:"last_check_at"`   // 最后检查时间
-	LastSuccessAt *time.Time         `json:"last_success_at"` // 最后成功时间
-	SuccessCount  int                `json:"success_count"`   // 成功次数
-	ErrorCount    int                `json:"error_count"`     // 错误次数
+	ModelID                 uint               `json:"model_id"`                   // 模型 ID
+	ModelName               string             `json:"model_name"`                 // 模型名称
+	ModelAlias              string             `json:"model_alias"`                // 模型别名
+	Status                  types.HealthStatus `json:"status"`                     // 健康状态
+	RetryCount              int                `json:"retry_count"`                // 重试次数
+	NextAvailableAt         *time.Time         `json:"next_available_at"`          // 下次可用时间
+	BackoffDuration         int64              `json:"backoff_duration"`           // 当前退避时长（秒）
+	LastError               string             `json:"last_error"`                 // 最后错误信息
+	LastErrorCode           int                `json:"last_error_code"`            // 最后错误码
+	LastErrorMessage        string             `json:"last_error_message"`         // 最后错误展示消息
+	LastStructuredErrorCode string             `json:"last_structured_error_code"` // 最后稳定错误码
+	LastHTTPStatus          *int               `json:"last_http_status"`           // 最后 HTTP 状态码
+	LastErrorFrom           string             `json:"last_error_from"`            // 最后错误来源
+	LastCauseMessage        string             `json:"last_cause_message"`         // 最后根因文本
+	LastCheckAt             time.Time          `json:"last_check_at"`              // 最后检查时间
+	LastSuccessAt           *time.Time         `json:"last_success_at"`            // 最后成功时间
+	SuccessCount            int                `json:"success_count"`              // 成功次数
+	ErrorCount              int                `json:"error_count"`                // 错误次数
 }
 
 // ModelHealthListResponse 模型健康列表响应
