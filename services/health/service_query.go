@@ -584,7 +584,8 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 	items := make([]IssueItem, 0, len(unavailableHealths))
 	for _, health := range unavailableHealths {
 		var resourceName string
-		var platformName string // 平台名称变量
+		var platformName string
+		var platformNamePtr *string
 
 		switch health.ResourceType {
 		case types.ResourceTypePlatform:
@@ -594,25 +595,43 @@ func (s *service) GetIssues(ctx context.Context) (*IssuesListResponse, error) {
 			// 获取密钥所属的平台名称
 			if platformID, exists := keyPlatformMap[health.ResourceID]; exists {
 				platformName = platformMap[platformID]
+				if platformName != "" {
+					platformNamePtr = &platformName
+				}
 			}
 		case types.ResourceTypeModel:
 			resourceName = modelMap[health.ResourceID]
 			// 获取模型所属的平台名称
 			if platformID, exists := modelPlatformMap[health.ResourceID]; exists {
 				platformName = platformMap[platformID]
+				if platformName != "" {
+					platformNamePtr = &platformName
+				}
 			}
 		}
 
 		// 只添加能找到资源名称的项
 		if resourceName != "" {
 			items = append(items, IssueItem{
-				ResourceType: health.ResourceType,
-				ResourceID:   health.ResourceID,
-				ResourceName: resourceName,
-				PlatformName: &platformName, // 填充平台名称
-				Status:       health.Status,
-				LastCheckAt:  health.LastCheckAt,
-				LastError:    health.LastError,
+				ResourceType:            health.ResourceType,
+				ResourceID:              health.ResourceID,
+				ResourceName:            resourceName,
+				PlatformName:            platformNamePtr,
+				Status:                  health.Status,
+				RetryCount:              health.RetryCount,
+				NextAvailableAt:         health.NextAvailableAt,
+				BackoffDuration:         health.BackoffDuration,
+				LastError:               health.LastError,
+				LastErrorCode:           health.LastErrorCode,
+				LastErrorMessage:        health.LastErrorMessage,
+				LastStructuredErrorCode: health.LastStructuredErrorCode,
+				LastHTTPStatus:          health.LastHTTPStatus,
+				LastErrorFrom:           health.LastErrorFrom,
+				LastCauseMessage:        health.LastCauseMessage,
+				LastCheckAt:             health.LastCheckAt,
+				LastSuccessAt:           health.LastSuccessAt,
+				SuccessCount:            health.SuccessCount,
+				ErrorCount:              health.ErrorCount,
 			})
 		}
 	}

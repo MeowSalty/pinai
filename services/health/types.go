@@ -112,13 +112,25 @@ type ModelHealthListResponse struct {
 
 // IssueItem 单个异常资源项
 type IssueItem struct {
-	ResourceType types.ResourceType `json:"resource_type"` // 资源类型
-	ResourceID   uint               `json:"resource_id"`   // 资源 ID
-	ResourceName string             `json:"resource_name"` // 资源名称
-	PlatformName *string            `json:"platform_name"` // 所属平台名称（仅密钥和模型类型）
-	Status       types.HealthStatus `json:"status"`        // 资源状态
-	LastCheckAt  time.Time          `json:"last_check_at"` // 最后检查
-	LastError    string             `json:"last_error"`    // 最后错误
+	ResourceType            types.ResourceType `json:"resource_type"`              // 资源类型
+	ResourceID              uint               `json:"resource_id"`                // 资源 ID
+	ResourceName            string             `json:"resource_name"`              // 资源名称
+	PlatformName            *string            `json:"platform_name"`              // 所属平台名称（仅密钥和模型类型）
+	Status                  types.HealthStatus `json:"status"`                     // 资源状态
+	RetryCount              int                `json:"retry_count"`                // 重试次数
+	NextAvailableAt         *time.Time         `json:"next_available_at"`          // 下次可用时间
+	BackoffDuration         int64              `json:"backoff_duration"`           // 当前退避时长（秒）
+	LastError               string             `json:"last_error"`                 // 最后错误信息
+	LastErrorCode           int                `json:"last_error_code"`            // 最后错误码
+	LastErrorMessage        string             `json:"last_error_message"`         // 最后错误展示消息
+	LastStructuredErrorCode string             `json:"last_structured_error_code"` // 最后稳定错误码
+	LastHTTPStatus          *int               `json:"last_http_status"`           // 最后 HTTP 状态码
+	LastErrorFrom           string             `json:"last_error_from"`            // 最后错误来源
+	LastCauseMessage        string             `json:"last_cause_message"`         // 最后根因文本
+	LastCheckAt             time.Time          `json:"last_check_at"`              // 最后检查时间
+	LastSuccessAt           *time.Time         `json:"last_success_at"`            // 最后成功时间
+	SuccessCount            int                `json:"success_count"`              // 成功次数
+	ErrorCount              int                `json:"error_count"`                // 错误次数
 }
 
 // IssuesListResponse 异常资源列表响应
