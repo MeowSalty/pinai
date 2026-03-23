@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MeowSalty/pinai/handlers/multi"
 	"github.com/MeowSalty/pinai/services"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -30,20 +29,6 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 		web.Use(cors.Default())
 	}
 	webAPI := web.Group("/api")
-	openaiAPI := web.Group("/openai/v1")
-	anthropicAPI := web.Group("/anthropic/v1")
-	multiAPI := web.Group("/multi")
-
-	// 为业务 API 添加统计采集中间件
-	openaiAPI.Use(createStatsCollectorMiddleware())
-	anthropicAPI.Use(createStatsCollectorMiddleware())
-	multiAPI.Use(createStatsCollectorMiddleware())
-
-	// 如果设置了 token，为业务 API 端点添加身份验证
-	if config.ApiToken != "" {
-		openaiAPI.Use(createOpenAIAuthMiddleware(config.ApiToken))
-		anthropicAPI.Use(createAnthropicAuthMiddleware(config.ApiToken))
-	}
 
 	// 如果设置了管理 token，为管理 API 端点添加身份验证
 	if config.AdminToken != "" {
@@ -51,8 +36,7 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 	}
 
 	setupControlPlaneRoutes(webAPI, svcs, config, logger)
-
-	multi.SetupMultiRoutes(multiAPI, svcs.PortalService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
+	setupDataPlaneRoutes(web, svcs, config, logger)
 
 	setupFrontendRoutes(web, config)
 
