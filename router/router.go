@@ -5,11 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MeowSalty/pinai/handlers/health"
 	"github.com/MeowSalty/pinai/handlers/multi"
-	"github.com/MeowSalty/pinai/handlers/provider"
-	"github.com/MeowSalty/pinai/handlers/proxy"
-	"github.com/MeowSalty/pinai/handlers/stats"
 	"github.com/MeowSalty/pinai/services"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -54,23 +50,9 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 		webAPI.Use(createOpenAIAuthMiddleware(config.AdminToken))
 	}
 
-	// 条件注册代理路由（需 ProxyEnabled=true 且 AdminToken 非空）
-	if config.ProxyEnabled && config.AdminToken != "" {
-		proxyAPI := webAPI.Group("/proxy")
-		proxy.SetupProxyRoutes(proxyAPI, config.ApiToken, config.UserAgent, logger)
-	}
-
-	webAPI.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
+	setupControlPlaneRoutes(webAPI, svcs, config, logger)
 
 	multi.SetupMultiRoutes(multiAPI, svcs.PortalService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
-
-	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService, svcs.HealthStorage)
-	stats.SetupStatsRoutes(webAPI, svcs.StatsService, logger)
-	health.SetupHealthRoutes(webAPI, svcs.HealthService, logger)
 
 	setupFrontendRoutes(web, config)
 
