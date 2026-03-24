@@ -86,6 +86,11 @@ type KeyControlRepository interface {
 type EndpointControlRepository interface {
 	ExistsPlatform(ctx context.Context, platformID uint) (bool, error)
 	CreateEndpoint(ctx context.Context, endpoint *types.Endpoint) error
+	GetEndpoint(ctx context.Context, endpointID uint) (*types.Endpoint, error)
+	UpdateEndpointFields(ctx context.Context, endpointID uint, updates types.Endpoint, fieldNames []string) (int64, error)
+	DeleteEndpointByID(ctx context.Context, endpointID uint) (int64, error)
+	GetLatestEndpointByPlatform(ctx context.Context, platformID uint) (*types.Endpoint, error)
+	SetEndpointDefault(ctx context.Context, endpointID uint, isDefault bool) (int64, error)
 	CountDefaultEndpointsByPlatform(ctx context.Context, platformID uint) (int64, error)
 }
 

@@ -11,7 +11,6 @@ import (
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
 	"gorm.io/gen/field"
-	"gorm.io/gorm"
 )
 
 // AddEndpointToPlatform 实现为指定平台添加新端点
@@ -118,86 +117,7 @@ func (s *service) GetEndpoint(ctx context.Context, endpointId uint) (*types.Endp
 
 // UpdateEndpoint 实现更新指定端点
 func (s *service) UpdateEndpoint(ctx context.Context, endpointId uint, endpoint types.Endpoint) (*types.Endpoint, error) {
-	logger := s.logger.With(slog.Uint64("endpoint_id", uint64(endpointId)))
-	logger.Debug("开始更新端点")
-
-	var updatedEndpoint *types.Endpoint
-	err := query.Q.Transaction(func(tx *query.Query) error {
-		existing, err := tx.Endpoint.WithContext(ctx).Where(tx.Endpoint.ID.Eq(endpointId)).First()
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return fmt.Errorf("未找到 ID 为 %d 的端点：%w", endpointId, ErrResourceNotFound)
-			}
-			return fmt.Errorf("查询端点失败：%w", err)
-		}
-
-		updates := make(map[string]interface{})
-		selectFields := make([]string, 0, 5)
-		payload := types.Endpoint{}
-		if endpoint.EndpointType != "" {
-			updates["endpoint_type"] = endpoint.EndpointType
-			payload.EndpointType = endpoint.EndpointType
-			selectFields = append(selectFields, "endpoint_type")
-		}
-		if endpoint.EndpointVariant != "" {
-			updates["endpoint_variant"] = endpoint.EndpointVariant
-			payload.EndpointVariant = endpoint.EndpointVariant
-			selectFields = append(selectFields, "endpoint_variant")
-		}
-		if endpoint.Path != "" {
-			updates["path"] = endpoint.Path
-			payload.Path = endpoint.Path
-			selectFields = append(selectFields, "path")
-		}
-		if endpoint.CustomHeaders != nil {
-			updates["custom_headers"] = endpoint.CustomHeaders
-			payload.CustomHeaders = endpoint.CustomHeaders
-			selectFields = append(selectFields, "custom_headers")
-		}
-		if endpoint.IsDefault {
-			updates["is_default"] = true
-			payload.IsDefault = true
-			selectFields = append(selectFields, "is_default")
-		}
-
-		if len(updates) > 0 {
-			selectExprs := endpointSelectFields(selectFields)
-			result, err := tx.Endpoint.WithContext(ctx).
-				Select(selectExprs...).
-				Where(tx.Endpoint.ID.Eq(endpointId)).
-				Updates(payload)
-			if err != nil {
-				return fmt.Errorf("更新 ID 为 %d 的端点失败：%w", endpointId, err)
-			}
-			if result.RowsAffected == 0 {
-				return fmt.Errorf("未找到 ID 为 %d 的端点：%w", endpointId, ErrResourceNotFound)
-			}
-		}
-
-		if endpoint.IsDefault {
-			if err := s.validatePlatformDefaultUniqueWithQuery(ctx, tx, existing.PlatformID); err != nil {
-				return fmt.Errorf("默认端点校验失败：%w", err)
-			}
-		}
-
-		updatedEndpoint, err = tx.Endpoint.WithContext(ctx).Where(tx.Endpoint.ID.Eq(endpointId)).First()
-		if err != nil {
-			return fmt.Errorf("获取更新后的端点失败：%w", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		if errors.Is(err, ErrDefaultConflict) || errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrInvalidArgument) {
-			logger.Warn("更新端点失败", slog.Any("error", err))
-		} else {
-			logger.Error("更新端点失败", slog.Any("error", err))
-		}
-		return nil, err
-	}
-
-	logger.Info("成功更新端点")
-	return updatedEndpoint, nil
+	return s.updateEndpointApp(ctx, endpointId, endpoint)
 }
 
 // BatchUpdateEndpoints 实现批量更新指定平台的端点（原子性操作）
@@ -428,36 +348,5 @@ func buildEndpointUpdateValueSignature(value interface{}) (string, error) {
 
 // DeleteEndpoint 实现删除指定端点
 func (s *service) DeleteEndpoint(ctx context.Context, endpointId uint) error {
-	logger := s.logger.With(slog.Uint64("endpoint_id", uint64(endpointId)))
-	logger.Debug("开始删除端点")
-
-	endpoint, err := s.getEndpointByID(ctx, endpointId)
-	if err != nil {
-		logger.Warn("端点不存在或查询失败", slog.Any("error", err))
-		return err
-	}
-
-	result, err := query.Q.Endpoint.WithContext(ctx).Where(query.Q.Endpoint.ID.Eq(endpointId)).Delete()
-	if err != nil {
-		logger.Error("删除端点失败", slog.Any("error", err))
-		return fmt.Errorf("删除 ID 为 %d 的端点失败：%w", endpointId, err)
-	}
-	if result.RowsAffected == 0 {
-		logger.Warn("端点不存在")
-		return fmt.Errorf("未找到 ID 为 %d 的端点：%w", endpointId, ErrResourceNotFound)
-	}
-
-	if endpoint.IsDefault {
-		if err := s.ensurePlatformDefaultExists(ctx, endpoint.PlatformID); err != nil {
-			if errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrDefaultConflict) || errors.Is(err, ErrInvalidArgument) {
-				logger.Warn("修复默认端点失败", slog.Any("error", err))
-			} else {
-				logger.Error("修复默认端点失败", slog.Any("error", err))
-			}
-			return err
-		}
-	}
-
-	logger.Info("成功删除端点")
-	return nil
+	return s.deleteEndpointApp(ctx, endpointId)
 }
