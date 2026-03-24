@@ -13,6 +13,7 @@ type service struct {
 	healthReader        HealthReader
 	platformControlRepo PlatformControlRepository
 	modelControlRepo    ModelControlRepository
+	keyControlRepo      KeyControlRepository
 	controlTx           ControlTx
 	controlAudit        ControlAuditLogger
 }

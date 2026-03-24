@@ -11,27 +11,7 @@ import (
 
 // AddKeyToPlatform 实现为指定供应方添加新密钥
 func (s *service) AddKeyToPlatform(ctx context.Context, providerId uint, key types.APIKey) (*types.APIKey, error) {
-	logger := s.logger.With(slog.Uint64("platform_id", uint64(providerId)))
-	logger.Debug("开始为平台添加 API 密钥")
-
-	// 检查平台是否存在
-	if err := s.validatePlatformExists(ctx, providerId); err != nil {
-		logger.Warn("平台不存在")
-		return nil, err
-	}
-
-	// 设置密钥的平台 ID
-	key.PlatformID = providerId
-
-	// 创建密钥
-	key.ID = 0
-	if err := query.Q.APIKey.WithContext(ctx).Create(&key); err != nil {
-		logger.Error("创建 API 密钥失败", slog.Any("error", err))
-		return nil, fmt.Errorf("创建 API 密钥失败：%w", err)
-	}
-
-	logger.Info("成功为平台添加 API 密钥", slog.Uint64("key_id", uint64(key.ID)))
-	return &key, nil
+	return s.addKeyToPlatformApp(ctx, providerId, key)
 }
 
 // GetKeysByPlatform 实现获取指定供应方的所有密钥列表
@@ -191,4 +171,3 @@ func (s *service) DeleteKey(ctx context.Context, keyId uint) error {
 	}
 	return nil
 }
-

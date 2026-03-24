@@ -70,6 +70,12 @@ type ModelControlRepository interface {
 	DeleteModelsByIDs(ctx context.Context, modelIDs []uint) (int64, error)
 }
 
+// KeyControlRepository 定义密钥控制面写路径所需最小仓储能力。
+type KeyControlRepository interface {
+	ExistsPlatform(ctx context.Context, platformID uint) (bool, error)
+	CreateAPIKey(ctx context.Context, key *types.APIKey) error
+}
+
 type controlTxQueryKey struct{}
 
 func queryFromControlTx(ctx context.Context) *query.Query {
