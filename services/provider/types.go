@@ -4,12 +4,20 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"github.com/MeowSalty/pinai/services/health"
 )
 
 // service 是 Service 接口的具体实现
 type service struct {
-	logger *slog.Logger
+	logger              *slog.Logger
+	healthReader        HealthReader
+	platformControlRepo PlatformControlRepository
+	controlTx           ControlTx
+	controlAudit        ControlAuditLogger
 }
+
+// PlatformStatusCount 平台维度健康状态统计。
+type PlatformStatusCount = health.StatusCount
 
 // CreateRequest 定义了创建供应方的请求体
 type CreateRequest struct {

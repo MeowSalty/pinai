@@ -5,12 +5,21 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"github.com/MeowSalty/pinai/services/health"
 )
 
 // New 创建一个新的 Service 实例
-func New(logger *slog.Logger) Service {
+func New(logger *slog.Logger, healthStorage *health.Storage) Service {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	return &service{
-		logger: logger,
+		logger:              logger,
+		healthReader:        healthStorage,
+		platformControlRepo: NewPlatformControlQueryRepository(healthStorage, logger.WithGroup("platform_control_repo")),
+		controlTx:           NewNoOpControlTx(),
+		controlAudit:        NewNoOpControlAuditLogger(logger.WithGroup("control_audit")),
 	}
 }
 
@@ -30,6 +39,9 @@ type Service interface {
 
 	// DeletePlatform 删除指定平台（包括其关联的模型、密钥及关联关系）
 	DeletePlatform(ctx context.Context, id uint) error
+
+	// UpdatePlatformHealthEnabled 更新平台健康状态（enabled=true 启用，false 禁用）
+	UpdatePlatformHealthEnabled(ctx context.Context, platformID uint, enabled bool) (types.HealthStatus, error)
 
 	// AddModelToPlatform 为指定平台添加新模型
 	AddModelToPlatform(ctx context.Context, platformId uint, model types.Model) (*types.Model, error)
@@ -96,4 +108,10 @@ type Service interface {
 
 	// GetResourcePlatformMaps 获取密钥和模型的 resource_id -> platform_id 映射
 	GetResourcePlatformMaps(ctx context.Context) (keyMap, modelMap map[uint]uint, err error)
+
+	// GetResourceHealthStatus 获取资源健康状态；无记录时返回 Unknown。
+	GetResourceHealthStatus(resourceType types.ResourceType, resourceID uint) (types.HealthStatus, error)
+
+	// CountResourceHealthByPlatform 获取密钥和模型按平台分组的健康计数。
+	CountResourceHealthByPlatform(ctx context.Context) (keyCounts, modelCounts map[uint]PlatformStatusCount, err error)
 }

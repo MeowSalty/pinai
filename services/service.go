@@ -13,7 +13,6 @@ import (
 // Services 持有所有服务实例的结构体
 type Services struct {
 	HealthService   health.Service
-	HealthStorage   *health.Storage // 健康状态存储，供外部需要时访问
 	PortalService   portal.Service
 	ProviderService provider.Service
 	StatsService    stats.Service
@@ -53,14 +52,13 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 	}
 
 	// 初始化供应商服务
-	providerService := provider.New(logger.WithGroup("provider"))
+	providerService := provider.New(logger.WithGroup("provider"), healthStorage)
 
 	// 初始化统计服务
 	statsService := stats.New(logger.WithGroup("stats"))
 
 	return &Services{
 		HealthService:   healthService,
-		HealthStorage:   healthStorage,
 		PortalService:   portalService,
 		ProviderService: providerService,
 		StatsService:    statsService,

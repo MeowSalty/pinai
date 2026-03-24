@@ -79,30 +79,24 @@ func (h *Handler) GetPlatforms(c *gin.Context) {
 		return
 	}
 
-	// 获取资源到平台的映射，用于按平台统计健康状态
-	keyMap, modelMap, err := h.service.GetResourcePlatformMaps(ctx)
+	// 获取按平台聚合的资源健康状态统计
+	keyHealthCounts, modelHealthCounts, err := h.service.CountResourceHealthByPlatform(ctx)
 	if err != nil {
-		respondProviderServiceError(c, err, "平台未找到", "获取资源平台映射失败")
+		respondProviderServiceError(c, err, "平台未找到", "获取资源健康统计失败")
 		return
 	}
-
-	storage := h.healthStorage
-
-	// 按平台统计密钥和模型的健康分布
-	keyHealthCounts := storage.CountByPlatform(types.ResourceTypeAPIKey, keyMap)
-	modelHealthCounts := storage.CountByPlatform(types.ResourceTypeModel, modelMap)
 
 	result := make([]PlatformWithHealth, len(platforms))
 	for i, p := range platforms {
 		result[i].Platform = p
 		result[i].KeyCount = keyCounts[p.ID]
 		result[i].ModelCount = modelCounts[p.ID]
-		if health, _ := storage.Get(types.ResourceTypePlatform, p.ID); health != nil {
-			result[i].HealthStatus = &health.Status
-		} else {
-			unknownStatus := types.HealthStatusUnknown
-			result[i].HealthStatus = &unknownStatus
+		status, err := h.service.GetResourceHealthStatus(types.ResourceTypePlatform, p.ID)
+		if err != nil {
+			respondProviderServiceError(c, err, "平台未找到", "获取平台健康状态失败")
+			return
 		}
+		result[i].HealthStatus = &status
 
 		// 组装密钥健康计数
 		kc := keyHealthCounts[p.ID]
@@ -245,40 +239,27 @@ func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 		return
 	}
 
-	// 验证平台是否存在
-	ctx := c.Request.Context()
-	_, err = h.service.GetPlatform(ctx, uint(platformId))
-	if err != nil {
-		respondProviderServiceError(c, err, "平台未找到", "获取平台失败")
-		return
-	}
-
 	if req.Enabled == nil {
 		response.BadRequest(c, "必须提供 enabled 字段")
 		return
 	}
 
-	if *req.Enabled {
-		if err := h.healthService.EnableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
-			response.InternalError(c, "启用平台健康状态失败")
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"message":     "平台已启用",
-			"platform_id": platformId,
-			"status":      "unknown",
-		})
+	ctx := c.Request.Context()
+	status, err := h.service.UpdatePlatformHealthEnabled(ctx, uint(platformId), *req.Enabled)
+	if err != nil {
+		respondProviderServiceError(c, err, "平台未找到", "更新平台健康状态失败")
 		return
 	}
 
-	if err := h.healthService.DisableHealth(types.ResourceTypePlatform, uint(platformId)); err != nil {
-		response.InternalError(c, "禁用平台健康状态失败")
-		return
+	message := "平台已禁用"
+	statusText := "unavailable"
+	if status == types.HealthStatusUnknown {
+		message = "平台已启用"
+		statusText = "unknown"
 	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"message":     "平台已禁用",
+		"message":     message,
 		"platform_id": platformId,
-		"status":      "unavailable",
+		"status":      statusText,
 	})
 }

@@ -130,17 +130,15 @@ func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 
 	// 检查是否需要包含健康状态
 	if c.Query("include") == "health" {
-		storage := h.healthStorage
 		result := make([]ModelWithHealth, len(models))
 		for i, m := range models {
 			result[i].Model = m
-			if health, _ := storage.Get(types.ResourceTypeModel, m.ID); health != nil {
-				result[i].HealthStatus = &health.Status
-			} else {
-				// 没有健康数据时使用未知状态
-				unknownStatus := types.HealthStatusUnknown
-				result[i].HealthStatus = &unknownStatus
+			status, statusErr := h.service.GetResourceHealthStatus(types.ResourceTypeModel, m.ID)
+			if statusErr != nil {
+				respondProviderServiceError(c, statusErr, "模型未找到", "获取模型健康状态失败")
+				return
 			}
+			result[i].HealthStatus = &status
 		}
 		c.JSON(http.StatusOK, result)
 		return

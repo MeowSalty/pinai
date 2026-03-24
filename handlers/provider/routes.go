@@ -8,9 +8,9 @@ import (
 )
 
 // SetupProviderRoutes 配置 LLM 供应方管理相关的 API 路由
-func SetupProviderRoutes(router *gin.RouterGroup, llmService provider.Service, healthService health.Service, healthStorage *health.Storage) {
+func SetupProviderRoutes(router *gin.RouterGroup, llmService provider.Service, healthService health.Service) {
 	// 创建单一的 Provider Handler 实例
-	handler := NewHandler(llmService, healthService, healthStorage)
+	handler := NewHandler(llmService, healthService)
 
 	// 平台 (Platforms) 相关路由
 	platforms := router.Group("/platforms")
