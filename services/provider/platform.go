@@ -13,15 +13,34 @@ import (
 
 // CreatePlatform 实现创建平台
 func (s *service) CreatePlatform(ctx context.Context, platform types.Platform) (*types.Platform, error) {
-	s.logger.Debug("开始创建平台", slog.String("platform_name", platform.Name))
+	logger := s.logger.With(
+		slog.String("operation", "create_platform"),
+		slog.String("platform_name", platform.Name),
+	)
+	logger.Debug("开始创建平台")
+
+	if s.platformControlRepo == nil {
+		return nil, fmt.Errorf("创建平台失败：平台控制仓储未初始化")
+	}
+	if s.controlTx == nil {
+		return nil, fmt.Errorf("创建平台失败：事务执行器未初始化")
+	}
 
 	platform.ID = 0
-	if err := query.Q.Platform.WithContext(ctx).Create(&platform); err != nil {
-		s.logger.Error("创建平台失败", slog.String("platform_name", platform.Name), slog.Any("error", err))
+	err := s.controlTx.WithinTx(ctx, func(txCtx context.Context) error {
+		if innerErr := s.platformControlRepo.CreatePlatform(txCtx, &platform); innerErr != nil {
+			return innerErr
+		}
+		return nil
+	})
+	if err != nil {
+		logger.Error("创建平台失败", slog.Any("error", err))
+		_ = s.logPlatformControlAudit(ctx, platform.ID, "platform.create", "failed", fmt.Sprintf("创建平台失败：%v", err))
 		return nil, fmt.Errorf("创建平台失败：%w", err)
 	}
 
-	s.logger.Info("成功创建平台", slog.String("platform_name", platform.Name), slog.Uint64("platform_id", uint64(platform.ID)))
+	logger.Info("成功创建平台", slog.Uint64("platform_id", uint64(platform.ID)))
+	_ = s.logPlatformControlAudit(ctx, platform.ID, "platform.create", "success", "创建平台成功")
 	return &platform, nil
 }
 
@@ -114,26 +133,53 @@ func (s *service) UpdatePlatform(ctx context.Context, id uint, platform types.Pl
 	logger := s.logger.With(slog.Uint64("platform_id", uint64(id)))
 	logger.Debug("开始更新平台")
 
-	// 只更新非零值字段
-	result, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(id)).Updates(platform)
-	if err != nil {
-		logger.Error("更新平台失败", slog.Any("error", err))
-		return nil, fmt.Errorf("更新 ID 为 %d 的平台失败：%w", id, err)
+	if s.platformControlRepo == nil {
+		return nil, fmt.Errorf("更新平台失败：平台控制仓储未初始化")
 	}
-	if result.RowsAffected == 0 {
-		logger.Warn("平台不存在")
-		return nil, fmt.Errorf("未找到 ID 为 %d 的平台：%w", id, ErrResourceNotFound)
+	if s.controlTx == nil {
+		return nil, fmt.Errorf("更新平台失败：事务执行器未初始化")
 	}
 
-	// 返回更新后的完整对象
-	updatedPlatform, err := s.getPlatformByID(ctx, id)
+	var updatedPlatform *types.Platform
+	err := s.controlTx.WithinTx(ctx, func(txCtx context.Context) error {
+		rowsAffected, innerErr := s.platformControlRepo.UpdatePlatform(txCtx, id, platform)
+		if innerErr != nil {
+			return innerErr
+		}
+		if rowsAffected == 0 {
+			return fmt.Errorf("未找到 ID 为 %d 的平台：%w", id, ErrResourceNotFound)
+		}
+
+		updatedPlatform, innerErr = s.platformControlRepo.GetPlatform(txCtx, id)
+		if innerErr != nil {
+			return innerErr
+		}
+
+		return nil
+	})
 	if err != nil {
-		logger.Error("获取更新后的平台失败", slog.Any("error", err))
-		return nil, err
+		logger.Error("更新平台失败", slog.Any("error", err))
+		_ = s.logPlatformControlAudit(ctx, id, "platform.update", "failed", fmt.Sprintf("更新平台失败：%v", err))
+		return nil, fmt.Errorf("更新 ID 为 %d 的平台失败：%w", id, err)
 	}
 
 	logger.Info("成功更新平台", slog.String("platform_name", updatedPlatform.Name))
+	_ = s.logPlatformControlAudit(ctx, id, "platform.update", "success", "更新平台成功")
 	return updatedPlatform, nil
+}
+
+func (s *service) logPlatformControlAudit(ctx context.Context, platformID uint, action, result, detail string) error {
+	if s.controlAudit == nil {
+		return nil
+	}
+
+	return s.controlAudit.Log(ctx, ControlAuditEvent{
+		Action:     action,
+		Resource:   "platform",
+		ResourceID: platformID,
+		Result:     result,
+		Detail:     detail,
+	})
 }
 
 // DeletePlatform 实现删除平台（包括其关联的模型、密钥及关联关系）

@@ -37,6 +37,9 @@ type ControlAuditLogger interface {
 // PlatformControlRepository 定义平台控制面写路径所需最小仓储能力。
 type PlatformControlRepository interface {
 	ExistsPlatform(ctx context.Context, platformID uint) (bool, error)
+	CreatePlatform(ctx context.Context, platform *types.Platform) error
+	UpdatePlatform(ctx context.Context, platformID uint, updates types.Platform) (int64, error)
+	GetPlatform(ctx context.Context, platformID uint) (*types.Platform, error)
 	EnablePlatformHealth(ctx context.Context, platformID uint) error
 	DisablePlatformHealth(ctx context.Context, platformID uint) error
 }
