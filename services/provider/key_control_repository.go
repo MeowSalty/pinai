@@ -80,3 +80,53 @@ func (r *keyControlQueryRepository) UpdateAPIKey(ctx context.Context, keyID uint
 
 	return result.RowsAffected, nil
 }
+
+// ListModelsByAPIKey 查询密钥关联的模型列表。
+func (r *keyControlQueryRepository) ListModelsByAPIKey(ctx context.Context, keyID uint) ([]*types.Model, error) {
+	q := queryFromContextOrDefault(ctx)
+	models, err := q.APIKey.Models.Model(&types.APIKey{ID: keyID}).Find()
+	if err != nil {
+		r.logger.Error("查询密钥关联模型失败", slog.Uint64("key_id", uint64(keyID)), slog.Any("error", err))
+		return nil, fmt.Errorf("查询密钥关联模型失败：%w", err)
+	}
+
+	return models, nil
+}
+
+// ClearAPIKeyModelRelations 清理密钥与模型的关联关系。
+func (r *keyControlQueryRepository) ClearAPIKeyModelRelations(ctx context.Context, keyID uint) error {
+	q := queryFromContextOrDefault(ctx)
+	if err := q.APIKey.Models.Model(&types.APIKey{ID: keyID}).Clear(); err != nil {
+		r.logger.Error("清理密钥与模型关联关系失败", slog.Uint64("key_id", uint64(keyID)), slog.Any("error", err))
+		return fmt.Errorf("清理密钥与模型关联关系失败：%w", err)
+	}
+
+	return nil
+}
+
+// AppendAPIKeyModels 恢复密钥与模型关联关系。
+func (r *keyControlQueryRepository) AppendAPIKeyModels(ctx context.Context, keyID uint, models []*types.Model) error {
+	if len(models) == 0 {
+		return nil
+	}
+
+	q := queryFromContextOrDefault(ctx)
+	if err := q.APIKey.Models.Model(&types.APIKey{ID: keyID}).Append(models...); err != nil {
+		r.logger.Error("恢复密钥与模型关联关系失败", slog.Uint64("key_id", uint64(keyID)), slog.Any("error", err))
+		return fmt.Errorf("恢复密钥与模型关联关系失败：%w", err)
+	}
+
+	return nil
+}
+
+// DeleteAPIKeyByID 删除指定密钥并返回影响行数。
+func (r *keyControlQueryRepository) DeleteAPIKeyByID(ctx context.Context, keyID uint) (int64, error) {
+	q := queryFromContextOrDefault(ctx)
+	result, err := q.APIKey.WithContext(ctx).Where(q.APIKey.ID.Eq(keyID)).Delete()
+	if err != nil {
+		r.logger.Error("删除 API 密钥失败", slog.Uint64("key_id", uint64(keyID)), slog.Any("error", err))
+		return 0, fmt.Errorf("删除 API 密钥失败：%w", err)
+	}
+
+	return result.RowsAffected, nil
+}

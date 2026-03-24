@@ -76,6 +76,10 @@ type KeyControlRepository interface {
 	CreateAPIKey(ctx context.Context, key *types.APIKey) error
 	GetAPIKey(ctx context.Context, keyID uint) (*types.APIKey, error)
 	UpdateAPIKey(ctx context.Context, keyID uint, updates types.APIKey) (int64, error)
+	ListModelsByAPIKey(ctx context.Context, keyID uint) ([]*types.Model, error)
+	ClearAPIKeyModelRelations(ctx context.Context, keyID uint) error
+	AppendAPIKeyModels(ctx context.Context, keyID uint, models []*types.Model) error
+	DeleteAPIKeyByID(ctx context.Context, keyID uint) (int64, error)
 }
 
 type controlTxQueryKey struct{}
