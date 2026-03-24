@@ -8,7 +8,6 @@ import (
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
-	"gorm.io/gorm"
 )
 
 // CreatePlatform 实现创建平台
@@ -192,24 +191,30 @@ func (s *service) DeletePlatform(ctx context.Context, id uint) error {
 
 	logger := s.logger.With(slog.Uint64("platform_id", uint64(id)))
 	logger.Debug("开始删除平台")
-
-	// 检查平台是否存在
-	platform, err := query.Q.Platform.WithContext(ctx).Where(query.Q.Platform.ID.Eq(id)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			logger.Warn("平台不存在")
-			return fmt.Errorf("未找到 ID 为 %d 的平台：%w", id, ErrResourceNotFound)
-		}
-		logger.Error("查询平台失败", slog.Any("error", err))
-		return fmt.Errorf("查询平台失败：%w", err)
+	if s.platformControlRepo == nil {
+		return fmt.Errorf("删除平台失败：平台控制仓储未初始化")
+	}
+	if s.controlTx == nil {
+		return fmt.Errorf("删除平台失败：事务执行器未初始化")
 	}
 
-	logger.Debug("找到平台", slog.String("platform_name", platform.Name))
+	// 检查平台是否存在
+	exists, err := s.platformControlRepo.ExistsPlatform(ctx, id)
+	if err != nil {
+		logger.Error("检查平台是否存在失败", slog.Any("error", err))
+		_ = s.logPlatformControlAudit(ctx, id, "platform.delete", "failed", fmt.Sprintf("检查平台是否存在失败：%v", err))
+		return fmt.Errorf("检查平台是否存在失败：%w", err)
+	}
+	if !exists {
+		logger.Warn("平台不存在")
+		return fmt.Errorf("未找到 ID 为 %d 的平台：%w", id, ErrResourceNotFound)
+	}
 
 	// 查询平台下的所有密钥
-	apiKeys, err := query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.PlatformID.Eq(id)).Find()
+	apiKeys, err := s.platformControlRepo.ListAPIKeysByPlatform(ctx, id)
 	if err != nil {
 		logger.Error("查询平台关联的密钥失败", slog.Any("error", err))
+		_ = s.logPlatformControlAudit(ctx, id, "platform.delete", "failed", fmt.Sprintf("查询平台关联的密钥失败：%v", err))
 		return fmt.Errorf("查询平台关联的密钥失败：%w", err)
 	}
 	logger.Debug("查询到关联密钥", slog.Int("apikey_count", len(apiKeys)))
@@ -218,23 +223,36 @@ func (s *service) DeletePlatform(ctx context.Context, id uint) error {
 	backups := make([]apiKeyModelsBackup, 0, len(apiKeys))
 	logger.Debug("开始备份密钥与模型的关联关系")
 	for _, key := range apiKeys {
+		// 查询该密钥关联的模型数量
+		count, err := s.platformControlRepo.CountModelsByAPIKey(ctx, key.ID)
+		if err != nil {
+			logger.Error("统计密钥关联的模型数量失败",
+				slog.Uint64("apikey_id", uint64(key.ID)),
+				slog.Any("error", err))
+			_ = s.logPlatformControlAudit(ctx, id, "platform.delete", "failed", fmt.Sprintf("统计密钥 ID 为 %d 关联模型数量失败：%v", key.ID, err))
+			return fmt.Errorf("统计密钥 ID 为 %d 关联模型数量失败：%w", key.ID, err)
+		}
+		if count == 0 {
+			continue
+		}
+
 		// 查询该密钥关联的所有模型
-		models, err := query.Q.APIKey.Models.Model(key).Find()
+		models, err := s.platformControlRepo.ListModelsByAPIKey(ctx, key.ID)
 		if err != nil {
 			logger.Error("查询密钥关联的模型失败",
 				slog.Uint64("apikey_id", uint64(key.ID)),
 				slog.Any("error", err))
+			_ = s.logPlatformControlAudit(ctx, id, "platform.delete", "failed", fmt.Sprintf("查询密钥 ID 为 %d 关联模型失败：%v", key.ID, err))
 			return fmt.Errorf("查询密钥 ID 为 %d 关联的模型失败：%w", key.ID, err)
 		}
-		if len(models) > 0 {
-			backups = append(backups, apiKeyModelsBackup{
-				apiKeyID: key.ID,
-				models:   models,
-			})
-			logger.Debug("备份密钥关联关系",
-				slog.Uint64("apikey_id", uint64(key.ID)),
-				slog.Int("model_count", len(models)))
-		}
+
+		backups = append(backups, apiKeyModelsBackup{
+			apiKeyID: key.ID,
+			models:   models,
+		})
+		logger.Debug("备份密钥关联关系",
+			slog.Uint64("apikey_id", uint64(key.ID)),
+			slog.Int("model_count", len(models)))
 	}
 	logger.Debug("完成备份关联关系", slog.Int("backup_count", len(backups)))
 
@@ -243,48 +261,44 @@ func (s *service) DeletePlatform(ctx context.Context, id uint) error {
 	// TODO：这里由于存在未知错误，导致该操作在事务内无法正常完成，
 	// 因此采取暂时将其移动到事务外的临时方案。
 	// Issue：https://github.com/go-gorm/gorm/issues/7649
-	for _, key := range apiKeys {
-		count := query.Q.APIKey.Models.Model(key).Count()
-		if count == 0 {
-			logger.Debug("密钥没有关联模型，跳过清理", slog.Uint64("apikey_id", uint64(key.ID)))
+	for _, backup := range backups {
+		if len(backup.models) == 0 {
 			continue
 		}
 		// 清理该密钥与所有模型的关联
-		if err := query.Q.APIKey.Models.Model(key).Clear(); err != nil {
+		if err := s.platformControlRepo.ClearAPIKeyModelRelations(ctx, backup.apiKeyID); err != nil {
 			logger.Error("清理密钥与模型的关联关系失败",
-				slog.Uint64("apikey_id", uint64(key.ID)),
+				slog.Uint64("apikey_id", uint64(backup.apiKeyID)),
 				slog.Any("error", err))
-			return fmt.Errorf("清理密钥 ID 为 %d 与模型的关联关系失败：%w", key.ID, err)
+			_ = s.logPlatformControlAudit(ctx, id, "platform.delete", "failed", fmt.Sprintf("清理密钥 ID 为 %d 与模型关联关系失败：%v", backup.apiKeyID, err))
+			return fmt.Errorf("清理密钥 ID 为 %d 与模型的关联关系失败：%w", backup.apiKeyID, err)
 		}
-		logger.Debug("成功清理密钥与模型的关联关系", slog.Uint64("apikey_id", uint64(key.ID)), slog.Int64("model_count", count))
+		logger.Debug("成功清理密钥与模型的关联关系", slog.Uint64("apikey_id", uint64(backup.apiKeyID)), slog.Int("model_count", len(backup.models)))
 	}
 	logger.Debug("成功清理所有密钥与模型的关联关系")
 
 	// 在事务中执行删除操作
-	err = query.Q.Transaction(func(tx *query.Query) error {
+	err = s.controlTx.WithinTx(ctx, func(txCtx context.Context) error {
 		// 删除所有模型
-		result, err := tx.Model.WithContext(ctx).Where(tx.Model.PlatformID.Eq(id)).Delete()
-		if err != nil {
-			logger.Error("删除平台关联的模型失败", slog.Any("error", err))
-			return fmt.Errorf("删除平台关联的模型失败：%w", err)
+		deletedModels, innerErr := s.platformControlRepo.DeleteModelsByPlatform(txCtx, id)
+		if innerErr != nil {
+			return innerErr
 		}
-		logger.Debug("成功删除所有模型", slog.Int64("deleted_count", result.RowsAffected))
+		logger.Debug("成功删除所有模型", slog.Int64("deleted_count", deletedModels))
 
 		// 删除所有密钥
-		result, err = tx.APIKey.WithContext(ctx).Where(tx.APIKey.PlatformID.Eq(id)).Delete()
-		if err != nil {
-			logger.Error("删除平台关联的密钥失败", slog.Any("error", err))
-			return fmt.Errorf("删除平台关联的密钥失败：%w", err)
+		deletedKeys, innerErr := s.platformControlRepo.DeleteAPIKeysByPlatform(txCtx, id)
+		if innerErr != nil {
+			return innerErr
 		}
-		logger.Debug("成功删除所有密钥", slog.Int64("deleted_count", result.RowsAffected))
+		logger.Debug("成功删除所有密钥", slog.Int64("deleted_count", deletedKeys))
 
 		// 删除平台本身
-		result, err = tx.Platform.WithContext(ctx).Where(tx.Platform.ID.Eq(id)).Delete()
-		if err != nil {
-			logger.Error("删除平台失败", slog.Any("error", err))
-			return fmt.Errorf("删除平台失败：%w", err)
+		deletedPlatforms, innerErr := s.platformControlRepo.DeletePlatform(txCtx, id)
+		if innerErr != nil {
+			return innerErr
 		}
-		if result.RowsAffected == 0 {
+		if deletedPlatforms == 0 {
 			logger.Warn("平台已被删除")
 			return fmt.Errorf("平台 ID 为 %d 已被删除", id)
 		}
@@ -296,8 +310,7 @@ func (s *service) DeletePlatform(ctx context.Context, id uint) error {
 		// 事务失败，恢复关联关系备份
 		logger.Warn("事务失败，开始恢复关联关系备份", slog.Any("error", err))
 		for _, backup := range backups {
-			key := &types.APIKey{ID: backup.apiKeyID}
-			if restoreErr := query.Q.APIKey.Models.Model(key).Append(backup.models...); restoreErr != nil {
+			if restoreErr := s.platformControlRepo.AppendAPIKeyModels(ctx, backup.apiKeyID, backup.models); restoreErr != nil {
 				logger.Error("恢复密钥与模型的关联关系失败",
 					slog.Uint64("apikey_id", uint64(backup.apiKeyID)),
 					slog.Any("error", restoreErr))
@@ -308,10 +321,12 @@ func (s *service) DeletePlatform(ctx context.Context, id uint) error {
 			}
 		}
 		logger.Debug("完成关联关系恢复")
-		return err
+		_ = s.logPlatformControlAudit(ctx, id, "platform.delete", "failed", fmt.Sprintf("删除平台失败：%v", err))
+		return fmt.Errorf("删除平台失败：%w", err)
 	}
 
 	logger.Info("成功删除平台及其所有关联数据")
+	_ = s.logPlatformControlAudit(ctx, id, "platform.delete", "success", "删除平台成功")
 	return nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/pinai/services/health"
 )
@@ -40,8 +41,54 @@ type PlatformControlRepository interface {
 	CreatePlatform(ctx context.Context, platform *types.Platform) error
 	UpdatePlatform(ctx context.Context, platformID uint, updates types.Platform) (int64, error)
 	GetPlatform(ctx context.Context, platformID uint) (*types.Platform, error)
+	ListAPIKeysByPlatform(ctx context.Context, platformID uint) ([]*types.APIKey, error)
+	CountModelsByAPIKey(ctx context.Context, apiKeyID uint) (int64, error)
+	ListModelsByAPIKey(ctx context.Context, apiKeyID uint) ([]*types.Model, error)
+	ClearAPIKeyModelRelations(ctx context.Context, apiKeyID uint) error
+	AppendAPIKeyModels(ctx context.Context, apiKeyID uint, models []*types.Model) error
+	DeleteModelsByPlatform(ctx context.Context, platformID uint) (int64, error)
+	DeleteAPIKeysByPlatform(ctx context.Context, platformID uint) (int64, error)
+	DeletePlatform(ctx context.Context, platformID uint) (int64, error)
 	EnablePlatformHealth(ctx context.Context, platformID uint) error
 	DisablePlatformHealth(ctx context.Context, platformID uint) error
+}
+
+type controlTxQueryKey struct{}
+
+func queryFromControlTx(ctx context.Context) *query.Query {
+	if ctx == nil {
+		return nil
+	}
+
+	tx, ok := ctx.Value(controlTxQueryKey{}).(*query.Query)
+	if !ok {
+		return nil
+	}
+
+	return tx
+}
+
+// queryControlTx 是基于 gorm query 的事务执行器实现。
+type queryControlTx struct{}
+
+// NewQueryControlTx 创建基于数据库事务的执行器。
+func NewQueryControlTx() ControlTx {
+	return queryControlTx{}
+}
+
+// WithinTx 在数据库事务中执行业务函数。
+func (queryControlTx) WithinTx(ctx context.Context, fn func(ctx context.Context) error) error {
+	if fn == nil {
+		return fmt.Errorf("事务执行函数不能为空")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return query.Q.Transaction(func(tx *query.Query) error {
+		txCtx := context.WithValue(ctx, controlTxQueryKey{}, tx)
+		return fn(txCtx)
+	})
 }
 
 // noOpControlTx 为默认事务执行器（无事务实现）。
