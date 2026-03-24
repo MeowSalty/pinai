@@ -58,6 +58,11 @@ type ModelControlRepository interface {
 	ExistsPlatform(ctx context.Context, platformID uint) (bool, error)
 	ListAPIKeysByPlatformAndIDs(ctx context.Context, platformID uint, apiKeyIDs []uint) ([]*types.APIKey, error)
 	CreateModel(ctx context.Context, model *types.Model) error
+	GetModel(ctx context.Context, modelID uint) (*types.Model, error)
+	ListAPIKeysByModel(ctx context.Context, modelID uint) ([]*types.APIKey, error)
+	ClearModelAPIKeyRelations(ctx context.Context, modelID uint) error
+	AppendModelAPIKeys(ctx context.Context, modelID uint, apiKeys []*types.APIKey) error
+	DeleteModelByID(ctx context.Context, modelID uint) (int64, error)
 }
 
 type controlTxQueryKey struct{}

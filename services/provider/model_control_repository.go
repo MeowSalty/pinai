@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"gorm.io/gorm"
 )
 
 // modelControlQueryRepository 是基于 database/query 的模型控制面仓储实现。
@@ -73,4 +74,77 @@ func (r *modelControlQueryRepository) CreateModel(ctx context.Context, model *ty
 	}
 
 	return nil
+}
+
+// GetModel 查询模型详情。
+func (r *modelControlQueryRepository) GetModel(ctx context.Context, modelID uint) (*types.Model, error) {
+	q := queryFromContextOrDefault(ctx)
+	model, err := q.Model.WithContext(ctx).Where(q.Model.ID.Eq(modelID)).First()
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("未找到 ID 为 %d 的模型：%w", modelID, ErrResourceNotFound)
+		}
+		r.logger.Error("查询模型失败", slog.Uint64("model_id", uint64(modelID)), slog.Any("error", err))
+		return nil, fmt.Errorf("查询模型失败：%w", err)
+	}
+
+	return model, nil
+}
+
+// ListAPIKeysByModel 查询模型关联的密钥列表。
+func (r *modelControlQueryRepository) ListAPIKeysByModel(ctx context.Context, modelID uint) ([]*types.APIKey, error) {
+	q := queryFromContextOrDefault(ctx)
+	apiKeys, err := q.Model.APIKeys.Model(&types.Model{ID: modelID}).Find()
+	if err != nil {
+		r.logger.Error("查询模型关联的密钥失败",
+			slog.Uint64("model_id", uint64(modelID)),
+			slog.Any("error", err))
+		return nil, fmt.Errorf("查询模型关联的密钥失败：%w", err)
+	}
+
+	return apiKeys, nil
+}
+
+// ClearModelAPIKeyRelations 清理模型与密钥的关联关系。
+func (r *modelControlQueryRepository) ClearModelAPIKeyRelations(ctx context.Context, modelID uint) error {
+	q := queryFromContextOrDefault(ctx)
+	if err := q.Model.APIKeys.Model(&types.Model{ID: modelID}).Clear(); err != nil {
+		r.logger.Error("清理模型与密钥的关联关系失败",
+			slog.Uint64("model_id", uint64(modelID)),
+			slog.Any("error", err))
+		return fmt.Errorf("清理模型与密钥的关联关系失败：%w", err)
+	}
+
+	return nil
+}
+
+// AppendModelAPIKeys 恢复模型与密钥的关联关系。
+func (r *modelControlQueryRepository) AppendModelAPIKeys(ctx context.Context, modelID uint, apiKeys []*types.APIKey) error {
+	if len(apiKeys) == 0 {
+		return nil
+	}
+
+	q := queryFromContextOrDefault(ctx)
+	if err := q.Model.APIKeys.Model(&types.Model{ID: modelID}).Append(apiKeys...); err != nil {
+		r.logger.Error("恢复模型与密钥的关联关系失败",
+			slog.Uint64("model_id", uint64(modelID)),
+			slog.Any("error", err))
+		return fmt.Errorf("恢复模型与密钥的关联关系失败：%w", err)
+	}
+
+	return nil
+}
+
+// DeleteModelByID 删除指定模型。
+func (r *modelControlQueryRepository) DeleteModelByID(ctx context.Context, modelID uint) (int64, error) {
+	q := queryFromContextOrDefault(ctx)
+	result, err := q.Model.WithContext(ctx).Where(q.Model.ID.Eq(modelID)).Delete()
+	if err != nil {
+		r.logger.Error("删除模型失败",
+			slog.Uint64("model_id", uint64(modelID)),
+			slog.Any("error", err))
+		return 0, fmt.Errorf("删除模型失败：%w", err)
+	}
+
+	return result.RowsAffected, nil
 }
