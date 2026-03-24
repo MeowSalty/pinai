@@ -220,3 +220,21 @@ func (r *modelControlQueryRepository) DeleteModelByID(ctx context.Context, model
 
 	return result.RowsAffected, nil
 }
+
+// DeleteModelsByIDs 按 ID 列表批量删除模型。
+func (r *modelControlQueryRepository) DeleteModelsByIDs(ctx context.Context, modelIDs []uint) (int64, error) {
+	if len(modelIDs) == 0 {
+		return 0, nil
+	}
+
+	q := queryFromContextOrDefault(ctx)
+	result, err := q.Model.WithContext(ctx).Where(q.Model.ID.In(modelIDs...)).Delete()
+	if err != nil {
+		r.logger.Error("批量删除模型失败",
+			slog.Any("model_ids", modelIDs),
+			slog.Any("error", err))
+		return 0, fmt.Errorf("批量删除模型失败：%w", err)
+	}
+
+	return result.RowsAffected, nil
+}

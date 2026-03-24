@@ -67,6 +67,7 @@ type ModelControlRepository interface {
 	ClearModelAPIKeyRelations(ctx context.Context, modelID uint) error
 	AppendModelAPIKeys(ctx context.Context, modelID uint, apiKeys []*types.APIKey) error
 	DeleteModelByID(ctx context.Context, modelID uint) (int64, error)
+	DeleteModelsByIDs(ctx context.Context, modelIDs []uint) (int64, error)
 }
 
 type controlTxQueryKey struct{}
