@@ -37,6 +37,24 @@ func (r *modelControlQueryRepository) ExistsPlatform(ctx context.Context, platfo
 	return count > 0, nil
 }
 
+// ListModelsByIDs 按 ID 列表查询模型。
+func (r *modelControlQueryRepository) ListModelsByIDs(ctx context.Context, modelIDs []uint) ([]*types.Model, error) {
+	if len(modelIDs) == 0 {
+		return []*types.Model{}, nil
+	}
+
+	q := queryFromContextOrDefault(ctx)
+	models, err := q.Model.WithContext(ctx).
+		Where(q.Model.ID.In(modelIDs...)).
+		Find()
+	if err != nil {
+		r.logger.Error("批量查询模型失败", slog.Any("model_ids", modelIDs), slog.Any("error", err))
+		return nil, fmt.Errorf("批量查询模型失败：%w", err)
+	}
+
+	return models, nil
+}
+
 // ListAPIKeysByPlatformAndIDs 查询指定平台下给定 ID 列表的密钥。
 func (r *modelControlQueryRepository) ListAPIKeysByPlatformAndIDs(ctx context.Context, platformID uint, apiKeyIDs []uint) ([]*types.APIKey, error) {
 	if len(apiKeyIDs) == 0 {

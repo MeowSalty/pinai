@@ -56,6 +56,7 @@ type PlatformControlRepository interface {
 // ModelControlRepository 定义模型控制面写路径所需最小仓储能力。
 type ModelControlRepository interface {
 	ExistsPlatform(ctx context.Context, platformID uint) (bool, error)
+	ListModelsByIDs(ctx context.Context, modelIDs []uint) ([]*types.Model, error)
 	ListAPIKeysByPlatformAndIDs(ctx context.Context, platformID uint, apiKeyIDs []uint) ([]*types.APIKey, error)
 	CreateModel(ctx context.Context, model *types.Model) error
 	GetModel(ctx context.Context, modelID uint) (*types.Model, error)
