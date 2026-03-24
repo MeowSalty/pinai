@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"gorm.io/gorm"
 )
 
 // keyControlQueryRepository 是基于 database/query 的密钥控制面仓储实现。
@@ -51,4 +52,31 @@ func (r *keyControlQueryRepository) CreateAPIKey(ctx context.Context, key *types
 	}
 
 	return nil
+}
+
+// GetAPIKey 查询密钥详情。
+func (r *keyControlQueryRepository) GetAPIKey(ctx context.Context, keyID uint) (*types.APIKey, error) {
+	q := queryFromContextOrDefault(ctx)
+	apiKey, err := q.APIKey.WithContext(ctx).Where(q.APIKey.ID.Eq(keyID)).First()
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("未找到 ID 为 %d 的 API 密钥：%w", keyID, ErrResourceNotFound)
+		}
+		r.logger.Error("查询 API 密钥失败", slog.Uint64("key_id", uint64(keyID)), slog.Any("error", err))
+		return nil, fmt.Errorf("查询 API 密钥失败：%w", err)
+	}
+
+	return apiKey, nil
+}
+
+// UpdateAPIKey 更新密钥字段并返回影响行数。
+func (r *keyControlQueryRepository) UpdateAPIKey(ctx context.Context, keyID uint, updates types.APIKey) (int64, error) {
+	q := queryFromContextOrDefault(ctx)
+	result, err := q.APIKey.WithContext(ctx).Where(q.APIKey.ID.Eq(keyID)).Updates(updates)
+	if err != nil {
+		r.logger.Error("更新 API 密钥失败", slog.Uint64("key_id", uint64(keyID)), slog.Any("error", err))
+		return 0, fmt.Errorf("更新 API 密钥失败：%w", err)
+	}
+
+	return result.RowsAffected, nil
 }

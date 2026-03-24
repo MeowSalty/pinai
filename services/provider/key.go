@@ -54,29 +54,7 @@ func (s *service) GetKey(ctx context.Context, keyId uint) (*types.APIKey, error)
 
 // UpdateKey 实现更新指定密钥
 func (s *service) UpdateKey(ctx context.Context, keyId uint, key types.APIKey) (*types.APIKey, error) {
-	logger := s.logger.With(slog.Uint64("key_id", uint64(keyId)))
-	logger.Debug("开始更新 API 密钥")
-
-	// 只更新非零值字段
-	result, err := query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.ID.Eq(keyId)).Updates(key)
-	if err != nil {
-		logger.Error("更新 API 密钥失败", slog.Any("error", err))
-		return nil, fmt.Errorf("更新 ID 为 %d 的密钥失败：%w", keyId, err)
-	}
-	if result.RowsAffected == 0 {
-		logger.Warn("API 密钥不存在")
-		return nil, fmt.Errorf("未找到 ID 为 %d 的密钥：%w", keyId, ErrResourceNotFound)
-	}
-
-	// 返回更新后的完整对象
-	updatedKey, err := query.Q.APIKey.WithContext(ctx).Where(query.Q.APIKey.ID.Eq(keyId)).First()
-	if err != nil {
-		logger.Error("获取更新后的 API 密钥失败", slog.Any("error", err))
-		return nil, fmt.Errorf("获取更新后的 ID 为 %d 的密钥失败：%w", keyId, err)
-	}
-
-	logger.Info("成功更新 API 密钥")
-	return updatedKey, nil
+	return s.updateKeyApp(ctx, keyId, key)
 }
 
 // DeleteKey 实现删除指定密钥

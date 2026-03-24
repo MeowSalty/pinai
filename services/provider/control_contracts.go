@@ -74,6 +74,8 @@ type ModelControlRepository interface {
 type KeyControlRepository interface {
 	ExistsPlatform(ctx context.Context, platformID uint) (bool, error)
 	CreateAPIKey(ctx context.Context, key *types.APIKey) error
+	GetAPIKey(ctx context.Context, keyID uint) (*types.APIKey, error)
+	UpdateAPIKey(ctx context.Context, keyID uint, updates types.APIKey) (int64, error)
 }
 
 type controlTxQueryKey struct{}
