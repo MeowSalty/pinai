@@ -91,6 +91,60 @@ func (r *modelControlQueryRepository) GetModel(ctx context.Context, modelID uint
 	return model, nil
 }
 
+// GetModelWithAPIKeys 查询模型详情并预加载关联密钥。
+func (r *modelControlQueryRepository) GetModelWithAPIKeys(ctx context.Context, modelID uint) (*types.Model, error) {
+	q := queryFromContextOrDefault(ctx)
+	model, err := q.Model.WithContext(ctx).
+		Preload(q.Model.APIKeys).
+		Where(q.Model.ID.Eq(modelID)).
+		First()
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("未找到 ID 为 %d 的模型：%w", modelID, ErrResourceNotFound)
+		}
+		r.logger.Error("查询模型失败", slog.Uint64("model_id", uint64(modelID)), slog.Any("error", err))
+		return nil, fmt.Errorf("查询模型失败：%w", err)
+	}
+
+	return model, nil
+}
+
+// ReplaceModelAPIKeys 替换模型与密钥的关联关系。
+func (r *modelControlQueryRepository) ReplaceModelAPIKeys(ctx context.Context, modelID uint, apiKeys []*types.APIKey) error {
+	if len(apiKeys) == 0 {
+		return nil
+	}
+
+	q := queryFromContextOrDefault(ctx)
+	if err := q.Model.APIKeys.Model(&types.Model{ID: modelID}).Replace(apiKeys...); err != nil {
+		r.logger.Error("更新模型与密钥的关联关系失败",
+			slog.Uint64("model_id", uint64(modelID)),
+			slog.Any("error", err))
+		return fmt.Errorf("更新模型与密钥的关联关系失败：%w", err)
+	}
+
+	return nil
+}
+
+// UpdateModelFields 更新模型字段。
+func (r *modelControlQueryRepository) UpdateModelFields(ctx context.Context, modelID uint, updates map[string]interface{}) (int64, error) {
+	if len(updates) == 0 {
+		return 0, nil
+	}
+
+	q := queryFromContextOrDefault(ctx)
+	result, err := q.Model.WithContext(ctx).Where(q.Model.ID.Eq(modelID)).Updates(updates)
+	if err != nil {
+		r.logger.Error("更新模型字段失败",
+			slog.Uint64("model_id", uint64(modelID)),
+			slog.Any("updates", updates),
+			slog.Any("error", err))
+		return 0, fmt.Errorf("更新模型字段失败：%w", err)
+	}
+
+	return result.RowsAffected, nil
+}
+
 // ListAPIKeysByModel 查询模型关联的密钥列表。
 func (r *modelControlQueryRepository) ListAPIKeysByModel(ctx context.Context, modelID uint) ([]*types.APIKey, error) {
 	q := queryFromContextOrDefault(ctx)

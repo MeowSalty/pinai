@@ -59,6 +59,9 @@ type ModelControlRepository interface {
 	ListAPIKeysByPlatformAndIDs(ctx context.Context, platformID uint, apiKeyIDs []uint) ([]*types.APIKey, error)
 	CreateModel(ctx context.Context, model *types.Model) error
 	GetModel(ctx context.Context, modelID uint) (*types.Model, error)
+	GetModelWithAPIKeys(ctx context.Context, modelID uint) (*types.Model, error)
+	ReplaceModelAPIKeys(ctx context.Context, modelID uint, apiKeys []*types.APIKey) error
+	UpdateModelFields(ctx context.Context, modelID uint, updates map[string]interface{}) (int64, error)
 	ListAPIKeysByModel(ctx context.Context, modelID uint) ([]*types.APIKey, error)
 	ClearModelAPIKeyRelations(ctx context.Context, modelID uint) error
 	AppendModelAPIKeys(ctx context.Context, modelID uint, apiKeys []*types.APIKey) error

@@ -97,55 +97,7 @@ func (s *service) GetModel(ctx context.Context, modelId uint) (*types.Model, err
 
 // UpdateModel 实现更新指定模型信息
 func (s *service) UpdateModel(ctx context.Context, modelId uint, model types.Model) (*types.Model, error) {
-	logger := s.logger.With(slog.Uint64("model_id", uint64(modelId)))
-	logger.Debug("开始更新模型")
-
-	// 查询现有模型
-	existingModel, err := s.getModelByID(ctx, modelId)
-	if err != nil {
-		logger.Warn("查询模型失败", slog.Any("error", err))
-		return nil, err
-	}
-
-	// 如果提供了 API 密钥列表，则更新关联关系
-	if len(model.APIKeys) > 0 {
-		validKeys, err := s.validateAndGetAPIKeys(ctx, existingModel.PlatformID, model.APIKeys, logger)
-		if err != nil {
-			return nil, err
-		}
-
-		// 使用 Association 的 Replace 方法更新多对多关系
-		apiKeyPtrs := make([]*types.APIKey, len(validKeys))
-		copy(apiKeyPtrs, validKeys)
-		if err := query.Q.Model.APIKeys.Model(existingModel).Replace(apiKeyPtrs...); err != nil {
-			logger.Error("更新模型密钥关联失败", slog.Any("error", err))
-			return nil, fmt.Errorf("更新模型密钥关联失败：%w", err)
-		}
-
-		logger.Info("成功更新模型密钥关联", slog.Int("api_key_count", len(validKeys)))
-	}
-
-	// 更新模型的其他字段（排除 APIKeys 字段，因为已单独处理）
-	if model.Name != "" || model.Alias != "" {
-		result, err := query.Q.Model.WithContext(ctx).Where(query.Q.Model.ID.Eq(modelId)).Updates(model)
-		if err != nil {
-			logger.Error("更新模型字段失败", slog.Any("error", err))
-			return nil, fmt.Errorf("更新 ID 为 %d 的模型失败：%w", modelId, err)
-		}
-		if result.RowsAffected == 0 {
-			logger.Warn("模型更新无影响行")
-		}
-	}
-
-	// 返回更新后的完整对象（包含关联的 API 密钥）
-	updatedModel, err := s.getModelWithAPIKeys(ctx, modelId)
-	if err != nil {
-		logger.Error("获取更新后的模型失败", slog.Any("error", err))
-		return nil, err
-	}
-
-	logger.Info("成功更新模型", slog.String("model_name", updatedModel.Name))
-	return updatedModel, nil
+	return s.updateModelApp(ctx, modelId, model)
 }
 
 // DeleteModel 实现删除指定模型
