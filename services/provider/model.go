@@ -52,59 +52,7 @@ func (s *service) AddModelToPlatform(ctx context.Context, platformId uint, model
 
 // BatchAddModelsToPlatform 实现批量为指定平台添加模型（原子性操作）
 func (s *service) BatchAddModelsToPlatform(ctx context.Context, platformId uint, models []types.Model) ([]*types.Model, error) {
-	logger := s.logger.With(
-		slog.Uint64("platform_id", uint64(platformId)),
-		slog.Int("model_count", len(models)),
-	)
-	logger.Debug("开始批量为平台添加模型")
-
-	// 基本参数验证
-	if len(models) == 0 {
-		logger.Warn("未提供任何模型")
-		return nil, fmt.Errorf("必须至少提供一个模型")
-	}
-
-	// 验证平台是否存在
-	if err := s.validatePlatformExists(ctx, platformId); err != nil {
-		logger.Warn("平台验证失败", slog.Any("error", err))
-		return nil, err
-	}
-
-	// 批量验证所有 API 密钥是否存在且属于该平台
-	if err := s.batchValidateAPIKeys(ctx, platformId, models, logger); err != nil {
-		logger.Error("API 密钥验证失败", slog.Any("error", err))
-		return nil, err
-	}
-
-	// 在事务中批量创建模型
-	var createdModels []*types.Model
-	err := query.Q.Transaction(func(tx *query.Query) error {
-		for i := range models {
-			model := &models[i]
-			model.PlatformID = platformId
-			model.ID = 0
-
-			// 创建模型（GORM 会自动处理多对多关系）
-			if err := tx.Model.WithContext(ctx).Create(model); err != nil {
-				logger.Error("创建模型失败",
-					slog.String("model_name", model.Name),
-					slog.Any("error", err))
-				return fmt.Errorf("创建模型 '%s' 失败：%w", model.Name, err)
-			}
-
-			createdModels = append(createdModels, model)
-		}
-		return nil
-	})
-
-	if err != nil {
-		logger.Error("批量创建模型事务失败", slog.Any("error", err))
-		return nil, err
-	}
-
-	logger.Info("成功批量为平台添加模型",
-		slog.Int("created_count", len(createdModels)))
-	return createdModels, nil
+	return s.batchAddModelsToPlatformApp(ctx, platformId, models)
 }
 
 // GetModelsByPlatform 实现获取指定平台的所有模型列表
@@ -211,7 +159,7 @@ func (s *service) DeleteModel(ctx context.Context, modelId uint) error {
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			logger.Warn("模型不存在")
-			return fmt.Errorf("未找到 ID 为 %d 的模型: %w", modelId, ErrResourceNotFound)
+			return fmt.Errorf("未找到 ID 为 %d 的模型：%w", modelId, ErrResourceNotFound)
 		}
 		logger.Error("查询模型失败", slog.Any("error", err))
 		return fmt.Errorf("查询模型失败：%w", err)
@@ -268,7 +216,7 @@ func (s *service) DeleteModel(ctx context.Context, modelId uint) error {
 			}
 		}
 
-		return fmt.Errorf("未找到 ID 为 %d 的模型: %w", modelId, ErrResourceNotFound)
+		return fmt.Errorf("未找到 ID 为 %d 的模型：%w", modelId, ErrResourceNotFound)
 	}
 
 	logger.Info("成功删除模型")
@@ -590,4 +538,3 @@ func (s *service) batchValidateModels(ctx context.Context, platformId uint, upda
 	logger.Debug("成功验证所有模型", slog.Int("validated_count", len(models)))
 	return nil
 }
-

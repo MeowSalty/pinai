@@ -12,6 +12,7 @@ type service struct {
 	logger              *slog.Logger
 	healthReader        HealthReader
 	platformControlRepo PlatformControlRepository
+	modelControlRepo    ModelControlRepository
 	controlTx           ControlTx
 	controlAudit        ControlAuditLogger
 }

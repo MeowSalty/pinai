@@ -53,6 +53,13 @@ type PlatformControlRepository interface {
 	DisablePlatformHealth(ctx context.Context, platformID uint) error
 }
 
+// ModelControlRepository 定义模型控制面写路径所需最小仓储能力。
+type ModelControlRepository interface {
+	ExistsPlatform(ctx context.Context, platformID uint) (bool, error)
+	ListAPIKeysByPlatformAndIDs(ctx context.Context, platformID uint, apiKeyIDs []uint) ([]*types.APIKey, error)
+	CreateModel(ctx context.Context, model *types.Model) error
+}
+
 type controlTxQueryKey struct{}
 
 func queryFromControlTx(ctx context.Context) *query.Query {
