@@ -82,6 +82,13 @@ type KeyControlRepository interface {
 	DeleteAPIKeyByID(ctx context.Context, keyID uint) (int64, error)
 }
 
+// EndpointControlRepository 定义端点控制面写路径所需最小仓储能力。
+type EndpointControlRepository interface {
+	ExistsPlatform(ctx context.Context, platformID uint) (bool, error)
+	CreateEndpoint(ctx context.Context, endpoint *types.Endpoint) error
+	CountDefaultEndpointsByPlatform(ctx context.Context, platformID uint) (int64, error)
+}
+
 type controlTxQueryKey struct{}
 
 func queryFromControlTx(ctx context.Context) *query.Query {

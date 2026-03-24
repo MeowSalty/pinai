@@ -14,6 +14,7 @@ type service struct {
 	platformControlRepo PlatformControlRepository
 	modelControlRepo    ModelControlRepository
 	keyControlRepo      KeyControlRepository
+	endpointControlRepo EndpointControlRepository
 	controlTx           ControlTx
 	controlAudit        ControlAuditLogger
 }

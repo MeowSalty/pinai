@@ -16,40 +16,7 @@ import (
 
 // AddEndpointToPlatform 实现为指定平台添加新端点
 func (s *service) AddEndpointToPlatform(ctx context.Context, platformId uint, endpoint types.Endpoint) (*types.Endpoint, error) {
-	logger := s.logger.With(slog.Uint64("platform_id", uint64(platformId)))
-	logger.Debug("开始为平台添加端点")
-
-	// 检查平台是否存在
-	if err := s.validatePlatformExists(ctx, platformId); err != nil {
-		logger.Warn("平台不存在", slog.Any("error", err))
-		return nil, err
-	}
-
-	endpoint.ID = 0
-	endpoint.PlatformID = platformId
-
-	err := query.Q.Transaction(func(tx *query.Query) error {
-		if err := tx.Endpoint.WithContext(ctx).Create(&endpoint); err != nil {
-			return fmt.Errorf("创建端点失败：%w", err)
-		}
-		if endpoint.IsDefault {
-			if err := s.validatePlatformDefaultUniqueWithQuery(ctx, tx, platformId); err != nil {
-				return fmt.Errorf("默认端点校验失败：%w", err)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		if errors.Is(err, ErrDefaultConflict) || errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrInvalidArgument) {
-			logger.Warn("创建端点失败", slog.Any("error", err))
-		} else {
-			logger.Error("创建端点失败", slog.Any("error", err))
-		}
-		return nil, err
-	}
-
-	logger.Info("成功为平台添加端点", slog.Uint64("endpoint_id", uint64(endpoint.ID)))
-	return &endpoint, nil
+	return s.addEndpointToPlatformApp(ctx, platformId, endpoint)
 }
 
 // BatchAddEndpointsToPlatform 实现批量为指定平台添加端点（原子性操作）

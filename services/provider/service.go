@@ -20,6 +20,7 @@ func New(logger *slog.Logger, healthStorage *health.Storage) Service {
 		platformControlRepo: NewPlatformControlQueryRepository(healthStorage, logger.WithGroup("platform_control_repo")),
 		modelControlRepo:    NewModelControlQueryRepository(logger.WithGroup("model_control_repo")),
 		keyControlRepo:      NewKeyControlQueryRepository(logger.WithGroup("key_control_repo")),
+		endpointControlRepo: NewEndpointControlQueryRepository(logger.WithGroup("endpoint_control_repo")),
 		controlTx:           NewQueryControlTx(),
 		controlAudit:        NewNoOpControlAuditLogger(logger.WithGroup("control_audit")),
 	}
