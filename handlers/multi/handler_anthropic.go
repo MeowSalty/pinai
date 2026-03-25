@@ -10,7 +10,6 @@ import (
 
 	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
-	"github.com/MeowSalty/portal"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	"github.com/gin-gonic/gin"
 )
@@ -55,7 +54,7 @@ func (h *Handler) Messages(c *gin.Context) {
 	}
 
 	// 非流式响应
-	resp, err := h.portalService.NativeAnthropicMessages(c.Request.Context(), &req, portal.WithCompatMode())
+	resp, err := h.gatewayService.AnthropicCompatMessages(c.Request.Context(), &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse(fmt.Sprintf("处理请求时出错：%v", err), http.StatusInternalServerError, err))
 		return
@@ -75,7 +74,7 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 	defer cancel()
 
 	// 获取流式响应通道
-	eventChan := h.portalService.NativeAnthropicMessagesStream(ctx, req, portal.WithCompatMode())
+	eventChan := h.gatewayService.AnthropicCompatMessagesStream(ctx, req)
 
 	// 使用流式跟踪，确保在流结束时减少连接数
 	collector := stats.GetCollector()

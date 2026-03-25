@@ -7,6 +7,7 @@ import (
 
 	"github.com/MeowSalty/pinai/services/portal"
 	portalLib "github.com/MeowSalty/portal"
+	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
 	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
 )
@@ -15,6 +16,12 @@ import (
 //
 // 当前仅提供第一批最小落地链路：OpenAI compat Chat Completions。
 type Service interface {
+	// AnthropicCompatMessages 处理 Anthropic compat Messages 非流式请求。
+	AnthropicCompatMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error)
+
+	// AnthropicCompatMessagesStream 处理 Anthropic compat Messages 流式请求。
+	AnthropicCompatMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent
+
 	// OpenAICompatChatCompletion 处理 OpenAI compat Chat Completions 非流式请求。
 	OpenAICompatChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
 
@@ -43,6 +50,31 @@ func New(portalService portal.Service, logger *slog.Logger) Service {
 		portalService: portalService,
 		logger:        logger,
 	}
+}
+
+// AnthropicCompatMessages 处理 Anthropic compat Messages 非流式请求。
+func (s *service) AnthropicCompatMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error) {
+	logger := s.logger.WithGroup("anthropic_compat_messages")
+	logger.Info("开始执行 Anthropic compat Messages 非流式请求", "model", req.Model)
+
+	resp, err := s.portalService.NativeAnthropicMessages(ctx, req, portalLib.WithCompatMode())
+	if err != nil {
+		logger.Error("Anthropic compat Messages 非流式请求失败", "error", err, "model", req.Model)
+		return nil, fmt.Errorf("处理 Anthropic compat Messages 请求失败：%w", err)
+	}
+
+	logger.Info("Anthropic compat Messages 非流式请求成功", "model", req.Model)
+	return resp, nil
+}
+
+// AnthropicCompatMessagesStream 处理 Anthropic compat Messages 流式请求。
+func (s *service) AnthropicCompatMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent {
+	logger := s.logger.WithGroup("anthropic_compat_messages_stream")
+	logger.Info("开始执行 Anthropic compat Messages 流式请求", "model", req.Model)
+
+	stream := s.portalService.NativeAnthropicMessagesStream(ctx, req, portalLib.WithCompatMode())
+	logger.Info("Anthropic compat Messages 流式请求已启动", "model", req.Model)
+	return stream
 }
 
 // OpenAICompatChatCompletion 处理 OpenAI compat Chat Completions 非流式请求。
