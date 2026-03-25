@@ -3,6 +3,7 @@ package multi
 import (
 	"log/slog"
 
+	"github.com/MeowSalty/pinai/services/gateway"
 	"github.com/MeowSalty/pinai/services/portal"
 )
 
@@ -10,6 +11,8 @@ import (
 //
 // 该结构体封装了处理多供应商 AI API 请求所需的服务和日志记录器
 type Handler struct {
+	// gatewayService 网关应用服务实例，作为数据面主业务边界
+	gatewayService gateway.Service
 	// portalService AI 网关服务实例，用于处理 AI 相关请求
 	portalService portal.Service
 	// userAgent User-Agent 配置，用于控制请求的 User-Agent 头部
@@ -24,6 +27,7 @@ type Handler struct {
 // 该函数使用依赖注入的方式创建 Handler 实例
 //
 // 参数：
+//   - gatewayService: 网关应用服务实例，承接数据面应用边界
 //   - portalService: AI 网关服务实例，用于处理 AI 相关请求
 //   - userAgent: User-Agent 配置，空则透传客户端 UA，"default" 使用 Go net/http 默认值，其他字符串则复写
 //   - passthroughHeaders: 是否透传 HTTP 请求头（过滤后）
@@ -31,8 +35,9 @@ type Handler struct {
 //
 // 返回值：
 //   - *Handler: 初始化后的多供应商处理器实例
-func New(portalService portal.Service, userAgent string, passthroughHeaders bool, logger *slog.Logger) *Handler {
+func New(gatewayService gateway.Service, portalService portal.Service, userAgent string, passthroughHeaders bool, logger *slog.Logger) *Handler {
 	return &Handler{
+		gatewayService:     gatewayService,
 		portalService:      portalService,
 		userAgent:          userAgent,
 		passthroughHeaders: passthroughHeaders,

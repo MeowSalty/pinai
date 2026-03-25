@@ -59,7 +59,7 @@ func (h *Handler) ChatCompletions(c *gin.Context) {
 	}
 
 	// 非流式响应
-	resp, err := h.portalService.NativeOpenAIChatCompletion(c.Request.Context(), &req, portalLib.WithCompatMode())
+	resp, err := h.gatewayService.OpenAICompatChatCompletion(c.Request.Context(), &req)
 	if err != nil {
 		c.JSON(
 			http.StatusInternalServerError,
@@ -127,7 +127,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
+	eventChan := h.gatewayService.OpenAICompatChatCompletionStream(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()

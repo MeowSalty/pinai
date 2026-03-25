@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/MeowSalty/pinai/services/gateway"
 	"github.com/MeowSalty/pinai/services/health"
 	"github.com/MeowSalty/pinai/services/portal"
 	"github.com/MeowSalty/pinai/services/provider"
@@ -13,6 +14,7 @@ import (
 // Services 持有所有服务实例的结构体
 type Services struct {
 	HealthService   health.Service
+	GatewayService  gateway.Service
 	PortalService   portal.Service
 	ProviderService provider.Service
 	StatsService    stats.Service
@@ -51,6 +53,9 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 		return nil, err
 	}
 
+	// 初始化网关应用服务（阶段 3 最小链路）
+	gatewayService := gateway.New(portalService, logger.WithGroup("gateway_app"))
+
 	// 初始化供应商服务
 	providerService := provider.New(logger.WithGroup("provider"), healthStorage)
 
@@ -59,6 +64,7 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 
 	return &Services{
 		HealthService:   healthService,
+		GatewayService:  gatewayService,
 		PortalService:   portalService,
 		ProviderService: providerService,
 		StatsService:    statsService,
