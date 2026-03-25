@@ -153,17 +153,9 @@ func (s *service) GeminiNativeGenerateContentStream(ctx context.Context, req *ge
 
 // AnthropicCompatMessages 处理 Anthropic compat Messages 非流式请求。
 func (s *service) AnthropicCompatMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error) {
-	logger := s.logger.WithGroup("anthropic_compat_messages")
-	logger.Info("开始执行 Anthropic compat Messages 非流式请求", "model", req.Model)
-
-	resp, err := s.portalService.NativeAnthropicMessages(ctx, req, portalLib.WithCompatMode())
-	if err != nil {
-		logger.Error("Anthropic compat Messages 非流式请求失败", "error", err, "model", req.Model)
-		return nil, fmt.Errorf("处理 Anthropic compat Messages 请求失败：%w", err)
-	}
-
-	logger.Info("Anthropic compat Messages 非流式请求成功", "model", req.Model)
-	return resp, nil
+	return s.executeAnthropicMessages(ctx, req, "anthropic_compat_messages", "Anthropic compat Messages", func(inCtx context.Context, inReq *anthropicTypes.Request) (*anthropicTypes.Response, error) {
+		return s.portalService.NativeAnthropicMessages(inCtx, inReq, portalLib.WithCompatMode())
+	})
 }
 
 // AnthropicCompatMessagesStream 处理 Anthropic compat Messages 流式请求。
