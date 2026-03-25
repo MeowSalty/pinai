@@ -126,7 +126,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.portalService.NativeOpenAIChatCompletionStream(ctx, req)
+	eventChan := h.gatewayService.OpenAINativeChatCompletionStream(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()

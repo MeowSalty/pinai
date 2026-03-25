@@ -44,6 +44,9 @@ type Service interface {
 	// OpenAINativeChatCompletion 处理 OpenAI native Chat Completions 非流式请求。
 	OpenAINativeChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
 
+	// OpenAINativeChatCompletionStream 处理 OpenAI native Chat Completions 流式请求。
+	OpenAINativeChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent
+
 	// OpenAINativeResponses 处理 OpenAI native Responses 非流式请求。
 	OpenAINativeResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
 
@@ -181,6 +184,16 @@ func (s *service) OpenAINativeChatCompletion(ctx context.Context, req *openaiCha
 
 	logger.Info("OpenAI native Chat Completions 非流式请求成功", "model", req.Model)
 	return resp, nil
+}
+
+// OpenAINativeChatCompletionStream 处理 OpenAI native Chat Completions 流式请求。
+func (s *service) OpenAINativeChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent {
+	logger := s.logger.WithGroup("openai_native_chat_completion_stream")
+	logger.Info("开始执行 OpenAI native Chat Completions 流式请求", "model", req.Model)
+
+	stream := s.portalService.NativeOpenAIChatCompletionStream(ctx, req)
+	logger.Info("OpenAI native Chat Completions 流式请求已启动", "model", req.Model)
+	return stream
 }
 
 // OpenAINativeResponses 处理 OpenAI native Responses 非流式请求。
