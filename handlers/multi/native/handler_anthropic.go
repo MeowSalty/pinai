@@ -65,7 +65,7 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.portalService.NativeAnthropicMessagesStream(ctx, req)
+	eventChan := h.gatewayService.AnthropicNativeMessagesStream(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()

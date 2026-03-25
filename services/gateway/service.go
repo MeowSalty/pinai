@@ -20,6 +20,9 @@ type Service interface {
 	// AnthropicNativeMessages 处理 Anthropic native Messages 非流式请求。
 	AnthropicNativeMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error)
 
+	// AnthropicNativeMessagesStream 处理 Anthropic native Messages 流式请求。
+	AnthropicNativeMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent
+
 	// GeminiNativeGenerateContent 处理 Gemini native generateContent 非流式请求。
 	GeminiNativeGenerateContent(ctx context.Context, req *geminiTypes.Request) (*geminiTypes.Response, error)
 
@@ -90,6 +93,16 @@ func (s *service) AnthropicNativeMessages(ctx context.Context, req *anthropicTyp
 
 	logger.Info("Anthropic native Messages 非流式请求成功", "model", req.Model)
 	return resp, nil
+}
+
+// AnthropicNativeMessagesStream 处理 Anthropic native Messages 流式请求。
+func (s *service) AnthropicNativeMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent {
+	logger := s.logger.WithGroup("anthropic_native_messages_stream")
+	logger.Info("开始执行 Anthropic native Messages 流式请求", "model", req.Model)
+
+	stream := s.portalService.NativeAnthropicMessagesStream(ctx, req)
+	logger.Info("Anthropic native Messages 流式请求已启动", "model", req.Model)
+	return stream
 }
 
 // GeminiNativeGenerateContent 处理 Gemini native generateContent 非流式请求。
