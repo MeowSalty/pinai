@@ -2,8 +2,6 @@ package portal
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	portalTypes "github.com/MeowSalty/portal"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
@@ -43,18 +41,15 @@ func (s *service) NativeOpenAIChatCompletionStream(ctx context.Context, req *ope
 
 // NativeOpenAIResponses 处理 OpenAI 原生 Responses 请求
 func (s *service) NativeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request, opts ...portalTypes.NativeOption) (*openaiResponsesTypes.Response, error) {
-	requestLogger := s.logger.WithGroup("raw_openai_responses")
-
 	modelName := ""
 	if req.Model != nil {
 		modelName = *req.Model
 	}
-	requestLogger.Info("开始处理 OpenAI Responses 原生请求", "model", modelName)
 
 	originalModel := modelName
 	if modelName != "" {
 		if mappedModel, exists := s.modelMappingRule[modelName]; exists {
-			requestLogger.Debug("应用模型映射规则",
+			s.logger.WithGroup("raw_openai_responses").Debug("应用模型映射规则",
 				"original_model", originalModel,
 				"mapped_model", mappedModel)
 			modelName = mappedModel
@@ -62,25 +57,7 @@ func (s *service) NativeOpenAIResponses(ctx context.Context, req *openaiResponse
 		}
 	}
 
-	startTime := time.Now()
-	resp, err := s.portal.NativeOpenAIResponses(ctx, req, opts...)
-	duration := time.Since(startTime)
-
-	if err != nil {
-		requestLogger.Error("OpenAI Responses 原生请求处理失败",
-			"error", err,
-			"duration", duration,
-			"model", modelName,
-			"original_model", originalModel)
-		return nil, fmt.Errorf("OpenAI Responses 原生请求处理失败：%w", err)
-	}
-
-	requestLogger.Info("OpenAI Responses 原生请求处理成功",
-		"duration", duration,
-		"model", modelName,
-		"original_model", originalModel)
-
-	return resp, nil
+	return s.portal.NativeOpenAIResponses(ctx, req, opts...)
 }
 
 // NativeOpenAIResponsesStream 处理 OpenAI 原生 Responses 流式请求

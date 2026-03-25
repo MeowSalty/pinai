@@ -15,6 +15,7 @@ import (
 )
 
 type openAIChatCompletionInvoker func(context.Context, *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
+type openAIResponsesInvoker func(context.Context, *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
 
 // Service 定义数据面网关应用服务接口。
 //
@@ -205,17 +206,9 @@ func (s *service) OpenAICompatChatCompletionStream(ctx context.Context, req *ope
 
 // OpenAICompatResponses 处理 OpenAI compat Responses 非流式请求。
 func (s *service) OpenAICompatResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error) {
-	logger := s.logger.WithGroup("openai_compat_responses")
-	logger.Info("开始执行 OpenAI compat Responses 非流式请求", "model", req.Model)
-
-	resp, err := s.portalService.NativeOpenAIResponses(ctx, req, portalLib.WithCompatMode())
-	if err != nil {
-		logger.Error("OpenAI compat Responses 非流式请求失败", "error", err, "model", req.Model)
-		return nil, fmt.Errorf("处理 OpenAI compat Responses 请求失败：%w", err)
-	}
-
-	logger.Info("OpenAI compat Responses 非流式请求成功", "model", req.Model)
-	return resp, nil
+	return s.executeOpenAIResponses(ctx, req, "openai_compat_responses", "OpenAI compat Responses", func(inCtx context.Context, inReq *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error) {
+		return s.portalService.NativeOpenAIResponses(inCtx, inReq, portalLib.WithCompatMode())
+	})
 }
 
 // OpenAICompatResponsesStream 处理 OpenAI compat Responses 流式请求。
@@ -251,6 +244,26 @@ func (s *service) executeOpenAIChatCompletion(ctx context.Context, req *openaiCh
 	return resp, nil
 }
 
+func (s *service) executeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request, loggerGroup, requestName string, invoker openAIResponsesInvoker) (*openaiResponsesTypes.Response, error) {
+	logger := s.logger.WithGroup(loggerGroup)
+	modelName := ""
+	if req != nil && req.Model != nil {
+		modelName = *req.Model
+	}
+	logger.Info("开始执行非流式请求", "request_name", requestName, "model", modelName)
+
+	startTime := time.Now()
+	resp, err := invoker(ctx, req)
+	duration := time.Since(startTime)
+	if err != nil {
+		logger.Error("非流式请求失败", "request_name", requestName, "error", err, "duration", duration, "model", modelName)
+		return nil, fmt.Errorf("处理 %s 请求失败：%w", requestName, err)
+	}
+
+	logger.Info("非流式请求成功", "request_name", requestName, "duration", duration, "model", modelName)
+	return resp, nil
+}
+
 // OpenAINativeChatCompletionStream 处理 OpenAI native Chat Completions 流式请求。
 func (s *service) OpenAINativeChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent {
 	logger := s.logger.WithGroup("openai_native_chat_completion_stream")
@@ -263,17 +276,9 @@ func (s *service) OpenAINativeChatCompletionStream(ctx context.Context, req *ope
 
 // OpenAINativeResponses 处理 OpenAI native Responses 非流式请求。
 func (s *service) OpenAINativeResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error) {
-	logger := s.logger.WithGroup("openai_native_responses")
-	logger.Info("开始执行 OpenAI native Responses 非流式请求", "model", req.Model)
-
-	resp, err := s.portalService.NativeOpenAIResponses(ctx, req)
-	if err != nil {
-		logger.Error("OpenAI native Responses 非流式请求失败", "error", err, "model", req.Model)
-		return nil, fmt.Errorf("处理 OpenAI native Responses 请求失败：%w", err)
-	}
-
-	logger.Info("OpenAI native Responses 非流式请求成功", "model", req.Model)
-	return resp, nil
+	return s.executeOpenAIResponses(ctx, req, "openai_native_responses", "OpenAI native Responses", func(inCtx context.Context, inReq *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error) {
+		return s.portalService.NativeOpenAIResponses(inCtx, inReq)
+	})
 }
 
 // OpenAINativeResponsesStream 处理 OpenAI native Responses 流式请求。
