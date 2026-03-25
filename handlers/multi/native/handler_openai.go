@@ -185,7 +185,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.portalService.NativeOpenAIResponsesStream(ctx, req)
+	eventChan := h.gatewayService.OpenAINativeResponsesStream(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()

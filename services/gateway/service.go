@@ -46,6 +46,9 @@ type Service interface {
 
 	// OpenAINativeResponses 处理 OpenAI native Responses 非流式请求。
 	OpenAINativeResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
+
+	// OpenAINativeResponsesStream 处理 OpenAI native Responses 流式请求。
+	OpenAINativeResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent
 }
 
 type service struct {
@@ -193,4 +196,14 @@ func (s *service) OpenAINativeResponses(ctx context.Context, req *openaiResponse
 
 	logger.Info("OpenAI native Responses 非流式请求成功", "model", req.Model)
 	return resp, nil
+}
+
+// OpenAINativeResponsesStream 处理 OpenAI native Responses 流式请求。
+func (s *service) OpenAINativeResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent {
+	logger := s.logger.WithGroup("openai_native_responses_stream")
+	logger.Info("开始执行 OpenAI native Responses 流式请求", "model", req.Model)
+
+	stream := s.portalService.NativeOpenAIResponsesStream(ctx, req)
+	logger.Info("OpenAI native Responses 流式请求已启动", "model", req.Model)
+	return stream
 }
