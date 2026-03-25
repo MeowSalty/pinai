@@ -2,8 +2,6 @@ package portal
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	portalTypes "github.com/MeowSalty/portal"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
@@ -12,7 +10,6 @@ import (
 // NativeAnthropicMessages 处理 Anthropic 原生 Messages 请求
 func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request, opts ...portalTypes.NativeOption) (*anthropicTypes.Response, error) {
 	requestLogger := s.logger.WithGroup("raw_anthropic_messages")
-	requestLogger.Info("开始处理 Anthropic 原生请求", "model", req.Model)
 
 	originalModel := req.Model
 	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
@@ -22,25 +19,7 @@ func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTyp
 		req.Model = mappedModel
 	}
 
-	startTime := time.Now()
-	resp, err := s.portal.NativeAnthropicMessages(ctx, req, opts...)
-	duration := time.Since(startTime)
-
-	if err != nil {
-		requestLogger.Error("Anthropic 原生请求处理失败",
-			"error", err,
-			"duration", duration,
-			"model", req.Model,
-			"original_model", originalModel)
-		return nil, fmt.Errorf("Anthropic 原生请求处理失败：%w", err)
-	}
-
-	requestLogger.Info("Anthropic 原生请求处理成功",
-		"duration", duration,
-		"model", req.Model,
-		"original_model", originalModel)
-
-	return resp, nil
+	return s.portal.NativeAnthropicMessages(ctx, req, opts...)
 }
 
 // NativeAnthropicMessagesStream 处理 Anthropic 原生流式 Messages 请求

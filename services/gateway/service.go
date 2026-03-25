@@ -16,6 +16,7 @@ import (
 
 type openAIChatCompletionInvoker func(context.Context, *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
 type openAIResponsesInvoker func(context.Context, *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
+type anthropicMessagesInvoker func(context.Context, *anthropicTypes.Request) (*anthropicTypes.Response, error)
 
 // Service 定义数据面网关应用服务接口。
 //
@@ -89,16 +90,29 @@ func New(portalService portal.Service, logger *slog.Logger) Service {
 
 // AnthropicNativeMessages 处理 Anthropic native Messages 非流式请求。
 func (s *service) AnthropicNativeMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error) {
-	logger := s.logger.WithGroup("anthropic_native_messages")
-	logger.Info("开始执行 Anthropic native Messages 非流式请求", "model", req.Model)
+	return s.executeAnthropicMessages(ctx, req, "anthropic_native_messages", "Anthropic native Messages", func(inCtx context.Context, inReq *anthropicTypes.Request) (*anthropicTypes.Response, error) {
+		return s.portalService.NativeAnthropicMessages(inCtx, inReq)
+	})
+}
 
-	resp, err := s.portalService.NativeAnthropicMessages(ctx, req)
-	if err != nil {
-		logger.Error("Anthropic native Messages 非流式请求失败", "error", err, "model", req.Model)
-		return nil, fmt.Errorf("处理 Anthropic native Messages 请求失败：%w", err)
+func (s *service) executeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request, loggerGroup, requestName string, invoker anthropicMessagesInvoker) (*anthropicTypes.Response, error) {
+	logger := s.logger.WithGroup(loggerGroup)
+	modelName := ""
+	if req != nil {
+		modelName = req.Model
 	}
 
-	logger.Info("Anthropic native Messages 非流式请求成功", "model", req.Model)
+	logger.Info("开始执行非流式请求", "request_name", requestName, "model", modelName)
+
+	startTime := time.Now()
+	resp, err := invoker(ctx, req)
+	duration := time.Since(startTime)
+	if err != nil {
+		logger.Error("非流式请求失败", "request_name", requestName, "error", err, "duration", duration, "model", modelName)
+		return nil, fmt.Errorf("处理 %s 请求失败：%w", requestName, err)
+	}
+
+	logger.Info("非流式请求成功", "request_name", requestName, "duration", duration, "model", modelName)
 	return resp, nil
 }
 
