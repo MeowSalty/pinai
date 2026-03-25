@@ -10,7 +10,6 @@ import (
 
 	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
-	"github.com/MeowSalty/portal"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
 	"github.com/gin-gonic/gin"
 )
@@ -59,7 +58,7 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 	}
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
-	resp, err := h.portalService.NativeGeminiGenerateContent(c.Request.Context(), &req, portal.WithCompatMode())
+	resp, err := h.gatewayService.GeminiCompatGenerateContent(c.Request.Context(), &req)
 	if err != nil {
 		common.WriteGeminiJSONError(c, http.StatusInternalServerError, fmt.Sprintf("处理请求时出错：%v", err), err)
 		return
@@ -123,7 +122,7 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.portalService.NativeGeminiStreamGenerateContent(ctx, req, portal.WithCompatMode())
+	eventChan := h.gatewayService.GeminiCompatGenerateContentStream(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()
