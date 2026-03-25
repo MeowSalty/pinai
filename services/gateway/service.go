@@ -17,6 +17,7 @@ import (
 type openAIChatCompletionInvoker func(context.Context, *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
 type openAIResponsesInvoker func(context.Context, *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
 type anthropicMessagesInvoker func(context.Context, *anthropicTypes.Request) (*anthropicTypes.Response, error)
+type geminiGenerateContentInvoker func(context.Context, *geminiTypes.Request) (*geminiTypes.Response, error)
 
 // Service 定义数据面网关应用服务接口。
 //
@@ -128,16 +129,29 @@ func (s *service) AnthropicNativeMessagesStream(ctx context.Context, req *anthro
 
 // GeminiNativeGenerateContent 处理 Gemini native generateContent 非流式请求。
 func (s *service) GeminiNativeGenerateContent(ctx context.Context, req *geminiTypes.Request) (*geminiTypes.Response, error) {
-	logger := s.logger.WithGroup("gemini_native_generate_content")
-	logger.Info("开始执行 Gemini native generateContent 非流式请求", "model", req.Model)
+	return s.executeGeminiGenerateContent(ctx, req, "gemini_native_generate_content", "Gemini native generateContent", func(inCtx context.Context, inReq *geminiTypes.Request) (*geminiTypes.Response, error) {
+		return s.portalService.NativeGeminiGenerateContent(inCtx, inReq)
+	})
+}
 
-	resp, err := s.portalService.NativeGeminiGenerateContent(ctx, req)
-	if err != nil {
-		logger.Error("Gemini native generateContent 非流式请求失败", "error", err, "model", req.Model)
-		return nil, fmt.Errorf("处理 Gemini native generateContent 请求失败：%w", err)
+func (s *service) executeGeminiGenerateContent(ctx context.Context, req *geminiTypes.Request, loggerGroup, requestName string, invoker geminiGenerateContentInvoker) (*geminiTypes.Response, error) {
+	logger := s.logger.WithGroup(loggerGroup)
+	modelName := ""
+	if req != nil {
+		modelName = req.Model
 	}
 
-	logger.Info("Gemini native generateContent 非流式请求成功", "model", req.Model)
+	logger.Info("开始执行非流式请求", "request_name", requestName, "model", modelName)
+
+	startTime := time.Now()
+	resp, err := invoker(ctx, req)
+	duration := time.Since(startTime)
+	if err != nil {
+		logger.Error("非流式请求失败", "request_name", requestName, "error", err, "duration", duration, "model", modelName)
+		return nil, fmt.Errorf("处理 %s 请求失败：%w", requestName, err)
+	}
+
+	logger.Info("非流式请求成功", "request_name", requestName, "duration", duration, "model", modelName)
 	return resp, nil
 }
 
@@ -170,17 +184,9 @@ func (s *service) AnthropicCompatMessagesStream(ctx context.Context, req *anthro
 
 // GeminiCompatGenerateContent 处理 Gemini compat generateContent 非流式请求。
 func (s *service) GeminiCompatGenerateContent(ctx context.Context, req *geminiTypes.Request) (*geminiTypes.Response, error) {
-	logger := s.logger.WithGroup("gemini_compat_generate_content")
-	logger.Info("开始执行 Gemini compat generateContent 非流式请求", "model", req.Model)
-
-	resp, err := s.portalService.NativeGeminiGenerateContent(ctx, req, portalLib.WithCompatMode())
-	if err != nil {
-		logger.Error("Gemini compat generateContent 非流式请求失败", "error", err, "model", req.Model)
-		return nil, fmt.Errorf("处理 Gemini compat generateContent 请求失败：%w", err)
-	}
-
-	logger.Info("Gemini compat generateContent 非流式请求成功", "model", req.Model)
-	return resp, nil
+	return s.executeGeminiGenerateContent(ctx, req, "gemini_compat_generate_content", "Gemini compat generateContent", func(inCtx context.Context, inReq *geminiTypes.Request) (*geminiTypes.Response, error) {
+		return s.portalService.NativeGeminiGenerateContent(inCtx, inReq, portalLib.WithCompatMode())
+	})
 }
 
 // GeminiCompatGenerateContentStream 处理 Gemini compat streamGenerateContent 流式请求。
