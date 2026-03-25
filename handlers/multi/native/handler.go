@@ -3,12 +3,14 @@ package native
 import (
 	"log/slog"
 
+	"github.com/MeowSalty/pinai/services/gateway"
 	"github.com/MeowSalty/pinai/services/portal"
 )
 
 // Handler 处理多平台原生请求
 type Handler struct {
 	portalService      portal.Service
+	gatewayService     gateway.Service
 	userAgent          string
 	passthroughHeaders bool
 	logger             *slog.Logger
@@ -22,8 +24,11 @@ type Handler struct {
 //   - passthroughHeaders: 是否透传 HTTP 请求头（过滤后）
 //   - logger: 日志记录器实例
 func New(portalService portal.Service, userAgent string, passthroughHeaders bool, logger *slog.Logger) *Handler {
+	gatewayService := gateway.New(portalService, logger)
+
 	return &Handler{
 		portalService:      portalService,
+		gatewayService:     gatewayService,
 		userAgent:          userAgent,
 		passthroughHeaders: passthroughHeaders,
 		logger:             logger,

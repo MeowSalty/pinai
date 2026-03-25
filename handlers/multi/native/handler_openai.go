@@ -56,7 +56,7 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.portalService.NativeOpenAIChatCompletion(c.Request.Context(), &req)
+	resp, err := h.gatewayService.OpenAINativeChatCompletion(c.Request.Context(), &req)
 	if err != nil {
 		c.JSON(
 			http.StatusInternalServerError,

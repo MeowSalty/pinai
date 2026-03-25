@@ -40,6 +40,9 @@ type Service interface {
 
 	// OpenAICompatResponsesStream 处理 OpenAI compat Responses 流式请求。
 	OpenAICompatResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent
+
+	// OpenAINativeChatCompletion 处理 OpenAI native Chat Completions 非流式请求。
+	OpenAINativeChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
 }
 
 type service struct {
@@ -157,4 +160,19 @@ func (s *service) OpenAICompatResponsesStream(ctx context.Context, req *openaiRe
 	stream := s.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
 	logger.Info("OpenAI compat Responses 流式请求已启动", "model", req.Model)
 	return stream
+}
+
+// OpenAINativeChatCompletion 处理 OpenAI native Chat Completions 非流式请求。
+func (s *service) OpenAINativeChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error) {
+	logger := s.logger.WithGroup("openai_native_chat_completion")
+	logger.Info("开始执行 OpenAI native Chat Completions 非流式请求", "model", req.Model)
+
+	resp, err := s.portalService.NativeOpenAIChatCompletion(ctx, req)
+	if err != nil {
+		logger.Error("OpenAI native Chat Completions 非流式请求失败", "error", err, "model", req.Model)
+		return nil, fmt.Errorf("处理 OpenAI native Chat Completions 请求失败：%w", err)
+	}
+
+	logger.Info("OpenAI native Chat Completions 非流式请求成功", "model", req.Model)
+	return resp, nil
 }
