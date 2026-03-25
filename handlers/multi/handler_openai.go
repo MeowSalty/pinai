@@ -10,7 +10,6 @@ import (
 
 	"github.com/MeowSalty/pinai/handlers/multi/common"
 	"github.com/MeowSalty/pinai/services/stats"
-	portalLib "github.com/MeowSalty/portal"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
 	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
 	"github.com/gin-gonic/gin"
@@ -110,7 +109,7 @@ func (h *Handler) Responses(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.portalService.NativeOpenAIResponses(c.Request.Context(), &req, portalLib.WithCompatMode())
+	resp, err := h.gatewayService.OpenAICompatResponses(c.Request.Context(), &req)
 	if err != nil {
 		c.JSON(
 			http.StatusInternalServerError,
@@ -190,7 +189,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
+	eventChan := h.gatewayService.OpenAICompatResponsesStream(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()

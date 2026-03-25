@@ -8,6 +8,7 @@ import (
 	"github.com/MeowSalty/pinai/services/portal"
 	portalLib "github.com/MeowSalty/portal"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
+	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
 )
 
 // Service 定义数据面网关应用服务接口。
@@ -19,6 +20,12 @@ type Service interface {
 
 	// OpenAICompatChatCompletionStream 处理 OpenAI compat Chat Completions 流式请求。
 	OpenAICompatChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent
+
+	// OpenAICompatResponses 处理 OpenAI compat Responses 非流式请求。
+	OpenAICompatResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
+
+	// OpenAICompatResponsesStream 处理 OpenAI compat Responses 流式请求。
+	OpenAICompatResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent
 }
 
 type service struct {
@@ -60,5 +67,30 @@ func (s *service) OpenAICompatChatCompletionStream(ctx context.Context, req *ope
 
 	stream := s.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
 	logger.Info("OpenAI compat Chat Completions 流式请求已启动", "model", req.Model)
+	return stream
+}
+
+// OpenAICompatResponses 处理 OpenAI compat Responses 非流式请求。
+func (s *service) OpenAICompatResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error) {
+	logger := s.logger.WithGroup("openai_compat_responses")
+	logger.Info("开始执行 OpenAI compat Responses 非流式请求", "model", req.Model)
+
+	resp, err := s.portalService.NativeOpenAIResponses(ctx, req, portalLib.WithCompatMode())
+	if err != nil {
+		logger.Error("OpenAI compat Responses 非流式请求失败", "error", err, "model", req.Model)
+		return nil, fmt.Errorf("处理 OpenAI compat Responses 请求失败：%w", err)
+	}
+
+	logger.Info("OpenAI compat Responses 非流式请求成功", "model", req.Model)
+	return resp, nil
+}
+
+// OpenAICompatResponsesStream 处理 OpenAI compat Responses 流式请求。
+func (s *service) OpenAICompatResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent {
+	logger := s.logger.WithGroup("openai_compat_responses_stream")
+	logger.Info("开始执行 OpenAI compat Responses 流式请求", "model", req.Model)
+
+	stream := s.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
+	logger.Info("OpenAI compat Responses 流式请求已启动", "model", req.Model)
 	return stream
 }
