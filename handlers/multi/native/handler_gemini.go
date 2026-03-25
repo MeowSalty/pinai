@@ -62,7 +62,7 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.portalService.NativeGeminiGenerateContent(c.Request.Context(), &req)
+	resp, err := h.gatewayService.GeminiNativeGenerateContent(c.Request.Context(), &req)
 	if err != nil {
 		common.WriteGeminiJSONError(c, http.StatusInternalServerError, fmt.Sprintf("请求失败: %v", err), err)
 		return
