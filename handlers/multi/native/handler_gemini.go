@@ -126,7 +126,7 @@ func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.portalService.NativeGeminiStreamGenerateContent(ctx, req)
+	eventChan := h.gatewayService.GeminiNativeGenerateContentStream(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()
