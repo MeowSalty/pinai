@@ -109,7 +109,7 @@ func (h *Handler) OpenAIResponses(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.portalService.NativeOpenAIResponses(c.Request.Context(), &req)
+	resp, err := h.gatewayService.OpenAINativeResponses(c.Request.Context(), &req)
 	if err != nil {
 		c.JSON(
 			http.StatusInternalServerError,

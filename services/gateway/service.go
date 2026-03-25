@@ -43,6 +43,9 @@ type Service interface {
 
 	// OpenAINativeChatCompletion 处理 OpenAI native Chat Completions 非流式请求。
 	OpenAINativeChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
+
+	// OpenAINativeResponses 处理 OpenAI native Responses 非流式请求。
+	OpenAINativeResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
 }
 
 type service struct {
@@ -174,5 +177,20 @@ func (s *service) OpenAINativeChatCompletion(ctx context.Context, req *openaiCha
 	}
 
 	logger.Info("OpenAI native Chat Completions 非流式请求成功", "model", req.Model)
+	return resp, nil
+}
+
+// OpenAINativeResponses 处理 OpenAI native Responses 非流式请求。
+func (s *service) OpenAINativeResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error) {
+	logger := s.logger.WithGroup("openai_native_responses")
+	logger.Info("开始执行 OpenAI native Responses 非流式请求", "model", req.Model)
+
+	resp, err := s.portalService.NativeOpenAIResponses(ctx, req)
+	if err != nil {
+		logger.Error("OpenAI native Responses 非流式请求失败", "error", err, "model", req.Model)
+		return nil, fmt.Errorf("处理 OpenAI native Responses 请求失败：%w", err)
+	}
+
+	logger.Info("OpenAI native Responses 非流式请求成功", "model", req.Model)
 	return resp, nil
 }
