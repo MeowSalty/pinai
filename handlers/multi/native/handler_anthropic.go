@@ -51,7 +51,7 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.portalService.NativeAnthropicMessages(c.Request.Context(), &req)
+	resp, err := h.gatewayService.AnthropicNativeMessages(c.Request.Context(), &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse(fmt.Sprintf("请求失败: %v", err), http.StatusInternalServerError, err))
 		return

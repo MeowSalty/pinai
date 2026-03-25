@@ -17,6 +17,9 @@ import (
 //
 // 当前仅提供第一批最小落地链路：OpenAI compat Chat Completions。
 type Service interface {
+	// AnthropicNativeMessages 处理 Anthropic native Messages 非流式请求。
+	AnthropicNativeMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error)
+
 	// GeminiNativeGenerateContent 处理 Gemini native generateContent 非流式请求。
 	GeminiNativeGenerateContent(ctx context.Context, req *geminiTypes.Request) (*geminiTypes.Response, error)
 
@@ -72,6 +75,21 @@ func New(portalService portal.Service, logger *slog.Logger) Service {
 		portalService: portalService,
 		logger:        logger,
 	}
+}
+
+// AnthropicNativeMessages 处理 Anthropic native Messages 非流式请求。
+func (s *service) AnthropicNativeMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error) {
+	logger := s.logger.WithGroup("anthropic_native_messages")
+	logger.Info("开始执行 Anthropic native Messages 非流式请求", "model", req.Model)
+
+	resp, err := s.portalService.NativeAnthropicMessages(ctx, req)
+	if err != nil {
+		logger.Error("Anthropic native Messages 非流式请求失败", "error", err, "model", req.Model)
+		return nil, fmt.Errorf("处理 Anthropic native Messages 请求失败：%w", err)
+	}
+
+	logger.Info("Anthropic native Messages 非流式请求成功", "model", req.Model)
+	return resp, nil
 }
 
 // GeminiNativeGenerateContent 处理 Gemini native generateContent 非流式请求。
