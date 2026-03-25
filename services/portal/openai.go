@@ -12,36 +12,15 @@ import (
 
 // NativeOpenAIChatCompletion 处理 OpenAI 原生 Chat Completion 请求
 func (s *service) NativeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request, opts ...portalTypes.NativeOption) (*openaiChatTypes.Response, error) {
-	requestLogger := s.logger.WithGroup("raw_openai_chat_completion")
-	requestLogger.Info("开始处理 OpenAI Chat 原生请求", "model", req.Model)
-
 	originalModel := req.Model
 	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
-		requestLogger.Debug("应用模型映射规则",
+		req.Model = mappedModel
+		s.logger.WithGroup("raw_openai_chat_completion").Debug("应用模型映射规则",
 			"original_model", originalModel,
 			"mapped_model", mappedModel)
-		req.Model = mappedModel
 	}
 
-	startTime := time.Now()
-	resp, err := s.portal.NativeOpenAIChatCompletion(ctx, req, opts...)
-	duration := time.Since(startTime)
-
-	if err != nil {
-		requestLogger.Error("OpenAI Chat 原生请求处理失败",
-			"error", err,
-			"duration", duration,
-			"model", req.Model,
-			"original_model", originalModel)
-		return nil, fmt.Errorf("OpenAI Chat 原生请求处理失败：%w", err)
-	}
-
-	requestLogger.Info("OpenAI Chat 原生请求处理成功",
-		"duration", duration,
-		"model", req.Model,
-		"original_model", originalModel)
-
-	return resp, nil
+	return s.portal.NativeOpenAIChatCompletion(ctx, req, opts...)
 }
 
 // NativeOpenAIChatCompletionStream 处理 OpenAI 原生 Chat Completion 流式请求
