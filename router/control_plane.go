@@ -26,7 +26,7 @@ func setupControlPlaneRoutes(webAPI *gin.RouterGroup, svcs *services.Services, c
 		})
 	})
 
-	provider.SetupProviderRoutes(webAPI, svcs.ProviderService, svcs.HealthService)
+	provider.SetupProviderRoutes(webAPI, svcs.ProviderService)
 	stats.SetupStatsRoutes(webAPI, svcs.StatsService, logger)
 	health.SetupHealthRoutes(webAPI, svcs.HealthService, logger)
 }

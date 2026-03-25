@@ -18,7 +18,7 @@ func New(logger *slog.Logger, healthStorage *health.Storage) Service {
 		logger:              logger,
 		healthReader:        healthStorage,
 		platformControlRepo: NewPlatformControlQueryRepository(healthStorage, logger.WithGroup("platform_control_repo")),
-		modelControlRepo:    NewModelControlQueryRepository(logger.WithGroup("model_control_repo")),
+		modelControlRepo:    NewModelControlQueryRepository(healthStorage, logger.WithGroup("model_control_repo")),
 		keyControlRepo:      NewKeyControlQueryRepository(healthStorage, logger.WithGroup("key_control_repo")),
 		endpointControlRepo: NewEndpointControlQueryRepository(logger.WithGroup("endpoint_control_repo")),
 		controlTx:           NewQueryControlTx(),
@@ -66,6 +66,9 @@ type Service interface {
 
 	// BatchDeleteModels 批量删除指定平台的模型（原子性操作）
 	BatchDeleteModels(ctx context.Context, platformId uint, modelIds []uint) (int, error)
+
+	// UpdateModelHealthEnabled 更新模型健康状态（enabled=true 启用，false 禁用）
+	UpdateModelHealthEnabled(ctx context.Context, modelID uint, enabled bool) (types.HealthStatus, error)
 
 	// AddKeyToPlatform 为指定平台添加新密钥
 	AddKeyToPlatform(ctx context.Context, platformId uint, key types.APIKey) (*types.APIKey, error)

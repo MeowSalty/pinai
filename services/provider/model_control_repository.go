@@ -4,24 +4,28 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"github.com/MeowSalty/pinai/services/health"
 	"gorm.io/gorm"
 )
 
 // modelControlQueryRepository 是基于 database/query 的模型控制面仓储实现。
 type modelControlQueryRepository struct {
-	logger *slog.Logger
+	healthStorage *health.Storage
+	logger        *slog.Logger
 }
 
 // NewModelControlQueryRepository 创建模型控制面仓储实现。
-func NewModelControlQueryRepository(logger *slog.Logger) ModelControlRepository {
+func NewModelControlQueryRepository(healthStorage *health.Storage, logger *slog.Logger) ModelControlRepository {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	return &modelControlQueryRepository{
-		logger: logger.WithGroup("model_control_repo"),
+		healthStorage: healthStorage,
+		logger:        logger.WithGroup("model_control_repo"),
 	}
 }
 
@@ -237,4 +241,43 @@ func (r *modelControlQueryRepository) DeleteModelsByIDs(ctx context.Context, mod
 	}
 
 	return result.RowsAffected, nil
+}
+
+// EnableModelHealth 启用模型健康状态（删除健康记录，恢复为 Unknown）。
+func (r *modelControlQueryRepository) EnableModelHealth(ctx context.Context, modelID uint) error {
+	if r.healthStorage == nil {
+		return fmt.Errorf("启用模型健康状态失败：健康状态存储未初始化")
+	}
+
+	if err := r.healthStorage.Delete(types.ResourceTypeModel, modelID); err != nil {
+		r.logger.Error("启用模型健康状态失败", slog.Uint64("model_id", uint64(modelID)), slog.Any("error", err))
+		return fmt.Errorf("启用模型健康状态失败：%w", err)
+	}
+
+	return nil
+}
+
+// DisableModelHealth 禁用模型健康状态（写入 Unavailable 状态）。
+func (r *modelControlQueryRepository) DisableModelHealth(ctx context.Context, modelID uint) error {
+	if r.healthStorage == nil {
+		return fmt.Errorf("禁用模型健康状态失败：健康状态存储未初始化")
+	}
+
+	now := time.Now()
+	healthRecord := &types.Health{
+		ResourceType:    types.ResourceTypeModel,
+		ResourceID:      modelID,
+		Status:          types.HealthStatusUnavailable,
+		LastError:       "手动禁用",
+		LastCheckAt:     now,
+		RetryCount:      0,
+		BackoffDuration: 0,
+	}
+
+	if err := r.healthStorage.Set(healthRecord); err != nil {
+		r.logger.Error("禁用模型健康状态失败", slog.Uint64("model_id", uint64(modelID)), slog.Any("error", err))
+		return fmt.Errorf("禁用模型健康状态失败：%w", err)
+	}
+
+	return nil
 }

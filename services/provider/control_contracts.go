@@ -68,6 +68,8 @@ type ModelControlRepository interface {
 	AppendModelAPIKeys(ctx context.Context, modelID uint, apiKeys []*types.APIKey) error
 	DeleteModelByID(ctx context.Context, modelID uint) (int64, error)
 	DeleteModelsByIDs(ctx context.Context, modelIDs []uint) (int64, error)
+	EnableModelHealth(ctx context.Context, modelID uint) error
+	DisableModelHealth(ctx context.Context, modelID uint) error
 }
 
 // KeyControlRepository 定义密钥控制面写路径所需最小仓储能力。

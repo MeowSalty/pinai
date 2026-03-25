@@ -301,36 +301,24 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 		return
 	}
 
-	// 验证模型是否存在
 	ctx := c.Request.Context()
-	_, err = h.service.GetModel(ctx, uint(modelId))
+	status, err := h.service.UpdateModelHealthEnabled(ctx, uint(modelId), *enabled)
 	if err != nil {
-		respondProviderServiceError(c, err, "模型未找到", "获取模型失败")
+		respondProviderServiceError(c, err, "模型未找到", "更新模型健康状态失败")
 		return
 	}
 
-	if *enabled {
-		if err := h.healthService.EnableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
-			response.InternalError(c, "启用模型健康状态失败")
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"message":  "模型已启用",
-			"model_id": modelId,
-			"status":   "unknown",
-		})
-		return
-	}
-
-	if err := h.healthService.DisableHealth(types.ResourceTypeModel, uint(modelId)); err != nil {
-		response.InternalError(c, "禁用模型健康状态失败")
-		return
+	message := "模型已禁用"
+	statusText := "unavailable"
+	if status == types.HealthStatusUnknown {
+		message = "模型已启用"
+		statusText = "unknown"
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":  "模型已禁用",
+		"message":  message,
 		"model_id": modelId,
-		"status":   "unavailable",
+		"status":   statusText,
 	})
 }
 
