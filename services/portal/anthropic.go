@@ -12,7 +12,7 @@ func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTyp
 	requestLogger := s.logger.WithGroup("raw_anthropic_messages")
 
 	originalModel := req.Model
-	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
+	if mappedModel, exists := s.mapModel(req.Model); exists {
 		requestLogger.Debug("应用模型映射规则",
 			"original_model", originalModel,
 			"mapped_model", mappedModel)

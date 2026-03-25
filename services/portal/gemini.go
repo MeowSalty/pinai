@@ -15,7 +15,7 @@ func (s *service) NativeGeminiGenerateContent(ctx context.Context, req *geminiTy
 	requestLogger.Info("开始处理 Gemini 原生请求", "model", req.Model)
 
 	originalModel := req.Model
-	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
+	if mappedModel, exists := s.mapModel(req.Model); exists {
 		requestLogger.Debug("应用模型映射规则",
 			"original_model", originalModel,
 			"mapped_model", mappedModel)
