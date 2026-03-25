@@ -1,4 +1,4 @@
-﻿package provider
+package provider
 
 import (
 	"fmt"
@@ -202,33 +202,21 @@ func (h *Handler) updateKeyHealthWithEnabled(c *gin.Context, enabled *bool) {
 
 	// 验证密钥是否存在
 	ctx := c.Request.Context()
-	_, err = h.service.GetKey(ctx, uint(keyId))
+	status, err := h.service.UpdateKeyHealthEnabled(ctx, uint(keyId), *enabled)
 	if err != nil {
-		respondProviderServiceError(c, err, "密钥未找到", "获取密钥失败")
+		respondProviderServiceError(c, err, "密钥未找到", "更新密钥健康状态失败")
 		return
 	}
 
-	if *enabled {
-		if err := h.healthService.EnableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-			response.InternalError(c, "启用密钥健康状态失败")
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"message": "密钥已启用",
-			"key_id":  keyId,
-			"status":  "unknown",
-		})
-		return
+	message := "密钥已禁用"
+	statusText := "unavailable"
+	if status == types.HealthStatusUnknown {
+		message = "密钥已启用"
+		statusText = "unknown"
 	}
-
-	if err := h.healthService.DisableHealth(types.ResourceTypeAPIKey, uint(keyId)); err != nil {
-		response.InternalError(c, "禁用密钥健康状态失败")
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"message": "密钥已禁用",
+		"message": message,
 		"key_id":  keyId,
-		"status":  "unavailable",
+		"status":  statusText,
 	})
 }

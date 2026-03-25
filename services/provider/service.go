@@ -19,7 +19,7 @@ func New(logger *slog.Logger, healthStorage *health.Storage) Service {
 		healthReader:        healthStorage,
 		platformControlRepo: NewPlatformControlQueryRepository(healthStorage, logger.WithGroup("platform_control_repo")),
 		modelControlRepo:    NewModelControlQueryRepository(logger.WithGroup("model_control_repo")),
-		keyControlRepo:      NewKeyControlQueryRepository(logger.WithGroup("key_control_repo")),
+		keyControlRepo:      NewKeyControlQueryRepository(healthStorage, logger.WithGroup("key_control_repo")),
 		endpointControlRepo: NewEndpointControlQueryRepository(logger.WithGroup("endpoint_control_repo")),
 		controlTx:           NewQueryControlTx(),
 		controlAudit:        NewNoOpControlAuditLogger(logger.WithGroup("control_audit")),
@@ -81,6 +81,9 @@ type Service interface {
 
 	// DeleteKey 删除指定密钥
 	DeleteKey(ctx context.Context, keyId uint) error
+
+	// UpdateKeyHealthEnabled 更新密钥健康状态（enabled=true 启用，false 禁用）
+	UpdateKeyHealthEnabled(ctx context.Context, keyID uint, enabled bool) (types.HealthStatus, error)
 
 	// AddEndpointToPlatform 为指定平台添加新端点
 	AddEndpointToPlatform(ctx context.Context, platformId uint, endpoint types.Endpoint) (*types.Endpoint, error)

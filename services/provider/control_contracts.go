@@ -80,6 +80,8 @@ type KeyControlRepository interface {
 	ClearAPIKeyModelRelations(ctx context.Context, keyID uint) error
 	AppendAPIKeyModels(ctx context.Context, keyID uint, models []*types.Model) error
 	DeleteAPIKeyByID(ctx context.Context, keyID uint) (int64, error)
+	EnableAPIKeyHealth(ctx context.Context, keyID uint) error
+	DisableAPIKeyHealth(ctx context.Context, keyID uint) error
 }
 
 // EndpointControlRepository 定义端点控制面写路径所需最小仓储能力。
