@@ -32,7 +32,7 @@ import (
 // @Router       /multi/v1beta/models/{model}:generateContent [post]
 // @Security     ApiKeyAuth
 func (h *Handler) GeminiGenerateContent(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat")
 
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -60,7 +60,8 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 
 	resp, err := h.gatewayService.GeminiCompatGenerateContent(c.Request.Context(), &req)
 	if err != nil {
-		common.WriteGeminiJSONError(c, http.StatusInternalServerError, fmt.Sprintf("处理请求时出错：%v", err), err)
+		mappedErr := h.gatewayService.MapDataPlaneError(err, "处理请求时出错")
+		common.WriteGeminiJSONError(c, mappedErr.StatusCode, mappedErr.Message, err)
 		return
 	}
 
@@ -85,7 +86,7 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 // @Router       /multi/v1beta/models/{model}:streamGenerateContent [post]
 // @Security     ApiKeyAuth
 func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat")
 
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -129,7 +130,7 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 
 	flusher, _ := c.Writer.(http.Flusher)
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			cancel()

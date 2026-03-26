@@ -32,7 +32,7 @@ import (
 // @Router       /multi/v1/chat/completions [post]
 // @Security     ApiKeyAuth
 func (h *Handler) ChatCompletions(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "compat")
 
 	// 解析请求
 	var req openaiChatTypes.Request
@@ -60,9 +60,10 @@ func (h *Handler) ChatCompletions(c *gin.Context) {
 	// 非流式响应
 	resp, err := h.gatewayService.OpenAICompatChatCompletion(c.Request.Context(), &req)
 	if err != nil {
+		mappedErr := h.gatewayService.MapDataPlaneError(err, "处理请求时出错")
 		c.JSON(
-			http.StatusInternalServerError,
-			common.NewOpenAIHTTPErrorResponse(fmt.Sprintf("处理请求时出错：%v", err), http.StatusInternalServerError, err),
+			mappedErr.StatusCode,
+			common.NewOpenAIHTTPErrorResponse(mappedErr.Message, mappedErr.StatusCode, err),
 		)
 		return
 	}
@@ -87,7 +88,7 @@ func (h *Handler) ChatCompletions(c *gin.Context) {
 // @Router       /multi/v1/responses [post]
 // @Security     ApiKeyAuth
 func (h *Handler) Responses(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "compat")
 
 	var req openaiResponsesTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -111,9 +112,10 @@ func (h *Handler) Responses(c *gin.Context) {
 
 	resp, err := h.gatewayService.OpenAICompatResponses(c.Request.Context(), &req)
 	if err != nil {
+		mappedErr := h.gatewayService.MapDataPlaneError(err, "处理请求时出错")
 		c.JSON(
-			http.StatusInternalServerError,
-			common.NewOpenAIHTTPErrorResponse(fmt.Sprintf("处理请求时出错：%v", err), http.StatusInternalServerError, err),
+			mappedErr.StatusCode,
+			common.NewOpenAIHTTPErrorResponse(mappedErr.Message, mappedErr.StatusCode, err),
 		)
 		return
 	}
@@ -134,7 +136,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "compat", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			streamFailed = true
@@ -215,7 +217,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "compat", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			streamFailed = true

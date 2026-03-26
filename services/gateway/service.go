@@ -2,8 +2,11 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/MeowSalty/pinai/services/portal"
@@ -61,6 +64,14 @@ type GeminiStreamResult struct {
 	Done         bool
 }
 
+// DataPlaneError 定义数据面错误映射的最小收口结果。
+//
+// 第一轮仅收口状态码与对外错误信息，避免在 handler 侧重复分支。
+type DataPlaneError struct {
+	StatusCode int
+	Message    string
+}
+
 // Service 定义数据面网关应用服务接口。
 //
 // 当前仅提供第一批最小落地链路：OpenAI compat Chat Completions。
@@ -79,6 +90,9 @@ type Service interface {
 
 	// GeminiNativeGenerateContentStream 处理 Gemini native streamGenerateContent 流式请求。
 	GeminiNativeGenerateContentStream(ctx context.Context, req *geminiTypes.Request) <-chan *geminiTypes.StreamEvent
+
+	// GeminiNativeGenerateContentStreamResult 处理 Gemini native streamGenerateContent 流式请求并返回最小收口结果。
+	GeminiNativeGenerateContentStreamResult(ctx context.Context, req *geminiTypes.Request) <-chan GeminiStreamResult
 
 	// AnthropicCompatMessages 处理 Anthropic compat Messages 非流式请求。
 	AnthropicCompatMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error)
@@ -122,11 +136,20 @@ type Service interface {
 	// OpenAINativeChatCompletionStream 处理 OpenAI native Chat Completions 流式请求。
 	OpenAINativeChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent
 
+	// OpenAINativeChatCompletionStreamResult 处理 OpenAI native Chat Completions 流式请求并返回最小收口结果。
+	OpenAINativeChatCompletionStreamResult(ctx context.Context, req *openaiChatTypes.Request) <-chan OpenAIChatStreamResult
+
 	// OpenAINativeResponses 处理 OpenAI native Responses 非流式请求。
 	OpenAINativeResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
 
 	// OpenAINativeResponsesStream 处理 OpenAI native Responses 流式请求。
 	OpenAINativeResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent
+
+	// OpenAINativeResponsesStreamResult 处理 OpenAI native Responses 流式请求并返回最小收口结果。
+	OpenAINativeResponsesStreamResult(ctx context.Context, req *openaiResponsesTypes.Request) <-chan OpenAIResponsesStreamResult
+
+	// MapDataPlaneError 对数据面错误进行第一轮统一映射。
+	MapDataPlaneError(err error, fallbackAction string) DataPlaneError
 }
 
 type service struct {
@@ -502,6 +525,29 @@ func normalizeOpenAIChatStream(streamCtx streamLogContext, source <-chan *openai
 	return out
 }
 
+// MapDataPlaneError 对数据面错误进行第一轮统一映射。
+func (s *service) MapDataPlaneError(err error, fallbackAction string) DataPlaneError {
+	if err == nil {
+		return DataPlaneError{StatusCode: http.StatusInternalServerError, Message: fallbackAction}
+	}
+
+	lowerMsg := strings.ToLower(err.Error())
+	switch {
+	case errors.Is(err, context.DeadlineExceeded), strings.Contains(lowerMsg, "timeout"), strings.Contains(lowerMsg, "deadline"):
+		return DataPlaneError{StatusCode: http.StatusGatewayTimeout, Message: "上游请求超时"}
+	case errors.Is(err, context.Canceled):
+		return DataPlaneError{StatusCode: http.StatusRequestTimeout, Message: "请求已取消"}
+	case strings.Contains(lowerMsg, "429"), strings.Contains(lowerMsg, "rate limit"), strings.Contains(lowerMsg, "too many requests"), strings.Contains(lowerMsg, "quota"):
+		return DataPlaneError{StatusCode: http.StatusTooManyRequests, Message: "请求过于频繁，请稍后重试"}
+	case strings.Contains(lowerMsg, "401"), strings.Contains(lowerMsg, "403"), strings.Contains(lowerMsg, "unauthorized"), strings.Contains(lowerMsg, "forbidden"), strings.Contains(lowerMsg, "authentication"):
+		return DataPlaneError{StatusCode: http.StatusUnauthorized, Message: "鉴权失败"}
+	case strings.Contains(lowerMsg, "404"), strings.Contains(lowerMsg, "not found"):
+		return DataPlaneError{StatusCode: http.StatusNotFound, Message: "请求资源不存在"}
+	default:
+		return DataPlaneError{StatusCode: http.StatusInternalServerError, Message: fmt.Sprintf("%s：%v", fallbackAction, err)}
+	}
+}
+
 // AnthropicNativeMessagesStream 处理 Anthropic native Messages 流式请求。
 func (s *service) AnthropicNativeMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent {
 	streamCtx := newStreamLogContext(s.logger, "anthropic_native_messages_stream", "Anthropic native Messages", anthropicModelFromRequest(req))
@@ -554,6 +600,16 @@ func (s *service) GeminiNativeGenerateContentStream(ctx context.Context, req *ge
 	return startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
 		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req)
 	})
+}
+
+// GeminiNativeGenerateContentStreamResult 处理 Gemini native streamGenerateContent 流式请求并返回最小收口结果。
+func (s *service) GeminiNativeGenerateContentStreamResult(ctx context.Context, req *geminiTypes.Request) <-chan GeminiStreamResult {
+	streamCtx := newStreamLogContext(s.logger, "gemini_native_generate_content_stream_result", "Gemini native streamGenerateContent", geminiModelFromRequest(req))
+	rawStream := startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
+		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req)
+	})
+
+	return normalizeGeminiStream(streamCtx, rawStream)
 }
 
 // AnthropicCompatMessages 处理 Anthropic compat Messages 非流式请求。
@@ -707,6 +763,16 @@ func (s *service) OpenAINativeChatCompletionStream(ctx context.Context, req *ope
 	})
 }
 
+// OpenAINativeChatCompletionStreamResult 处理 OpenAI native Chat Completions 流式请求并返回最小收口结果。
+func (s *service) OpenAINativeChatCompletionStreamResult(ctx context.Context, req *openaiChatTypes.Request) <-chan OpenAIChatStreamResult {
+	streamCtx := newStreamLogContext(s.logger, "openai_native_chat_completion_stream_result", "OpenAI native Chat Completions", openAIChatModelFromRequest(req))
+	rawStream := startStream(streamCtx, func() <-chan *openaiChatTypes.StreamEvent {
+		return s.portalService.NativeOpenAIChatCompletionStream(ctx, req)
+	})
+
+	return normalizeOpenAIChatStream(streamCtx, rawStream)
+}
+
 // OpenAINativeResponses 处理 OpenAI native Responses 非流式请求。
 func (s *service) OpenAINativeResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error) {
 	return s.executeOpenAIResponses(ctx, req, "openai_native_responses", "OpenAI native Responses", func(inCtx context.Context, inReq *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error) {
@@ -720,4 +786,14 @@ func (s *service) OpenAINativeResponsesStream(ctx context.Context, req *openaiRe
 	return startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
 		return s.portalService.NativeOpenAIResponsesStream(ctx, req)
 	})
+}
+
+// OpenAINativeResponsesStreamResult 处理 OpenAI native Responses 流式请求并返回最小收口结果。
+func (s *service) OpenAINativeResponsesStreamResult(ctx context.Context, req *openaiResponsesTypes.Request) <-chan OpenAIResponsesStreamResult {
+	streamCtx := newStreamLogContext(s.logger, "openai_native_responses_stream_result", "OpenAI native Responses", openAIResponsesModelFromRequest(req))
+	rawStream := startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
+		return s.portalService.NativeOpenAIResponsesStream(ctx, req)
+	})
+
+	return normalizeOpenAIResponsesStream(streamCtx, rawStream)
 }

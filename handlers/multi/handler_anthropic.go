@@ -31,7 +31,7 @@ import (
 // @Router       /multi/v1/messages [post]
 // @Security     ApiKeyAuth
 func (h *Handler) Messages(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "compat")
 
 	// 解析请求
 	var req anthropicTypes.Request
@@ -56,7 +56,8 @@ func (h *Handler) Messages(c *gin.Context) {
 	// 非流式响应
 	resp, err := h.gatewayService.AnthropicCompatMessages(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse(fmt.Sprintf("处理请求时出错：%v", err), http.StatusInternalServerError, err))
+		mappedErr := h.gatewayService.MapDataPlaneError(err, "处理请求时出错")
+		c.JSON(mappedErr.StatusCode, common.NewAnthropicErrorResponse(mappedErr.Message, mappedErr.StatusCode, err))
 		return
 	}
 
@@ -82,7 +83,7 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 
 	flusher, _ := c.Writer.(http.Flusher)
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "compat", "flow", "stream")
 	// 添加 defer recover 来捕获流式处理中的 panic
 	defer func() {
 		if r := recover(); r != nil {

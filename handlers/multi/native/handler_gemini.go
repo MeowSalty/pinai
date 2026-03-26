@@ -31,12 +31,10 @@ import (
 //	@Router       /multi/native/v1beta/models/{model}:generateContent [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) GeminiGenerateContent(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "native")
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("请求参数绑定失败",
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-			"error", err)
+		logger.Warn("请求参数绑定失败", "error", err)
 		common.WriteGeminiJSONError(c, http.StatusBadRequest, fmt.Sprintf("无效的请求体: %v", err), err)
 		return
 	}
@@ -54,17 +52,15 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
-		h.logger.Warn("缺少模型参数",
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-			"error", "缺少模型参数")
+		logger.Warn("缺少模型参数", "error", "缺少模型参数")
 		common.WriteGeminiJSONError(c, http.StatusBadRequest, "缺少模型查询参数", nil)
 		return
 	}
 
 	resp, err := h.gatewayService.GeminiNativeGenerateContent(c.Request.Context(), &req)
 	if err != nil {
-		common.WriteGeminiJSONError(c, http.StatusInternalServerError, fmt.Sprintf("请求失败: %v", err), err)
+		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
+		common.WriteGeminiJSONError(c, mappedErr.StatusCode, mappedErr.Message, err)
 		return
 	}
 
@@ -87,12 +83,10 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 //	@Router       /multi/native/v1beta/models/{model}:streamGenerateContent [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "native")
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("请求参数绑定失败",
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-			"error", err)
+		logger.Warn("请求参数绑定失败", "error", err)
 		common.WriteGeminiJSONError(c, http.StatusBadRequest, fmt.Sprintf("无效的请求体: %v", err), err)
 		return
 	}
@@ -110,10 +104,7 @@ func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 		req.Model = strings.TrimSpace(c.Query("model"))
 	}
 	if req.Model == "" {
-		h.logger.Warn("缺少模型参数",
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-			"error", "缺少模型参数")
+		logger.Warn("缺少模型参数", "error", "缺少模型参数")
 		common.WriteGeminiJSONError(c, http.StatusBadRequest, "缺少模型查询参数", nil)
 		return
 	}
@@ -126,14 +117,14 @@ func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.gatewayService.GeminiNativeGenerateContentStream(ctx, req)
+	resultChan := h.gatewayService.GeminiNativeGenerateContentStreamResult(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()
 
 	flusher, _ := c.Writer.(http.Flusher)
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "native", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
@@ -142,18 +133,47 @@ func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 		}
 	}()
 
-	for event := range eventChan {
-		data, err := json.Marshal(event)
+	for result := range resultChan {
+		if result.Event == nil {
+			continue
+		}
+
+		if result.ErrorMessage != "" {
+			logger.Warn("上游返回 Gemini 流式错误事件", "error_message", result.ErrorMessage)
+			errorData, marshalErr := json.Marshal(common.NewGeminiErrorResponse(result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)))
+			if marshalErr != nil {
+				cancel()
+				logger.Error("序列化 Gemini 标准错误事件失败", "error", marshalErr)
+				break
+			}
+
+			if _, writeErr := fmt.Fprintf(c.Writer, "data: %s\n\n", errorData); writeErr != nil {
+				cancel()
+				logger.Error("写入 Gemini 标准错误事件失败", "error", writeErr)
+				break
+			}
+
+			flusher.Flush()
+			break
+		}
+
+		data, err := json.Marshal(result.Event)
 		if err != nil {
+			cancel()
 			logger.Error("序列化流事件失败", "error", err)
 			break
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
+			cancel()
 			logger.Error("写入流事件失败", "error", err)
 			break
 		}
 
 		flusher.Flush()
+
+		if result.Done {
+			break
+		}
 	}
 }

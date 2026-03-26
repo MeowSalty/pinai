@@ -31,13 +31,10 @@ import (
 //	@Router       /multi/native/v1/chat/completions [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native")
 	var req openaiChatTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("解析 OpenAI Chat 请求体失败",
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-			"error", err,
-		)
+		logger.Warn("解析 OpenAI Chat 请求体失败", "error", err)
 		c.JSON(
 			http.StatusBadRequest,
 			common.NewOpenAIHTTPErrorResponse(fmt.Sprintf("无效的请求体: %v", err), http.StatusBadRequest, err),
@@ -58,9 +55,10 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 
 	resp, err := h.gatewayService.OpenAINativeChatCompletion(c.Request.Context(), &req)
 	if err != nil {
+		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
 		c.JSON(
-			http.StatusInternalServerError,
-			common.NewOpenAIHTTPErrorResponse(fmt.Sprintf("请求失败: %v", err), http.StatusInternalServerError, err),
+			mappedErr.StatusCode,
+			common.NewOpenAIHTTPErrorResponse(mappedErr.Message, mappedErr.StatusCode, err),
 		)
 		return
 	}
@@ -84,13 +82,10 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 //	@Router       /multi/native/v1/responses [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) OpenAIResponses(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native")
 	var req openaiResponsesTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("解析 OpenAI Responses 请求体失败",
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-			"error", err,
-		)
+		logger.Warn("解析 OpenAI Responses 请求体失败", "error", err)
 		c.JSON(
 			http.StatusBadRequest,
 			common.NewOpenAIHTTPErrorResponse(fmt.Sprintf("无效的请求体: %v", err), http.StatusBadRequest, err),
@@ -111,9 +106,10 @@ func (h *Handler) OpenAIResponses(c *gin.Context) {
 
 	resp, err := h.gatewayService.OpenAINativeResponses(c.Request.Context(), &req)
 	if err != nil {
+		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
 		c.JSON(
-			http.StatusInternalServerError,
-			common.NewOpenAIHTTPErrorResponse(fmt.Sprintf("请求失败: %v", err), http.StatusInternalServerError, err),
+			mappedErr.StatusCode,
+			common.NewOpenAIHTTPErrorResponse(mappedErr.Message, mappedErr.StatusCode, err),
 		)
 		return
 	}
@@ -126,7 +122,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.gatewayService.OpenAINativeChatCompletionStream(ctx, req)
+	resultChan := h.gatewayService.OpenAINativeChatCompletionStreamResult(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()
@@ -134,7 +130,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			streamFailed = true
@@ -147,8 +143,12 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 		}
 	}()
 
-	for event := range eventChan {
-		data, err := json.Marshal(event)
+	for result := range resultChan {
+		if result.Event == nil {
+			continue
+		}
+
+		data, err := json.Marshal(result.Event)
 		if err != nil {
 			streamFailed = true
 			cancel()
@@ -170,6 +170,10 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 		}
 
 		flusher.Flush()
+
+		if result.Done {
+			break
+		}
 	}
 
 	if sendDone && !streamFailed {
@@ -185,7 +189,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.gatewayService.OpenAINativeResponsesStream(ctx, req)
+	resultChan := h.gatewayService.OpenAINativeResponsesStreamResult(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()
@@ -193,7 +197,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			streamFailed = true
@@ -206,8 +210,22 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 		}
 	}()
 
-	for event := range eventChan {
-		data, err := json.Marshal(event)
+	for result := range resultChan {
+		if result.Event == nil {
+			continue
+		}
+
+		if result.ErrorMessage != "" {
+			streamFailed = true
+			cancel()
+			logger.Warn("上游返回 OpenAI Responses 流式错误事件", "error_message", result.ErrorMessage)
+			if sendErr := common.WriteOpenAIResponsesSSEError(c.Writer, result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)); sendErr != nil {
+				logger.Error("发送 OpenAI Responses 流式错误失败", "error", sendErr)
+			}
+			break
+		}
+
+		data, err := json.Marshal(result.Event)
 		if err != nil {
 			streamFailed = true
 			cancel()
@@ -229,6 +247,10 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 		}
 
 		flusher.Flush()
+
+		if result.Done {
+			break
+		}
 	}
 
 	if sendDone && !streamFailed {

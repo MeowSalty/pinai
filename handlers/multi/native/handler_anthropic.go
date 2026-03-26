@@ -30,12 +30,10 @@ import (
 //	@Router       /multi/native/v1/messages [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) AnthropicMessages(c *gin.Context) {
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "native")
 	var req anthropicTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("请求参数绑定失败",
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-			"error", err)
+		logger.Warn("请求参数绑定失败", "error", err)
 		c.JSON(http.StatusBadRequest, common.NewAnthropicErrorResponse(fmt.Sprintf("无效的请求体: %v", err), http.StatusBadRequest, err))
 		return
 	}
@@ -53,7 +51,8 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 
 	resp, err := h.gatewayService.AnthropicNativeMessages(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse(fmt.Sprintf("请求失败: %v", err), http.StatusInternalServerError, err))
+		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
+		c.JSON(mappedErr.StatusCode, common.NewAnthropicErrorResponse(mappedErr.Message, mappedErr.StatusCode, err))
 		return
 	}
 
@@ -72,7 +71,7 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 
 	flusher, _ := c.Writer.(http.Flusher)
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method)
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "native", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
@@ -93,12 +92,7 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 		}
 
 		if result.ErrorMessage != "" {
-			h.logger.Warn("上游返回 Anthropic 流式错误事件",
-				"path", c.Request.URL.Path,
-				"method", c.Request.Method,
-				"event_type", result.EventType,
-				"error_message", result.ErrorMessage,
-			)
+			logger.Warn("上游返回 Anthropic 流式错误事件", "event_type", result.EventType, "error_message", result.ErrorMessage)
 
 			if err := common.WriteAnthropicSSEError(c.Writer, result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)); err != nil {
 				logger.Error("发送 Anthropic 标准错误事件失败", "error", err)
