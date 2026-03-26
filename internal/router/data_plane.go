@@ -9,15 +9,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Config 定义数据面路由所需最小配置。
-type Config struct {
+// DataPlaneConfig 定义数据面路由所需最小配置。
+type DataPlaneConfig struct {
 	ApiToken           string
 	UserAgent          string
 	PassthroughHeaders bool
 }
 
 // SetupDataPlaneRoutes 装配数据面路由与相关中间件。
-func SetupDataPlaneRoutes(web *gin.Engine, svcs *appbootstrap.Services, config Config, logger *slog.Logger) {
+func SetupDataPlaneRoutes(web *gin.Engine, svcs *appbootstrap.Services, config DataPlaneConfig, logger *slog.Logger) {
 	multiAPI := web.Group("/multi")
 
 	// 为业务 API 添加统计采集中间件

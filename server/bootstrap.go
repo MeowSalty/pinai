@@ -16,8 +16,8 @@ import (
 	"github.com/MeowSalty/pinai/database"
 	"github.com/MeowSalty/pinai/frontend"
 	appbootstrap "github.com/MeowSalty/pinai/internal/bootstrap"
+	internalrouter "github.com/MeowSalty/pinai/internal/router"
 	"github.com/MeowSalty/pinai/logger"
-	"github.com/MeowSalty/pinai/router"
 	"github.com/gin-gonic/gin"
 	sloggin "github.com/samber/slog-gin"
 )
@@ -119,7 +119,7 @@ func newBootstrapRuntime(cfg *config.Config) *bootstrapRuntime {
 	}
 
 	// 设置路由
-	routerConfig := router.Config{
+	routerConfig := internalrouter.Config{
 		AdminToken:         effectiveAdminToken,
 		ApiToken:           cfg.APIToken,
 		CORSAllowAll:       cfg.CORSAllowAll,
@@ -132,7 +132,7 @@ func newBootstrapRuntime(cfg *config.Config) *bootstrapRuntime {
 	if cfg.ProxyEnabled && effectiveAdminToken == "" {
 		appLogger.Warn("代理功能已启用但未设置管理令牌，代理端点将不可用")
 	}
-	if err := router.SetupRoutes(ginEngine, svcs, routerConfig, routerLogger); err != nil {
+	if err := internalrouter.SetupRoutes(ginEngine, svcs, routerConfig, routerLogger); err != nil {
 		appLogger.Error("路由设置失败", "error", err)
 		if closeErr := db.Close(); closeErr != nil {
 			appLogger.Error("关闭数据库连接失败", "error", closeErr)

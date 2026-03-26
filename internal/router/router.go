@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	appbootstrap "github.com/MeowSalty/pinai/internal/bootstrap"
-	internalrouter "github.com/MeowSalty/pinai/internal/router"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,13 +23,13 @@ func SetupRoutes(web *gin.Engine, svcs *appbootstrap.Services, config Config, lo
 	setupCORS(web, config)
 	webAPI := setupAPIRootGroup(web, config)
 
-	internalrouter.SetupControlPlaneRoutes(webAPI, svcs, internalrouter.ControlConfig{
+	SetupControlPlaneRoutes(webAPI, svcs, ControlConfig{
 		ApiToken:     config.ApiToken,
 		AdminToken:   config.AdminToken,
 		UserAgent:    config.UserAgent,
 		ProxyEnabled: config.ProxyEnabled,
 	}, logger)
-	internalrouter.SetupDataPlaneRoutes(web, svcs, internalrouter.Config{
+	SetupDataPlaneRoutes(web, svcs, DataPlaneConfig{
 		ApiToken:           config.ApiToken,
 		UserAgent:          config.UserAgent,
 		PassthroughHeaders: config.PassthroughHeaders,
