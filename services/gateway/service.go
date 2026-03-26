@@ -34,6 +34,15 @@ type AnthropicStreamResult struct {
 	Done         bool
 }
 
+// OpenAIChatStreamResult 定义 OpenAI Chat 流式事件的最小收口结果。
+//
+// 网关负责将上游事件标准化为统一字段，handler 仅需负责 SSE/HTTP 协议写回。
+type OpenAIChatStreamResult struct {
+	Event        *openaiChatTypes.StreamEvent
+	ErrorMessage string
+	Done         bool
+}
+
 // Service 定义数据面网关应用服务接口。
 //
 // 当前仅提供第一批最小落地链路：OpenAI compat Chat Completions。
@@ -73,6 +82,9 @@ type Service interface {
 
 	// OpenAICompatChatCompletionStream 处理 OpenAI compat Chat Completions 流式请求。
 	OpenAICompatChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent
+
+	// OpenAICompatChatCompletionStreamResult 处理 OpenAI compat Chat Completions 流式请求并返回最小收口结果。
+	OpenAICompatChatCompletionStreamResult(ctx context.Context, req *openaiChatTypes.Request) <-chan OpenAIChatStreamResult
 
 	// OpenAICompatResponses 处理 OpenAI compat Responses 非流式请求。
 	OpenAICompatResponses(ctx context.Context, req *openaiResponsesTypes.Request) (*openaiResponsesTypes.Response, error)
@@ -272,6 +284,56 @@ func openAIResponsesModelFromRequest(req *openaiResponsesTypes.Request) string {
 	return *req.Model
 }
 
+func openAIChatStreamDone(event *openaiChatTypes.StreamEvent) bool {
+	if event == nil {
+		return false
+	}
+
+	for _, choice := range event.Choices {
+		if choice.FinishReason != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func normalizeOpenAIChatStream(streamCtx streamLogContext, source <-chan *openaiChatTypes.StreamEvent) <-chan OpenAIChatStreamResult {
+	out := make(chan OpenAIChatStreamResult)
+	go func() {
+		defer close(out)
+
+		streamCtx.logger.Info("开始消费 OpenAI Chat 流式结果", streamCtx.attrs...)
+		for event := range source {
+			if event == nil {
+				streamCtx.logger.Debug("忽略空 OpenAI Chat 流式事件", streamCtx.attrs...)
+				continue
+			}
+
+			result := OpenAIChatStreamResult{
+				Event: event,
+				Done:  openAIChatStreamDone(event),
+			}
+
+			streamCtx.logger.Debug("OpenAI Chat 流式事件已收口",
+				append(streamCtx.attrs,
+					"done", result.Done,
+				)...,
+			)
+
+			out <- result
+			if result.Done {
+				streamCtx.logger.Info("OpenAI Chat 流式结束条件满足", streamCtx.attrs...)
+				return
+			}
+		}
+
+		streamCtx.logger.Info("OpenAI Chat 流式上游通道关闭", streamCtx.attrs...)
+	}()
+
+	return out
+}
+
 // AnthropicNativeMessagesStream 处理 Anthropic native Messages 流式请求。
 func (s *service) AnthropicNativeMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent {
 	streamCtx := newStreamLogContext(s.logger, "anthropic_native_messages_stream", "Anthropic native Messages", anthropicModelFromRequest(req))
@@ -379,6 +441,16 @@ func (s *service) OpenAICompatChatCompletionStream(ctx context.Context, req *ope
 	return startStream(streamCtx, func() <-chan *openaiChatTypes.StreamEvent {
 		return s.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
 	})
+}
+
+// OpenAICompatChatCompletionStreamResult 处理 OpenAI compat Chat Completions 流式请求并返回最小收口结果。
+func (s *service) OpenAICompatChatCompletionStreamResult(ctx context.Context, req *openaiChatTypes.Request) <-chan OpenAIChatStreamResult {
+	streamCtx := newStreamLogContext(s.logger, "openai_compat_chat_completion_stream_result", "OpenAI compat Chat Completions", openAIChatModelFromRequest(req))
+	rawStream := startStream(streamCtx, func() <-chan *openaiChatTypes.StreamEvent {
+		return s.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
+	})
+
+	return normalizeOpenAIChatStream(streamCtx, rawStream)
 }
 
 // OpenAICompatResponses 处理 OpenAI compat Responses 非流式请求。
