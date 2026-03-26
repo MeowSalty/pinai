@@ -19,6 +19,11 @@ type openAIResponsesInvoker func(context.Context, *openaiResponsesTypes.Request)
 type anthropicMessagesInvoker func(context.Context, *anthropicTypes.Request) (*anthropicTypes.Response, error)
 type geminiGenerateContentInvoker func(context.Context, *geminiTypes.Request) (*geminiTypes.Response, error)
 
+type streamLogContext struct {
+	logger *slog.Logger
+	attrs  []any
+}
+
 // Service 定义数据面网关应用服务接口。
 //
 // 当前仅提供第一批最小落地链路：OpenAI compat Chat Completions。
@@ -117,14 +122,58 @@ func (s *service) executeAnthropicMessages(ctx context.Context, req *anthropicTy
 	return resp, nil
 }
 
+func newStreamLogContext(baseLogger *slog.Logger, loggerGroup, requestName, modelName string) streamLogContext {
+	return streamLogContext{
+		logger: baseLogger.WithGroup(loggerGroup),
+		attrs:  []any{"request_name", requestName, "model", modelName},
+	}
+}
+
+func startStream[T any](streamCtx streamLogContext, invoker func() <-chan T) <-chan T {
+	streamCtx.logger.Info("开始执行流式请求", streamCtx.attrs...)
+	stream := invoker()
+	streamCtx.logger.Info("流式请求已启动", streamCtx.attrs...)
+	return stream
+}
+
+func anthropicModelFromRequest(req *anthropicTypes.Request) string {
+	if req == nil {
+		return ""
+	}
+
+	return req.Model
+}
+
+func geminiModelFromRequest(req *geminiTypes.Request) string {
+	if req == nil {
+		return ""
+	}
+
+	return req.Model
+}
+
+func openAIChatModelFromRequest(req *openaiChatTypes.Request) string {
+	if req == nil {
+		return ""
+	}
+
+	return req.Model
+}
+
+func openAIResponsesModelFromRequest(req *openaiResponsesTypes.Request) string {
+	if req == nil || req.Model == nil {
+		return ""
+	}
+
+	return *req.Model
+}
+
 // AnthropicNativeMessagesStream 处理 Anthropic native Messages 流式请求。
 func (s *service) AnthropicNativeMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent {
-	logger := s.logger.WithGroup("anthropic_native_messages_stream")
-	logger.Info("开始执行 Anthropic native Messages 流式请求", "model", req.Model)
-
-	stream := s.portalService.NativeAnthropicMessagesStream(ctx, req)
-	logger.Info("Anthropic native Messages 流式请求已启动", "model", req.Model)
-	return stream
+	streamCtx := newStreamLogContext(s.logger, "anthropic_native_messages_stream", "Anthropic native Messages", anthropicModelFromRequest(req))
+	return startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
+		return s.portalService.NativeAnthropicMessagesStream(ctx, req)
+	})
 }
 
 // GeminiNativeGenerateContent 处理 Gemini native generateContent 非流式请求。
@@ -157,12 +206,10 @@ func (s *service) executeGeminiGenerateContent(ctx context.Context, req *geminiT
 
 // GeminiNativeGenerateContentStream 处理 Gemini native streamGenerateContent 流式请求。
 func (s *service) GeminiNativeGenerateContentStream(ctx context.Context, req *geminiTypes.Request) <-chan *geminiTypes.StreamEvent {
-	logger := s.logger.WithGroup("gemini_native_generate_content_stream")
-	logger.Info("开始执行 Gemini native streamGenerateContent 流式请求", "model", req.Model)
-
-	stream := s.portalService.NativeGeminiStreamGenerateContent(ctx, req)
-	logger.Info("Gemini native streamGenerateContent 流式请求已启动", "model", req.Model)
-	return stream
+	streamCtx := newStreamLogContext(s.logger, "gemini_native_generate_content_stream", "Gemini native streamGenerateContent", geminiModelFromRequest(req))
+	return startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
+		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req)
+	})
 }
 
 // AnthropicCompatMessages 处理 Anthropic compat Messages 非流式请求。
@@ -174,12 +221,10 @@ func (s *service) AnthropicCompatMessages(ctx context.Context, req *anthropicTyp
 
 // AnthropicCompatMessagesStream 处理 Anthropic compat Messages 流式请求。
 func (s *service) AnthropicCompatMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent {
-	logger := s.logger.WithGroup("anthropic_compat_messages_stream")
-	logger.Info("开始执行 Anthropic compat Messages 流式请求", "model", req.Model)
-
-	stream := s.portalService.NativeAnthropicMessagesStream(ctx, req, portalLib.WithCompatMode())
-	logger.Info("Anthropic compat Messages 流式请求已启动", "model", req.Model)
-	return stream
+	streamCtx := newStreamLogContext(s.logger, "anthropic_compat_messages_stream", "Anthropic compat Messages", anthropicModelFromRequest(req))
+	return startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
+		return s.portalService.NativeAnthropicMessagesStream(ctx, req, portalLib.WithCompatMode())
+	})
 }
 
 // GeminiCompatGenerateContent 处理 Gemini compat generateContent 非流式请求。
@@ -191,12 +236,10 @@ func (s *service) GeminiCompatGenerateContent(ctx context.Context, req *geminiTy
 
 // GeminiCompatGenerateContentStream 处理 Gemini compat streamGenerateContent 流式请求。
 func (s *service) GeminiCompatGenerateContentStream(ctx context.Context, req *geminiTypes.Request) <-chan *geminiTypes.StreamEvent {
-	logger := s.logger.WithGroup("gemini_compat_generate_content_stream")
-	logger.Info("开始执行 Gemini compat streamGenerateContent 流式请求", "model", req.Model)
-
-	stream := s.portalService.NativeGeminiStreamGenerateContent(ctx, req, portalLib.WithCompatMode())
-	logger.Info("Gemini compat streamGenerateContent 流式请求已启动", "model", req.Model)
-	return stream
+	streamCtx := newStreamLogContext(s.logger, "gemini_compat_generate_content_stream", "Gemini compat streamGenerateContent", geminiModelFromRequest(req))
+	return startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
+		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req, portalLib.WithCompatMode())
+	})
 }
 
 // OpenAICompatChatCompletion 处理 OpenAI compat Chat Completions 非流式请求。
@@ -208,12 +251,10 @@ func (s *service) OpenAICompatChatCompletion(ctx context.Context, req *openaiCha
 
 // OpenAICompatChatCompletionStream 处理 OpenAI compat Chat Completions 流式请求。
 func (s *service) OpenAICompatChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent {
-	logger := s.logger.WithGroup("openai_compat_chat_completion_stream")
-	logger.Info("开始执行 OpenAI compat Chat Completions 流式请求", "model", req.Model)
-
-	stream := s.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
-	logger.Info("OpenAI compat Chat Completions 流式请求已启动", "model", req.Model)
-	return stream
+	streamCtx := newStreamLogContext(s.logger, "openai_compat_chat_completion_stream", "OpenAI compat Chat Completions", openAIChatModelFromRequest(req))
+	return startStream(streamCtx, func() <-chan *openaiChatTypes.StreamEvent {
+		return s.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
+	})
 }
 
 // OpenAICompatResponses 处理 OpenAI compat Responses 非流式请求。
@@ -225,12 +266,10 @@ func (s *service) OpenAICompatResponses(ctx context.Context, req *openaiResponse
 
 // OpenAICompatResponsesStream 处理 OpenAI compat Responses 流式请求。
 func (s *service) OpenAICompatResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent {
-	logger := s.logger.WithGroup("openai_compat_responses_stream")
-	logger.Info("开始执行 OpenAI compat Responses 流式请求", "model", req.Model)
-
-	stream := s.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
-	logger.Info("OpenAI compat Responses 流式请求已启动", "model", req.Model)
-	return stream
+	streamCtx := newStreamLogContext(s.logger, "openai_compat_responses_stream", "OpenAI compat Responses", openAIResponsesModelFromRequest(req))
+	return startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
+		return s.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
+	})
 }
 
 // OpenAINativeChatCompletion 处理 OpenAI native Chat Completions 非流式请求。
@@ -278,12 +317,10 @@ func (s *service) executeOpenAIResponses(ctx context.Context, req *openaiRespons
 
 // OpenAINativeChatCompletionStream 处理 OpenAI native Chat Completions 流式请求。
 func (s *service) OpenAINativeChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent {
-	logger := s.logger.WithGroup("openai_native_chat_completion_stream")
-	logger.Info("开始执行 OpenAI native Chat Completions 流式请求", "model", req.Model)
-
-	stream := s.portalService.NativeOpenAIChatCompletionStream(ctx, req)
-	logger.Info("OpenAI native Chat Completions 流式请求已启动", "model", req.Model)
-	return stream
+	streamCtx := newStreamLogContext(s.logger, "openai_native_chat_completion_stream", "OpenAI native Chat Completions", openAIChatModelFromRequest(req))
+	return startStream(streamCtx, func() <-chan *openaiChatTypes.StreamEvent {
+		return s.portalService.NativeOpenAIChatCompletionStream(ctx, req)
+	})
 }
 
 // OpenAINativeResponses 处理 OpenAI native Responses 非流式请求。
@@ -295,10 +332,8 @@ func (s *service) OpenAINativeResponses(ctx context.Context, req *openaiResponse
 
 // OpenAINativeResponsesStream 处理 OpenAI native Responses 流式请求。
 func (s *service) OpenAINativeResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent {
-	logger := s.logger.WithGroup("openai_native_responses_stream")
-	logger.Info("开始执行 OpenAI native Responses 流式请求", "model", req.Model)
-
-	stream := s.portalService.NativeOpenAIResponsesStream(ctx, req)
-	logger.Info("OpenAI native Responses 流式请求已启动", "model", req.Model)
-	return stream
+	streamCtx := newStreamLogContext(s.logger, "openai_native_responses_stream", "OpenAI native Responses", openAIResponsesModelFromRequest(req))
+	return startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
+		return s.portalService.NativeOpenAIResponsesStream(ctx, req)
+	})
 }
