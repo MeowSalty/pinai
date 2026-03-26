@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
-	"github.com/MeowSalty/pinai/handlers/response"
+	"github.com/MeowSalty/pinai/internal/handler/response"
 	"github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
@@ -27,9 +27,9 @@ type ModelWithHealth struct {
 // @Param        platformId  path      int                             true  "平台 ID"
 // @Param        request     body      types.Model                     true  "创建模型的请求体"
 // @Success      201         {object}  types.Model                       "创建成功的模型信息"
-// @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "平台未找到"
-// @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse            "平台未找到"
+// @Failure      500         {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/models [post]
 func (h *Handler) AddModelToPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -63,9 +63,9 @@ func (h *Handler) AddModelToPlatform(c *gin.Context) {
 // @Param        platformId  path      int                                      true  "平台 ID"
 // @Param        request     body      provider.BatchCreateModelsRequest        true  "批量创建模型的请求体"
 // @Success      201         {object}  provider.BatchCreateModelsResponse       "全部创建成功"
-// @Failure      400         {object}  map[string]interface{}                   "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}                   "平台未找到"
-// @Failure      500         {object}  map[string]interface{}                   "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse                    "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse                    "平台未找到"
+// @Failure      500         {object}  response.ErrorResponse                    "服务器内部错误"
 // @Router       /api/platforms/{platformId}/models/batch [post]
 func (h *Handler) BatchAddModelsToPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -110,9 +110,9 @@ func (h *Handler) BatchAddModelsToPlatform(c *gin.Context) {
 // @Param        platformId  path      int     true   "平台 ID"
 // @Param        include     query     string  false  "包含额外信息，支持 health"
 // @Success      200         {array}   ModelWithHealth                   "模型列表"
-// @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "平台未找到"
-// @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse            "平台未找到"
+// @Failure      500         {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/models [get]
 func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -156,9 +156,9 @@ func (h *Handler) GetModelsByPlatform(c *gin.Context) {
 // @Param        modelId     path      int                             true  "模型 ID"
 // @Param        request     body      types.Model                     true  "更新模型的请求体"
 // @Success      200         {object}  types.Model                       "更新后的模型信息"
-// @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "模型未找到"
-// @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse            "模型未找到"
+// @Failure      500         {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/models/{modelId} [put]
 func (h *Handler) UpdateModel(c *gin.Context) {
 	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
@@ -190,9 +190,9 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 // @Produce      json
 // @Param        modelId     path      int  true  "模型 ID"
 // @Success      204         "删除成功"
-// @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "模型未找到"
-// @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse            "模型未找到"
+// @Failure      500         {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/models/{modelId} [delete]
 func (h *Handler) DeleteModel(c *gin.Context) {
 	modelId, err := strconv.ParseUint(c.Param("modelId"), 10, 64)
@@ -220,9 +220,9 @@ func (h *Handler) DeleteModel(c *gin.Context) {
 // @Param        platformId  path      int                                      true  "平台 ID"
 // @Param        request     body      provider.BatchUpdateModelsRequest        true  "批量更新模型的请求体"
 // @Success      200         {object}  provider.BatchUpdateModelsResponse       "全部更新成功"
-// @Failure      400         {object}  map[string]interface{}                   "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}                   "平台或模型未找到"
-// @Failure      500         {object}  map[string]interface{}                   "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse                    "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse                    "平台或模型未找到"
+// @Failure      500         {object}  response.ErrorResponse                    "服务器内部错误"
 // @Router       /api/platforms/{platformId}/models/batch [put]
 func (h *Handler) BatchUpdateModels(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -276,9 +276,9 @@ func (h *Handler) BatchUpdateModels(c *gin.Context) {
 // @Param        modelId     path      int                  true  "模型 ID"
 // @Param        request     body      HealthUpdateRequest  true  "健康状态更新请求"
 // @Success      200  {object}  map[string]interface{}  "操作成功"
-// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
-// @Failure      404  {object}  map[string]interface{}  "模型未找到"
-// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
+// @Failure      400  {object}  response.ErrorResponse  "请求参数错误"
+// @Failure      404  {object}  response.ErrorResponse  "模型未找到"
+// @Failure      500  {object}  response.ErrorResponse  "服务器内部错误"
 // @Router       /api/models/{modelId}/health [patch]
 func (h *Handler) UpdateModelHealth(c *gin.Context) {
 	var req HealthUpdateRequest
@@ -331,9 +331,9 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 // @Param        platformId  path      int                                      true  "平台 ID"
 // @Param        request     body      provider.BatchDeleteModelsRequest        true  "批量删除模型的请求体"
 // @Success      200         {object}  provider.BatchDeleteModelsResponse       "全部删除成功"
-// @Failure      400         {object}  map[string]interface{}                   "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}                   "平台或模型未找到"
-// @Failure      500         {object}  map[string]interface{}                   "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse                    "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse                    "平台或模型未找到"
+// @Failure      500         {object}  response.ErrorResponse                    "服务器内部错误"
 // @Router       /api/platforms/{platformId}/models/batch [delete]
 func (h *Handler) BatchDeleteModels(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)

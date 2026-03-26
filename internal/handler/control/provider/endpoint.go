@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
-	"github.com/MeowSalty/pinai/handlers/response"
+	"github.com/MeowSalty/pinai/internal/handler/response"
 	"github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
@@ -21,9 +21,9 @@ import (
 // @Param        platformId  path      int                              true  "平台 ID"
 // @Param        request     body      types.Endpoint                   true  "创建端点的请求体"
 // @Success      201         {object}  types.Endpoint                    "创建成功的端点信息"
-// @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "平台未找到"
-// @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse             "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse             "平台未找到"
+// @Failure      500         {object}  response.ErrorResponse             "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints [post]
 func (h *Handler) AddEndpointToPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -57,9 +57,9 @@ func (h *Handler) AddEndpointToPlatform(c *gin.Context) {
 // @Param        platformId  path      int                                         true  "平台 ID"
 // @Param        request     body      provider.BatchCreateEndpointsRequest         true  "批量创建端点的请求体"
 // @Success      201         {object}  provider.BatchCreateEndpointsResponse        "全部创建成功"
-// @Failure      400         {object}  map[string]interface{}                        "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}                        "平台未找到"
-// @Failure      500         {object}  map[string]interface{}                        "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse                         "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse                         "平台未找到"
+// @Failure      500         {object}  response.ErrorResponse                         "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints/batch [post]
 func (h *Handler) BatchAddEndpointsToPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -102,9 +102,9 @@ func (h *Handler) BatchAddEndpointsToPlatform(c *gin.Context) {
 // @Produce      json
 // @Param        platformId  path      int     true  "平台 ID"
 // @Success      200         {array}   types.Endpoint                   "端点列表"
-// @Failure      400         {object}  map[string]interface{}           "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}           "平台未找到"
-// @Failure      500         {object}  map[string]interface{}           "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse            "平台未找到"
+// @Failure      500         {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints [get]
 func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -130,9 +130,9 @@ func (h *Handler) GetEndpointsByPlatform(c *gin.Context) {
 // @Produce      json
 // @Param        endpointId  path      int     true  "端点 ID"
 // @Success      200         {object}  types.Endpoint                   "端点详情"
-// @Failure      400         {object}  map[string]interface{}           "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}           "端点未找到"
-// @Failure      500         {object}  map[string]interface{}           "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse            "端点未找到"
+// @Failure      500         {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/endpoints/{endpointId} [get]
 func (h *Handler) GetEndpoint(c *gin.Context) {
 	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
@@ -160,9 +160,9 @@ func (h *Handler) GetEndpoint(c *gin.Context) {
 // @Param        endpointId  path      int                              true  "端点 ID"
 // @Param        request     body      types.Endpoint                   true  "更新端点的请求体"
 // @Success      200         {object}  types.Endpoint                    "更新后的端点信息"
-// @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "端点未找到"
-// @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse             "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse             "端点未找到"
+// @Failure      500         {object}  response.ErrorResponse             "服务器内部错误"
 // @Router       /api/endpoints/{endpointId} [put]
 func (h *Handler) UpdateEndpoint(c *gin.Context) {
 	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)
@@ -196,9 +196,9 @@ func (h *Handler) UpdateEndpoint(c *gin.Context) {
 // @Param        platformId  path      int                                         true  "平台 ID"
 // @Param        request     body      provider.BatchUpdateEndpointsRequest         true  "批量更新端点的请求体"
 // @Success      200         {object}  provider.BatchUpdateEndpointsResponse        "全部更新成功"
-// @Failure      400         {object}  map[string]interface{}                        "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}                        "平台或端点未找到"
-// @Failure      500         {object}  map[string]interface{}                        "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse                         "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse                         "平台或端点未找到"
+// @Failure      500         {object}  response.ErrorResponse                         "服务器内部错误"
 // @Router       /api/platforms/{platformId}/endpoints/batch [put]
 func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -248,9 +248,9 @@ func (h *Handler) BatchUpdateEndpoints(c *gin.Context) {
 // @Produce      json
 // @Param        endpointId  path      int  true  "端点 ID"
 // @Success      204         "删除成功"
-// @Failure      400         {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404         {object}  map[string]interface{}            "端点未找到"
-// @Failure      500         {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400         {object}  response.ErrorResponse             "请求参数错误"
+// @Failure      404         {object}  response.ErrorResponse             "端点未找到"
+// @Failure      500         {object}  response.ErrorResponse             "服务器内部错误"
 // @Router       /api/endpoints/{endpointId} [delete]
 func (h *Handler) DeleteEndpoint(c *gin.Context) {
 	endpointId, err := strconv.ParseUint(c.Param("endpointId"), 10, 64)

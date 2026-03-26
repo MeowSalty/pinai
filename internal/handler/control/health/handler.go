@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/MeowSalty/pinai/handlers/query"
-	"github.com/MeowSalty/pinai/handlers/response"
+	"github.com/MeowSalty/pinai/internal/handler/response"
 	"github.com/MeowSalty/pinai/services/health"
 )
 

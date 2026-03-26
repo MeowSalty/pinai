@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/MeowSalty/pinai/handlers/query"
-	"github.com/MeowSalty/pinai/handlers/response"
+	"github.com/MeowSalty/pinai/internal/handler/response"
 	"github.com/MeowSalty/pinai/services/stats"
 )
 
@@ -48,8 +48,8 @@ func NewStatsHandler(statsService stats.Service, logger *slog.Logger) *StatsHand
 // @Produce      json
 // @Param        range      query     string  false  "时间范围"  Enums(24h, 7d, 30d)  default(24h)
 // @Success      200        {object}  stats.DashboardResponse
-// @Failure      400        {object}  gin.H  "无效的时间范围参数"
-// @Failure      500        {object}  gin.H  "服务器内部错误"
+// @Failure      400        {object}  response.ErrorResponse  "无效的时间范围参数"
+// @Failure      500        {object}  response.ErrorResponse  "服务器内部错误"
 // @Router       /api/stats/dashboard [get]
 func (h *StatsHandler) GetDashboard(c *gin.Context) {
 	start := time.Now()
@@ -153,8 +153,8 @@ func (h *StatsHandler) GetRealtime(c *gin.Context) {
 // @Param        page          query     int     false  "页码"  default(1)
 // @Param        page_size     query     int     false  "每页大小"  default(10)
 // @Success      200           {object}  map[string]interface{}
-// @Failure      400           {object}  gin.H  "参数错误"
-// @Failure      500           {object}  gin.H  "服务器内部错误"
+// @Failure      400           {object}  response.ErrorResponse  "参数错误"
+// @Failure      500           {object}  response.ErrorResponse  "服务器内部错误"
 // @Router       /api/stats/requests [get]
 func (h *StatsHandler) ListRequestLogs(c *gin.Context) {
 	start := time.Now()

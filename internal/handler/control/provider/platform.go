@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
-	"github.com/MeowSalty/pinai/handlers/response"
+	"github.com/MeowSalty/pinai/internal/handler/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,8 +37,8 @@ type PlatformWithHealth struct {
 // @Produce      json
 // @Param        request  body      types.Platform  true  "创建平台的请求体"
 // @Success      201      {object}  types.Platform                    "创建成功的平台信息"
-// @Failure      400      {object}  map[string]interface{}            "请求参数错误"
-// @Failure      500      {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400      {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      500      {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/platforms [post]
 func (h *Handler) CreatePlatform(c *gin.Context) {
 	var platform types.Platform
@@ -63,7 +63,7 @@ func (h *Handler) CreatePlatform(c *gin.Context) {
 // @Tags         platforms
 // @Produce      json
 // @Success      200  {array}   PlatformWithHealth                "平台列表"
-// @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      500  {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/platforms [get]
 func (h *Handler) GetPlatforms(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -128,9 +128,9 @@ func (h *Handler) GetPlatforms(c *gin.Context) {
 // @Produce      json
 // @Param        platformId   path      int  true  "平台 ID"
 // @Success      200  {object}  types.Platform                    "平台详情"
-// @Failure      400  {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404  {object}  map[string]interface{}            "平台未找到"
-// @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400  {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      404  {object}  response.ErrorResponse            "平台未找到"
+// @Failure      500  {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/platforms/{platformId} [get]
 func (h *Handler) GetPlatform(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -158,9 +158,9 @@ func (h *Handler) GetPlatform(c *gin.Context) {
 // @Param        platformId  path      int                             true  "平台 ID"
 // @Param        request  body      types.Platform                  true  "更新平台的请求体"
 // @Success      200      {object}  types.Platform                    "更新后的平台信息"
-// @Failure      400      {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404      {object}  map[string]interface{}            "平台未找到"
-// @Failure      500      {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400      {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      404      {object}  response.ErrorResponse            "平台未找到"
+// @Failure      500      {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/platforms/{platformId} [put]
 func (h *Handler) UpdatePlatform(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -192,9 +192,9 @@ func (h *Handler) UpdatePlatform(c *gin.Context) {
 // @Produce      json
 // @Param        platformId   path      int  true  "平台 ID"
 // @Success      204  "删除成功"
-// @Failure      400  {object}  map[string]interface{}            "请求参数错误"
-// @Failure      404  {object}  map[string]interface{}            "平台未找到"
-// @Failure      500  {object}  map[string]interface{}            "服务器内部错误"
+// @Failure      400  {object}  response.ErrorResponse            "请求参数错误"
+// @Failure      404  {object}  response.ErrorResponse            "平台未找到"
+// @Failure      500  {object}  response.ErrorResponse            "服务器内部错误"
 // @Router       /api/platforms/{platformId} [delete]
 func (h *Handler) DeletePlatform(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("platformId"), 10, 64)
@@ -222,9 +222,9 @@ func (h *Handler) DeletePlatform(c *gin.Context) {
 // @Param        platformId  path      int                  true  "平台 ID"
 // @Param        request     body      HealthUpdateRequest  true  "健康状态更新请求"
 // @Success      200  {object}  map[string]interface{}  "操作成功"
-// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
-// @Failure      404  {object}  map[string]interface{}  "平台未找到"
-// @Failure      500  {object}  map[string]interface{}  "服务器内部错误"
+// @Failure      400  {object}  response.ErrorResponse  "请求参数错误"
+// @Failure      404  {object}  response.ErrorResponse  "平台未找到"
+// @Failure      500  {object}  response.ErrorResponse  "服务器内部错误"
 // @Router       /api/platforms/{platformId}/health [patch]
 func (h *Handler) UpdatePlatformHealth(c *gin.Context) {
 	platformId, err := strconv.ParseUint(c.Param("platformId"), 10, 64)

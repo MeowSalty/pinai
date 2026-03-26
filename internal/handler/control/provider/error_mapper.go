@@ -3,7 +3,7 @@ package provider
 import (
 	"errors"
 
-	"github.com/MeowSalty/pinai/handlers/response"
+	"github.com/MeowSalty/pinai/internal/handler/response"
 	serviceprovider "github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
