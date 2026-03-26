@@ -15,6 +15,23 @@ type service struct {
 	logger           *slog.Logger
 }
 
+func parseModelMappingRule(logger *slog.Logger, modelMappingStr string) (map[string]string, error) {
+	logger.Debug("正在解析模型映射规则")
+	modelMappingRule, err := parseModelMapping(modelMappingStr)
+	if err != nil {
+		logger.Error("解析模型映射规则失败", "error", err, "mapping_str", modelMappingStr)
+		return nil, fmt.Errorf("解析模型映射规则失败：%w", err)
+	}
+
+	if len(modelMappingRule) == 0 {
+		logger.Debug("未启用模型映射规则")
+	} else {
+		logger.Info("使用自定义模型映射规则", "mapping", modelMappingRule, "count", len(modelMappingRule))
+	}
+
+	return modelMappingRule, nil
+}
+
 // New 创建新的 Portal 服务实例
 //
 // 该函数初始化所有必要的组件，包括数据仓库和网关管理器，并正确配置日志记录器。
@@ -54,17 +71,9 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healt
 	}
 	logger.Info("网关管理器创建成功")
 
-	logger.Debug("正在解析模型映射规则")
-	modelMappingRule, err := parseModelMapping(modelMappingStr)
+	modelMappingRule, err := parseModelMappingRule(logger, modelMappingStr)
 	if err != nil {
-		logger.Error("解析模型映射规则失败", "error", err, "mapping_str", modelMappingStr)
-		return nil, fmt.Errorf("解析模型映射规则失败：%w", err)
-	}
-
-	if len(modelMappingRule) == 0 {
-		logger.Debug("未启用模型映射规则")
-	} else {
-		logger.Info("使用自定义模型映射规则", "mapping", modelMappingRule, "count", len(modelMappingRule))
+		return nil, err
 	}
 
 	logger.Info("Portal 服务初始化完成")
