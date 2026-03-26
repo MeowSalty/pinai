@@ -3,7 +3,7 @@ package router
 import (
 	"log/slog"
 
-	datarouter "github.com/MeowSalty/pinai/internal/router"
+	internalrouter "github.com/MeowSalty/pinai/internal/router"
 	"github.com/MeowSalty/pinai/services"
 	"github.com/gin-gonic/gin"
 )
@@ -24,8 +24,13 @@ func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger
 	setupCORS(web, config)
 	webAPI := setupAPIRootGroup(web, config)
 
-	setupControlPlaneRoutes(webAPI, svcs, config, logger)
-	datarouter.SetupDataPlaneRoutes(web, svcs, datarouter.Config{
+	internalrouter.SetupControlPlaneRoutes(webAPI, svcs, internalrouter.ControlConfig{
+		ApiToken:     config.ApiToken,
+		AdminToken:   config.AdminToken,
+		UserAgent:    config.UserAgent,
+		ProxyEnabled: config.ProxyEnabled,
+	}, logger)
+	internalrouter.SetupDataPlaneRoutes(web, svcs, internalrouter.Config{
 		ApiToken:           config.ApiToken,
 		UserAgent:          config.UserAgent,
 		PassthroughHeaders: config.PassthroughHeaders,
