@@ -3,8 +3,8 @@ package router
 import (
 	"log/slog"
 
+	appbootstrap "github.com/MeowSalty/pinai/internal/bootstrap"
 	multi "github.com/MeowSalty/pinai/internal/handler/data/compat"
-	"github.com/MeowSalty/pinai/services"
 	statsService "github.com/MeowSalty/pinai/services/stats"
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ type Config struct {
 }
 
 // SetupDataPlaneRoutes 装配数据面路由与相关中间件。
-func SetupDataPlaneRoutes(web *gin.Engine, svcs *services.Services, config Config, logger *slog.Logger) {
+func SetupDataPlaneRoutes(web *gin.Engine, svcs *appbootstrap.Services, config Config, logger *slog.Logger) {
 	multiAPI := web.Group("/multi")
 
 	// 为业务 API 添加统计采集中间件

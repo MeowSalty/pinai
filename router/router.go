@@ -3,8 +3,8 @@ package router
 import (
 	"log/slog"
 
+	appbootstrap "github.com/MeowSalty/pinai/internal/bootstrap"
 	internalrouter "github.com/MeowSalty/pinai/internal/router"
-	"github.com/MeowSalty/pinai/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,7 +20,7 @@ type Config struct {
 }
 
 // SetupRoutes 配置 API 路由
-func SetupRoutes(web *gin.Engine, svcs *services.Services, config Config, logger *slog.Logger) error {
+func SetupRoutes(web *gin.Engine, svcs *appbootstrap.Services, config Config, logger *slog.Logger) error {
 	setupCORS(web, config)
 	webAPI := setupAPIRootGroup(web, config)
 

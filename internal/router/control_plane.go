@@ -4,11 +4,11 @@ import (
 	"log/slog"
 	"net/http"
 
+	appbootstrap "github.com/MeowSalty/pinai/internal/bootstrap"
 	"github.com/MeowSalty/pinai/internal/handler/control/health"
 	"github.com/MeowSalty/pinai/internal/handler/control/provider"
 	"github.com/MeowSalty/pinai/internal/handler/control/proxy"
 	"github.com/MeowSalty/pinai/internal/handler/control/stats"
-	"github.com/MeowSalty/pinai/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,7 +21,7 @@ type ControlConfig struct {
 }
 
 // SetupControlPlaneRoutes 装配控制面路由与管理接口。
-func SetupControlPlaneRoutes(webAPI *gin.RouterGroup, svcs *services.Services, config ControlConfig, logger *slog.Logger) {
+func SetupControlPlaneRoutes(webAPI *gin.RouterGroup, svcs *appbootstrap.Services, config ControlConfig, logger *slog.Logger) {
 	// 条件注册代理路由（需 ProxyEnabled=true 且 AdminToken 非空）
 	if config.ProxyEnabled && config.AdminToken != "" {
 		proxyAPI := webAPI.Group("/proxy")

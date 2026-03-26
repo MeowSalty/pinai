@@ -15,9 +15,9 @@ import (
 	"github.com/MeowSalty/pinai/config"
 	"github.com/MeowSalty/pinai/database"
 	"github.com/MeowSalty/pinai/frontend"
+	appbootstrap "github.com/MeowSalty/pinai/internal/bootstrap"
 	"github.com/MeowSalty/pinai/logger"
 	"github.com/MeowSalty/pinai/router"
-	"github.com/MeowSalty/pinai/services"
 	"github.com/gin-gonic/gin"
 	sloggin "github.com/samber/slog-gin"
 )
@@ -28,7 +28,7 @@ type bootstrapRuntime struct {
 	ginLogger *slog.Logger
 
 	db   *sql.DB
-	svcs *services.Services
+	svcs *appbootstrap.Services
 	srv  *http.Server
 
 	closeLogFile func()
@@ -96,7 +96,7 @@ func newBootstrapRuntime(cfg *config.Config) *bootstrapRuntime {
 
 	// 初始化服务
 	appContext := context.Background()
-	svcs, err := services.NewServices(appContext, appLogger.WithGroup("services"), cfg.ModelMapping)
+	svcs, err := appbootstrap.NewServices(appContext, appLogger.WithGroup("services"), cfg.ModelMapping)
 	if err != nil {
 		appLogger.Error("服务初始化失败", "error", err)
 		if closeErr := db.Close(); closeErr != nil {
