@@ -11,15 +11,19 @@ import (
 	"github.com/MeowSalty/portal/routing"
 )
 
-// Repository 数据仓库实现
+// portalAdapterRepository 是 portal 适配层专用的数据访问实现。
 //
-// 提供 portal 所需的数据访问接口
-type Repository struct {
+// 仅实现 portal runtime 装配所需的数据查询与日志落库能力。
+type portalAdapterRepository struct {
 	logger *slog.Logger
 }
 
+func newPortalAdapterRepository(logger *slog.Logger) *portalAdapterRepository {
+	return &portalAdapterRepository{logger: logger.WithGroup("database_repository")}
+}
+
 // GetModelByID 根据 ID 获取模型信息
-func (r *Repository) GetModelByID(ctx context.Context, id uint) (routing.Model, error) {
+func (r *portalAdapterRepository) GetModelByID(ctx context.Context, id uint) (routing.Model, error) {
 	repoLogger := r.logger.WithGroup("model_repository")
 	repoLogger.Debug("根据 ID 获取模型信息", "model_id", id)
 
@@ -65,7 +69,7 @@ func (r *Repository) GetModelByID(ctx context.Context, id uint) (routing.Model, 
 // 返回值：
 //   - []routing.ModelWithEndpoint: 匹配的模型列表（包含平台和默认端点信息）
 //   - error: 错误信息
-func (r *Repository) FindModelsWithDefaultEndpoint(ctx context.Context, name string) ([]routing.ModelWithEndpoint, error) {
+func (r *portalAdapterRepository) FindModelsWithDefaultEndpoint(ctx context.Context, name string) ([]routing.ModelWithEndpoint, error) {
 	repoLogger := r.logger.WithGroup("model_repository")
 	repoLogger.Debug("根据名称或别名查找模型（含默认端点）", "name", name)
 
@@ -158,7 +162,7 @@ func (r *Repository) FindModelsWithDefaultEndpoint(ctx context.Context, name str
 // 返回值：
 //   - []routing.ModelWithEndpoint: 匹配的模型列表（包含平台和端点信息）
 //   - error: 错误信息
-func (r *Repository) FindModelsWithEndpoint(ctx context.Context, name, endpointType, endpointVariant string) ([]routing.ModelWithEndpoint, error) {
+func (r *portalAdapterRepository) FindModelsWithEndpoint(ctx context.Context, name, endpointType, endpointVariant string) ([]routing.ModelWithEndpoint, error) {
 	repoLogger := r.logger.WithGroup("model_repository")
 	repoLogger.Debug("根据名称或别名以及端点类型和变体查找模型", "name", name, "endpoint_type", endpointType, "endpoint_variant", endpointVariant)
 
@@ -248,7 +252,7 @@ func (r *Repository) FindModelsWithEndpoint(ctx context.Context, name, endpointT
 // 返回值：
 //   - *routing.Platform: 平台信息
 //   - error: 错误信息
-func (r *Repository) GetPlatformByID(ctx context.Context, id uint) (*routing.Platform, error) {
+func (r *portalAdapterRepository) GetPlatformByID(ctx context.Context, id uint) (*routing.Platform, error) {
 	repoLogger := r.logger.WithGroup("platform_repository")
 	repoLogger.Debug("根据 ID 获取平台信息", "platform_id", id)
 
@@ -292,7 +296,7 @@ func (r *Repository) GetPlatformByID(ctx context.Context, id uint) (*routing.Pla
 }
 
 // GetAllAPIKeysByPlatformID 根据平台 ID 获取所有 API 密钥
-func (r *Repository) GetAllAPIKeysByPlatformID(ctx context.Context, platformID uint) ([]*routing.APIKey, error) {
+func (r *portalAdapterRepository) GetAllAPIKeysByPlatformID(ctx context.Context, platformID uint) ([]*routing.APIKey, error) {
 	repoLogger := r.logger.WithGroup("api_key_repository")
 	repoLogger.Debug("根据平台 ID 获取所有 API 密钥", "platform_id", platformID)
 
@@ -327,7 +331,7 @@ func (r *Repository) GetAllAPIKeysByPlatformID(ctx context.Context, platformID u
 //
 // 返回值：
 //   - error: 错误信息
-func (r *Repository) CreateRequestLog(ctx context.Context, log *request.RequestLog) error {
+func (r *portalAdapterRepository) CreateRequestLog(ctx context.Context, log *request.RequestLog) error {
 	repoLogger := r.logger.WithGroup("log_repository")
 
 	// 记录审计日志

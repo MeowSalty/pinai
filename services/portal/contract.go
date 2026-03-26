@@ -34,7 +34,7 @@ func (s *service) ChatCompletion(ctx context.Context, req *adapterTypes.RequestC
 
 	startTime := time.Now()
 
-	resp, err := s.portal.ChatCompletion(ctx, req)
+	resp, err := s.runtime.ChatCompletion(ctx, req)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -71,7 +71,7 @@ func (s *service) ChatCompletionStream(ctx context.Context, req *adapterTypes.Re
 	}
 
 	streamLogger.Debug("正在启动流式处理")
-	stream := s.portal.ChatCompletionStream(ctx, req)
+	stream := s.runtime.ChatCompletionStream(ctx, req)
 
 	streamLogger.Info("聊天完成流启动成功", "model", req.Model)
 	return stream, nil

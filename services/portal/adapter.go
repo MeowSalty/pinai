@@ -10,6 +10,10 @@ type healthStorageAdapter struct {
 	storage HealthStorage
 }
 
+func newHealthStorageAdapter(healthStorage HealthStorage) *healthStorageAdapter {
+	return &healthStorageAdapter{storage: healthStorage}
+}
+
 // Get 实现 portal health.Storage 接口的 Get 方法
 func (a *healthStorageAdapter) Get(resourceType coreHealth.ResourceType, resourceID uint) (*coreHealth.Health, error) {
 	// 将 portal 库的 ResourceType 转换为内部 health 包的 ResourceType

@@ -2,96 +2,19 @@ package portal
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-
-	"github.com/MeowSalty/portal"
 )
 
 // service Portal 服务实现
 type service struct {
-	portal           *portal.Portal
+	runtime          portalRuntime
 	modelMappingRule map[string]string
 	logger           *slog.Logger
 }
 
-// assembledDependencies 表示 portal 服务在构造阶段的完整装配结果。
-//
-// 该结构仅用于 New 的内部装配边界，避免请求执行阶段感知构造细节。
-type assembledDependencies struct {
-	portal           *portal.Portal
-	modelMappingRule map[string]string
-}
-
-func newRepository(logger *slog.Logger) *Repository {
-	return &Repository{logger: logger.WithGroup("database_repository")}
-}
-
-func newHealthStorageAdapter(healthStorage HealthStorage) *healthStorageAdapter {
-	return &healthStorageAdapter{storage: healthStorage}
-}
-
-func newPortalGateway(logger *slog.Logger, repo *Repository, adapter *healthStorageAdapter) (*portal.Portal, error) {
-	logger.Debug("正在创建网关管理器")
-	gatewayManager, err := portal.New(portal.Config{
-		PlatformRepo:  repo,
-		ModelRepo:     repo,
-		KeyRepo:       repo,
-		HealthStorage: adapter,
-		LogRepo:       repo,
-		Logger:        NewSlogAdapter(logger),
-	})
-	if err != nil {
-		logger.Error("创建网关管理器失败", "error", err)
-		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
-	}
-	logger.Info("网关管理器创建成功")
-
-	return gatewayManager, nil
-}
-
-func parseModelMappingRule(logger *slog.Logger, modelMappingStr string) (map[string]string, error) {
-	logger.Debug("正在解析模型映射规则")
-	modelMappingRule, err := parseModelMapping(modelMappingStr)
-	if err != nil {
-		logger.Error("解析模型映射规则失败", "error", err, "mapping_str", modelMappingStr)
-		return nil, fmt.Errorf("解析模型映射规则失败：%w", err)
-	}
-
-	if len(modelMappingRule) == 0 {
-		logger.Debug("未启用模型映射规则")
-	} else {
-		logger.Info("使用自定义模型映射规则", "mapping", modelMappingRule, "count", len(modelMappingRule))
-	}
-
-	return modelMappingRule, nil
-}
-
-func assembleDependencies(logger *slog.Logger, modelMappingStr string, healthStorage HealthStorage) (*assembledDependencies, error) {
-	repo := newRepository(logger)
-
-	// 创建适配器，将内部 health.Storage 转换为 portal 库需要的接口
-	adapter := newHealthStorageAdapter(healthStorage)
-
-	gatewayManager, err := newPortalGateway(logger, repo, adapter)
-	if err != nil {
-		return nil, err
-	}
-
-	modelMappingRule, err := parseModelMappingRule(logger, modelMappingStr)
-	if err != nil {
-		return nil, err
-	}
-
-	return &assembledDependencies{
-		portal:           gatewayManager,
-		modelMappingRule: modelMappingRule,
-	}, nil
-}
-
 func newService(logger *slog.Logger, deps *assembledDependencies) Service {
 	return &service{
-		portal:           deps.portal,
+		runtime:          deps.runtime,
 		modelMappingRule: deps.modelMappingRule,
 		logger:           logger,
 	}
@@ -114,7 +37,7 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healt
 	logger.Info("开始初始化 Portal 服务", "model_mapping", modelMappingStr)
 	_ = ctx
 
-	deps, err := assembleDependencies(logger, modelMappingStr, healthStorage)
+	deps, err := buildServiceDependencies(logger, modelMappingStr, healthStorage)
 	if err != nil {
 		return nil, err
 	}

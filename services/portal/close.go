@@ -10,7 +10,7 @@ import (
 func (s *service) Close(timeout time.Duration) error {
 	s.logger.Info("开始优雅关闭服务", "timeout", timeout)
 
-	err := s.portal.Close(timeout)
+	err := s.runtime.Close(timeout)
 	if err != nil {
 		s.logger.Error("服务关闭失败", "error", err, "timeout", timeout)
 		return err

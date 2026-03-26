@@ -19,7 +19,7 @@ func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTyp
 		req.Model = mappedModel
 	}
 
-	return s.portal.NativeAnthropicMessages(ctx, req, opts...)
+	return s.runtime.NativeAnthropicMessages(ctx, req, opts...)
 }
 
 // NativeAnthropicMessagesStream 处理 Anthropic 原生流式 Messages 请求
@@ -35,7 +35,7 @@ func (s *service) NativeAnthropicMessagesStream(ctx context.Context, req *anthro
 		req.Model = mappedModel
 	}
 
-	stream := s.portal.NativeAnthropicMessagesStream(ctx, req, opts...)
+	stream := s.runtime.NativeAnthropicMessagesStream(ctx, req, opts...)
 	streamLogger.Info("Anthropic 原生流启动成功", "model", req.Model, "original_model", originalModel)
 	return stream
 }
