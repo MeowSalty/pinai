@@ -52,6 +52,15 @@ type OpenAIResponsesStreamResult struct {
 	Done         bool
 }
 
+// GeminiStreamResult 定义 Gemini 流式事件的最小收口结果。
+//
+// 网关负责将上游事件标准化为统一字段，handler 仅需负责 SSE/HTTP 协议写回。
+type GeminiStreamResult struct {
+	Event        *geminiTypes.StreamEvent
+	ErrorMessage string
+	Done         bool
+}
+
 // Service 定义数据面网关应用服务接口。
 //
 // 当前仅提供第一批最小落地链路：OpenAI compat Chat Completions。
@@ -85,6 +94,9 @@ type Service interface {
 
 	// GeminiCompatGenerateContentStream 处理 Gemini compat streamGenerateContent 流式请求。
 	GeminiCompatGenerateContentStream(ctx context.Context, req *geminiTypes.Request) <-chan *geminiTypes.StreamEvent
+
+	// GeminiCompatGenerateContentStreamResult 处理 Gemini compat streamGenerateContent 流式请求并返回最小收口结果。
+	GeminiCompatGenerateContentStreamResult(ctx context.Context, req *geminiTypes.Request) <-chan GeminiStreamResult
 
 	// OpenAICompatChatCompletion 处理 OpenAI compat Chat Completions 非流式请求。
 	OpenAICompatChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
@@ -278,6 +290,88 @@ func geminiModelFromRequest(req *geminiTypes.Request) string {
 	}
 
 	return req.Model
+}
+
+func geminiStreamDone(event *geminiTypes.StreamEvent) bool {
+	if event == nil {
+		return false
+	}
+
+	if event.PromptFeedback != nil && event.PromptFeedback.BlockReason != "" {
+		return true
+	}
+
+	for _, candidate := range event.Candidates {
+		if candidate.FinishReason != "" && candidate.FinishReason != geminiTypes.FinishReasonUnspecified {
+			return true
+		}
+	}
+
+	return false
+}
+
+func geminiStreamErrorMessage(event *geminiTypes.StreamEvent) (string, bool) {
+	if event == nil {
+		return "", false
+	}
+
+	if event.PromptFeedback != nil && event.PromptFeedback.BlockReason != "" {
+		return fmt.Sprintf("提示内容被拦截：%s", event.PromptFeedback.BlockReason), true
+	}
+
+	for _, candidate := range event.Candidates {
+		if candidate.FinishMessage != "" {
+			return candidate.FinishMessage, true
+		}
+	}
+
+	return "", false
+}
+
+func normalizeGeminiStream(streamCtx streamLogContext, source <-chan *geminiTypes.StreamEvent) <-chan GeminiStreamResult {
+	out := make(chan GeminiStreamResult)
+	go func() {
+		defer close(out)
+
+		streamCtx.logger.Info("开始消费 Gemini 流式结果", streamCtx.attrs...)
+		for event := range source {
+			if event == nil {
+				streamCtx.logger.Debug("忽略空 Gemini 流式事件", streamCtx.attrs...)
+				continue
+			}
+
+			result := GeminiStreamResult{
+				Event: event,
+				Done:  geminiStreamDone(event),
+			}
+
+			if message, hasError := geminiStreamErrorMessage(event); hasError {
+				result.ErrorMessage = message
+				result.Done = true
+			}
+
+			streamCtx.logger.Debug("Gemini 流式事件已收口",
+				append(streamCtx.attrs,
+					"done", result.Done,
+					"has_error", result.ErrorMessage != "",
+				)...,
+			)
+
+			out <- result
+			if result.Done {
+				streamCtx.logger.Info("Gemini 流式结束条件满足",
+					append(streamCtx.attrs,
+						"has_error", result.ErrorMessage != "",
+					)...,
+				)
+				return
+			}
+		}
+
+		streamCtx.logger.Info("Gemini 流式上游通道关闭", streamCtx.attrs...)
+	}()
+
+	return out
 }
 
 func openAIChatModelFromRequest(req *openaiChatTypes.Request) string {
@@ -500,6 +594,16 @@ func (s *service) GeminiCompatGenerateContentStream(ctx context.Context, req *ge
 	return startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
 		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req, portalLib.WithCompatMode())
 	})
+}
+
+// GeminiCompatGenerateContentStreamResult 处理 Gemini compat streamGenerateContent 流式请求并返回最小收口结果。
+func (s *service) GeminiCompatGenerateContentStreamResult(ctx context.Context, req *geminiTypes.Request) <-chan GeminiStreamResult {
+	streamCtx := newStreamLogContext(s.logger, "gemini_compat_generate_content_stream_result", "Gemini compat streamGenerateContent", geminiModelFromRequest(req))
+	rawStream := startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
+		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req, portalLib.WithCompatMode())
+	})
+
+	return normalizeGeminiStream(streamCtx, rawStream)
 }
 
 // OpenAICompatChatCompletion 处理 OpenAI compat Chat Completions 非流式请求。

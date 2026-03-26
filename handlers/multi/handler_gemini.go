@@ -122,7 +122,7 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.gatewayService.GeminiCompatGenerateContentStream(ctx, req)
+	resultChan := h.gatewayService.GeminiCompatGenerateContentStreamResult(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()
@@ -139,8 +139,37 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 		}
 	}()
 
-	for event := range eventChan {
-		data, err := json.Marshal(event)
+	for result := range resultChan {
+		if result.Event == nil {
+			continue
+		}
+
+		if result.ErrorMessage != "" {
+			logger.Warn("上游返回 Gemini 流式错误事件", "error_message", result.ErrorMessage)
+			errorData, marshalErr := json.Marshal(common.NewGeminiErrorResponse(result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)))
+			if marshalErr != nil {
+				cancel()
+				logger.Error("无法序列化 Gemini 标准错误事件", "error", marshalErr)
+				break
+			}
+
+			if _, writeErr := fmt.Fprintf(c.Writer, "data: %s\n\n", errorData); writeErr != nil {
+				cancel()
+				logger.Error("写入 Gemini 标准错误事件失败", "error", writeErr)
+				break
+			}
+
+			if flusher != nil {
+				flusher.Flush()
+			}
+
+			if result.Done {
+				break
+			}
+			continue
+		}
+
+		data, err := json.Marshal(result.Event)
 		if err != nil {
 			cancel()
 			logger.Error("无法序列化事件", "error", err)
@@ -153,8 +182,16 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 			break
 		}
 
-		flusher.Flush()
+		if flusher != nil {
+			flusher.Flush()
+		}
+
+		if result.Done {
+			break
+		}
 	}
 
-	flusher.Flush()
+	if flusher != nil {
+		flusher.Flush()
+	}
 }
