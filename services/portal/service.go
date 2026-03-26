@@ -15,6 +15,33 @@ type service struct {
 	logger           *slog.Logger
 }
 
+func newRepository(logger *slog.Logger) *Repository {
+	return &Repository{logger: logger.WithGroup("database_repository")}
+}
+
+func newHealthStorageAdapter(healthStorage HealthStorage) *healthStorageAdapter {
+	return &healthStorageAdapter{storage: healthStorage}
+}
+
+func newPortalGateway(logger *slog.Logger, repo *Repository, adapter *healthStorageAdapter) (*portal.Portal, error) {
+	logger.Debug("正在创建网关管理器")
+	gatewayManager, err := portal.New(portal.Config{
+		PlatformRepo:  repo,
+		ModelRepo:     repo,
+		KeyRepo:       repo,
+		HealthStorage: adapter,
+		LogRepo:       repo,
+		Logger:        NewSlogAdapter(logger),
+	})
+	if err != nil {
+		logger.Error("创建网关管理器失败", "error", err)
+		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
+	}
+	logger.Info("网关管理器创建成功")
+
+	return gatewayManager, nil
+}
+
 func parseModelMappingRule(logger *slog.Logger, modelMappingStr string) (map[string]string, error) {
 	logger.Debug("正在解析模型映射规则")
 	modelMappingRule, err := parseModelMapping(modelMappingStr)
@@ -48,28 +75,15 @@ func parseModelMappingRule(logger *slog.Logger, modelMappingStr string) (map[str
 func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healthStorage HealthStorage) (Service, error) {
 	logger.Info("开始初始化 Portal 服务", "model_mapping", modelMappingStr)
 
-	repoLogger := logger.WithGroup("database_repository")
-	repo := &Repository{logger: repoLogger}
+	repo := newRepository(logger)
 
 	// 创建适配器，将内部 health.Storage 转换为 portal 库需要的接口
-	adapter := &healthStorageAdapter{
-		storage: healthStorage,
-	}
+	adapter := newHealthStorageAdapter(healthStorage)
 
-	logger.Debug("正在创建网关管理器")
-	gatewayManager, err := portal.New(portal.Config{
-		PlatformRepo:  repo,
-		ModelRepo:     repo,
-		KeyRepo:       repo,
-		HealthStorage: adapter,
-		LogRepo:       repo,
-		Logger:        NewSlogAdapter(logger),
-	})
+	gatewayManager, err := newPortalGateway(logger, repo, adapter)
 	if err != nil {
-		logger.Error("创建网关管理器失败", "error", err)
-		return nil, fmt.Errorf("无法创建网关管理器：%w", err)
+		return nil, err
 	}
-	logger.Info("网关管理器创建成功")
 
 	modelMappingRule, err := parseModelMappingRule(logger, modelMappingStr)
 	if err != nil {
