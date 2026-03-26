@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MeowSalty/pinai/services/portal"
+	"github.com/MeowSalty/pinai/internal/infra/portal"
 	portalLib "github.com/MeowSalty/portal"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
@@ -76,6 +76,9 @@ type DataPlaneError struct {
 //
 // 当前仅提供第一批最小落地链路：OpenAI compat Chat Completions。
 type Service interface {
+	// Close 优雅关闭网关依赖资源。
+	Close(timeout time.Duration) error
+
 	// AnthropicNativeMessages 处理 Anthropic native Messages 非流式请求。
 	AnthropicNativeMessages(ctx context.Context, req *anthropicTypes.Request) (*anthropicTypes.Response, error)
 
@@ -167,6 +170,19 @@ func New(portalService portal.Service, logger *slog.Logger) Service {
 		portalService: portalService,
 		logger:        logger,
 	}
+}
+
+// Close 优雅关闭网关依赖资源。
+func (s *service) Close(timeout time.Duration) error {
+	if s.portalService == nil {
+		return nil
+	}
+
+	if err := s.portalService.Close(timeout); err != nil {
+		return fmt.Errorf("关闭网关依赖的 Portal 服务失败：%w", err)
+	}
+
+	return nil
 }
 
 // AnthropicNativeMessages 处理 Anthropic native Messages 非流式请求。

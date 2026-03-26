@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/MeowSalty/pinai/services/gateway"
+	"github.com/MeowSalty/pinai/internal/app/gateway"
+	"github.com/MeowSalty/pinai/internal/infra/portal"
 	"github.com/MeowSalty/pinai/services/health"
-	"github.com/MeowSalty/pinai/services/portal"
 	"github.com/MeowSalty/pinai/services/provider"
 	"github.com/MeowSalty/pinai/services/stats"
 )
@@ -15,7 +15,6 @@ import (
 type Services struct {
 	HealthService   health.Service
 	GatewayService  gateway.Service
-	PortalService   portal.Service
 	ProviderService provider.Service
 	StatsService    stats.Service
 }
@@ -65,7 +64,6 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 	return &Services{
 		HealthService:   healthService,
 		GatewayService:  gatewayService,
-		PortalService:   portalService,
 		ProviderService: providerService,
 		StatsService:    statsService,
 	}, nil

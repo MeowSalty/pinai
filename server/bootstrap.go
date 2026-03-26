@@ -180,13 +180,13 @@ func (r *bootstrapRuntime) waitForShutdownSignal() {
 func (r *bootstrapRuntime) shutdown() {
 	r.appLogger.Info("收到关闭信号，正在关闭应用...")
 
-	// 关闭 Portal 服务
-	if r.svcs.PortalService != nil {
-		r.appLogger.Info("正在关闭 Portal 服务")
-		if err := r.svcs.PortalService.Close(5 * time.Second); err != nil {
-			r.appLogger.Error("关闭 Portal 服务失败", "error", err)
+	// 关闭数据面网关依赖（包含 Portal）
+	if r.svcs.GatewayService != nil {
+		r.appLogger.Info("正在关闭数据面网关依赖")
+		if err := r.svcs.GatewayService.Close(5 * time.Second); err != nil {
+			r.appLogger.Error("关闭数据面网关依赖失败", "error", err)
 		} else {
-			r.appLogger.Info("Portal 服务已成功关闭")
+			r.appLogger.Info("数据面网关依赖已成功关闭")
 		}
 	}
 
