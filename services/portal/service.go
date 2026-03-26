@@ -15,6 +15,14 @@ type service struct {
 	logger           *slog.Logger
 }
 
+// assembledDependencies 表示 portal 服务在构造阶段的完整装配结果。
+//
+// 该结构仅用于 New 的内部装配边界，避免请求执行阶段感知构造细节。
+type assembledDependencies struct {
+	portal           *portal.Portal
+	modelMappingRule map[string]string
+}
+
 func newRepository(logger *slog.Logger) *Repository {
 	return &Repository{logger: logger.WithGroup("database_repository")}
 }
@@ -59,22 +67,7 @@ func parseModelMappingRule(logger *slog.Logger, modelMappingStr string) (map[str
 	return modelMappingRule, nil
 }
 
-// New 创建新的 Portal 服务实例
-//
-// 该函数初始化所有必要的组件，包括数据仓库和网关管理器，并正确配置日志记录器。
-//
-// 参数：
-//   - ctx: 上下文，用于初始化网关管理器
-//   - logger: 日志记录器实例，用于记录处理过程中的日志信息
-//   - modelMappingStr: 模型映射规则字符串，格式为 "key1:value1,key2:value2"
-//   - healthStorage: 健康状态存储实例（最小依赖契约）
-//
-// 返回值：
-//   - Service: 初始化后的 Portal 服务实例
-//   - error: 初始化过程中可能出现的错误
-func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healthStorage HealthStorage) (Service, error) {
-	logger.Info("开始初始化 Portal 服务", "model_mapping", modelMappingStr)
-
+func assembleDependencies(logger *slog.Logger, modelMappingStr string, healthStorage HealthStorage) (*assembledDependencies, error) {
 	repo := newRepository(logger)
 
 	// 创建适配器，将内部 health.Storage 转换为 portal 库需要的接口
@@ -90,10 +83,42 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healt
 		return nil, err
 	}
 
-	logger.Info("Portal 服务初始化完成")
-	return &service{
+	return &assembledDependencies{
 		portal:           gatewayManager,
 		modelMappingRule: modelMappingRule,
-		logger:           logger,
 	}, nil
+}
+
+func newService(logger *slog.Logger, deps *assembledDependencies) Service {
+	return &service{
+		portal:           deps.portal,
+		modelMappingRule: deps.modelMappingRule,
+		logger:           logger,
+	}
+}
+
+// New 创建新的 Portal 服务实例
+//
+// 该函数初始化所有必要的组件，包括数据仓库和网关管理器，并正确配置日志记录器。
+//
+// 参数：
+//   - ctx: 上下文，用于初始化网关管理器
+//   - logger: 日志记录器实例，用于记录处理过程中的日志信息
+//   - modelMappingStr: 模型映射规则字符串，格式为 "key1:value1,key2:value2"
+//   - healthStorage: 健康状态存储实例（最小依赖契约）
+//
+// 返回值：
+//   - Service: 初始化后的 Portal 服务实例
+//   - error: 初始化过程中可能出现的错误
+func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healthStorage HealthStorage) (Service, error) {
+	logger.Info("开始初始化 Portal 服务", "model_mapping", modelMappingStr)
+	_ = ctx
+
+	deps, err := assembleDependencies(logger, modelMappingStr, healthStorage)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Portal 服务初始化完成")
+	return newService(logger, deps), nil
 }
