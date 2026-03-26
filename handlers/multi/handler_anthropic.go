@@ -74,7 +74,7 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 	defer cancel()
 
 	// 获取流式响应通道
-	eventChan := h.gatewayService.AnthropicCompatMessagesStream(ctx, req)
+	resultChan := h.gatewayService.AnthropicCompatMessagesStreamResult(ctx, req)
 
 	// 使用流式跟踪，确保在流结束时减少连接数
 	collector := stats.GetCollector()
@@ -102,20 +102,18 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 		}
 	}()
 
-	for event := range eventChan {
-		if event == nil {
+	for result := range resultChan {
+		if result.Event == nil {
 			continue
 		}
 
-		// 检查是否有错误字段
-		if event.Error != nil {
+		if result.ErrorMessage != "" {
 			logger.Warn("上游返回 Anthropic 流式错误事件",
-				"event_type", event.Error.Type,
-				"error_type", event.Error.Error.Error.Type,
-				"error_message", event.Error.Error.Error.Message,
+				"event_type", result.EventType,
+				"error_message", result.ErrorMessage,
 			)
 
-			if writeErr := common.WriteAnthropicSSEError(c.Writer, event.Error.Error.Error.Message, http.StatusInternalServerError, fmt.Errorf("%s", event.Error.Error.Error.Message)); writeErr != nil {
+			if writeErr := common.WriteAnthropicSSEError(c.Writer, result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)); writeErr != nil {
 				cancel()
 				logger.Error("无法发送标准 Anthropic 错误事件", "error", writeErr)
 				break
@@ -124,22 +122,21 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 			if flusher != nil {
 				flusher.Flush()
 			}
-			break
-		}
 
-		eventType, ok := anthropicEventType(event)
-		if !ok {
+			if result.Done {
+				break
+			}
 			continue
 		}
 
 		// 发送事件
-		data, marshalErr := json.Marshal(event)
+		data, marshalErr := json.Marshal(result.Event)
 		if marshalErr != nil {
 			cancel()
 			logger.Error("无法序列化流式事件", "error", marshalErr)
 			break
 		}
-		_, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, data)
+		_, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", result.EventType, data)
 
 		if err != nil {
 			cancel()
@@ -151,31 +148,9 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 		if flusher != nil {
 			flusher.Flush()
 		}
-	}
-}
 
-func anthropicEventType(event *anthropicTypes.StreamEvent) (anthropicTypes.StreamEventType, bool) {
-	if event == nil {
-		return "", false
-	}
-	switch {
-	case event.MessageStart != nil:
-		return event.MessageStart.Type, true
-	case event.MessageDelta != nil:
-		return event.MessageDelta.Type, true
-	case event.MessageStop != nil:
-		return event.MessageStop.Type, true
-	case event.ContentBlockStart != nil:
-		return event.ContentBlockStart.Type, true
-	case event.ContentBlockDelta != nil:
-		return event.ContentBlockDelta.Type, true
-	case event.ContentBlockStop != nil:
-		return event.ContentBlockStop.Type, true
-	case event.Ping != nil:
-		return event.Ping.Type, true
-	case event.Error != nil:
-		return event.Error.Type, true
-	default:
-		return "", false
+		if result.Done {
+			break
+		}
 	}
 }

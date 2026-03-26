@@ -24,6 +24,16 @@ type streamLogContext struct {
 	attrs  []any
 }
 
+// AnthropicStreamResult 定义 Anthropic 流式事件的最小收口结果。
+//
+// 网关负责将上游事件标准化为统一字段，handler 仅需负责 SSE/HTTP 协议写回。
+type AnthropicStreamResult struct {
+	Event        *anthropicTypes.StreamEvent
+	EventType    anthropicTypes.StreamEventType
+	ErrorMessage string
+	Done         bool
+}
+
 // Service 定义数据面网关应用服务接口。
 //
 // 当前仅提供第一批最小落地链路：OpenAI compat Chat Completions。
@@ -33,6 +43,9 @@ type Service interface {
 
 	// AnthropicNativeMessagesStream 处理 Anthropic native Messages 流式请求。
 	AnthropicNativeMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent
+
+	// AnthropicNativeMessagesStreamResult 处理 Anthropic native Messages 流式请求并返回最小收口结果。
+	AnthropicNativeMessagesStreamResult(ctx context.Context, req *anthropicTypes.Request) <-chan AnthropicStreamResult
 
 	// GeminiNativeGenerateContent 处理 Gemini native generateContent 非流式请求。
 	GeminiNativeGenerateContent(ctx context.Context, req *geminiTypes.Request) (*geminiTypes.Response, error)
@@ -45,6 +58,9 @@ type Service interface {
 
 	// AnthropicCompatMessagesStream 处理 Anthropic compat Messages 流式请求。
 	AnthropicCompatMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent
+
+	// AnthropicCompatMessagesStreamResult 处理 Anthropic compat Messages 流式请求并返回最小收口结果。
+	AnthropicCompatMessagesStreamResult(ctx context.Context, req *anthropicTypes.Request) <-chan AnthropicStreamResult
 
 	// GeminiCompatGenerateContent 处理 Gemini compat generateContent 非流式请求。
 	GeminiCompatGenerateContent(ctx context.Context, req *geminiTypes.Request) (*geminiTypes.Response, error)
@@ -144,6 +160,94 @@ func anthropicModelFromRequest(req *anthropicTypes.Request) string {
 	return req.Model
 }
 
+func anthropicStreamEventType(event *anthropicTypes.StreamEvent) (anthropicTypes.StreamEventType, bool) {
+	if event == nil {
+		return "", false
+	}
+
+	switch {
+	case event.MessageStart != nil:
+		return event.MessageStart.Type, true
+	case event.MessageDelta != nil:
+		return event.MessageDelta.Type, true
+	case event.MessageStop != nil:
+		return event.MessageStop.Type, true
+	case event.ContentBlockStart != nil:
+		return event.ContentBlockStart.Type, true
+	case event.ContentBlockDelta != nil:
+		return event.ContentBlockDelta.Type, true
+	case event.ContentBlockStop != nil:
+		return event.ContentBlockStop.Type, true
+	case event.Ping != nil:
+		return event.Ping.Type, true
+	case event.Error != nil:
+		return event.Error.Type, true
+	default:
+		return "", false
+	}
+}
+
+func anthropicStreamErrorMessage(event *anthropicTypes.StreamEvent) (string, bool) {
+	if event == nil || event.Error == nil {
+		return "", false
+	}
+
+	return event.Error.Error.Error.Message, true
+}
+
+func normalizeAnthropicStream(streamCtx streamLogContext, source <-chan *anthropicTypes.StreamEvent) <-chan AnthropicStreamResult {
+	out := make(chan AnthropicStreamResult)
+	go func() {
+		defer close(out)
+
+		streamCtx.logger.Info("开始消费 Anthropic 流式结果", streamCtx.attrs...)
+		for event := range source {
+			eventType, ok := anthropicStreamEventType(event)
+			if !ok {
+				streamCtx.logger.Debug("忽略无法识别的 Anthropic 流式事件", streamCtx.attrs...)
+				continue
+			}
+
+			result := AnthropicStreamResult{
+				Event:     event,
+				EventType: eventType,
+			}
+
+			if message, hasError := anthropicStreamErrorMessage(event); hasError {
+				result.ErrorMessage = message
+				result.Done = true
+			}
+
+			if event.MessageStop != nil {
+				result.Done = true
+			}
+
+			streamCtx.logger.Debug("Anthropic 流式事件已收口",
+				append(streamCtx.attrs,
+					"event_type", result.EventType,
+					"done", result.Done,
+					"has_error", result.ErrorMessage != "",
+				)...,
+			)
+
+			out <- result
+			if result.Done {
+				streamCtx.logger.Info("Anthropic 流式结束条件满足",
+					append(streamCtx.attrs,
+						"event_type", result.EventType,
+						"has_error", result.ErrorMessage != "",
+					)...,
+				)
+				return
+			}
+		}
+
+		streamCtx.logger.Info("Anthropic 流式上游通道关闭", streamCtx.attrs...)
+	}()
+
+	return out
+}
+
 func geminiModelFromRequest(req *geminiTypes.Request) string {
 	if req == nil {
 		return ""
@@ -174,6 +278,16 @@ func (s *service) AnthropicNativeMessagesStream(ctx context.Context, req *anthro
 	return startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
 		return s.portalService.NativeAnthropicMessagesStream(ctx, req)
 	})
+}
+
+// AnthropicNativeMessagesStreamResult 处理 Anthropic native Messages 流式请求并返回最小收口结果。
+func (s *service) AnthropicNativeMessagesStreamResult(ctx context.Context, req *anthropicTypes.Request) <-chan AnthropicStreamResult {
+	streamCtx := newStreamLogContext(s.logger, "anthropic_native_messages_stream_result", "Anthropic native Messages", anthropicModelFromRequest(req))
+	rawStream := startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
+		return s.portalService.NativeAnthropicMessagesStream(ctx, req)
+	})
+
+	return normalizeAnthropicStream(streamCtx, rawStream)
 }
 
 // GeminiNativeGenerateContent 处理 Gemini native generateContent 非流式请求。
@@ -225,6 +339,16 @@ func (s *service) AnthropicCompatMessagesStream(ctx context.Context, req *anthro
 	return startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
 		return s.portalService.NativeAnthropicMessagesStream(ctx, req, portalLib.WithCompatMode())
 	})
+}
+
+// AnthropicCompatMessagesStreamResult 处理 Anthropic compat Messages 流式请求并返回最小收口结果。
+func (s *service) AnthropicCompatMessagesStreamResult(ctx context.Context, req *anthropicTypes.Request) <-chan AnthropicStreamResult {
+	streamCtx := newStreamLogContext(s.logger, "anthropic_compat_messages_stream_result", "Anthropic compat Messages", anthropicModelFromRequest(req))
+	rawStream := startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
+		return s.portalService.NativeAnthropicMessagesStream(ctx, req, portalLib.WithCompatMode())
+	})
+
+	return normalizeAnthropicStream(streamCtx, rawStream)
 }
 
 // GeminiCompatGenerateContent 处理 Gemini compat generateContent 非流式请求。

@@ -65,7 +65,7 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.gatewayService.AnthropicNativeMessagesStream(ctx, req)
+	resultChan := h.gatewayService.AnthropicNativeMessagesStreamResult(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()
@@ -87,53 +87,51 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 		}
 	}()
 
-	for event := range eventChan {
-		eventType, ok := anthropicEventType(event)
-		if !ok {
+	for result := range resultChan {
+		if result.Event == nil {
 			continue
 		}
 
-		data, err := json.Marshal(event)
+		if result.ErrorMessage != "" {
+			h.logger.Warn("上游返回 Anthropic 流式错误事件",
+				"path", c.Request.URL.Path,
+				"method", c.Request.Method,
+				"event_type", result.EventType,
+				"error_message", result.ErrorMessage,
+			)
+
+			if err := common.WriteAnthropicSSEError(c.Writer, result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)); err != nil {
+				logger.Error("发送 Anthropic 标准错误事件失败", "error", err)
+				break
+			}
+
+			if flusher != nil {
+				flusher.Flush()
+			}
+
+			if result.Done {
+				break
+			}
+			continue
+		}
+
+		data, err := json.Marshal(result.Event)
 		if err != nil {
 			logger.Error("序列化流事件失败", "error", err)
 			break
 		}
 
-		if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, data); err != nil {
+		if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", result.EventType, data); err != nil {
 			logger.Error("写入流事件失败", "error", err)
 			break
 		}
 
-		flusher.Flush()
+		if flusher != nil {
+			flusher.Flush()
+		}
 
-		if event.Error != nil {
+		if result.Done {
 			break
 		}
-	}
-}
-
-func anthropicEventType(event *anthropicTypes.StreamEvent) (anthropicTypes.StreamEventType, bool) {
-	if event == nil {
-		return "", false
-	}
-	switch {
-	case event.MessageStart != nil:
-		return event.MessageStart.Type, true
-	case event.MessageDelta != nil:
-		return event.MessageDelta.Type, true
-	case event.MessageStop != nil:
-		return event.MessageStop.Type, true
-	case event.ContentBlockStart != nil:
-		return event.ContentBlockStart.Type, true
-	case event.ContentBlockDelta != nil:
-		return event.ContentBlockDelta.Type, true
-	case event.ContentBlockStop != nil:
-		return event.ContentBlockStop.Type, true
-	case event.Ping != nil:
-		return event.Ping.Type, true
-	case event.Error != nil:
-		return event.Error.Type, true
-	default:
-		return "", false
 	}
 }
