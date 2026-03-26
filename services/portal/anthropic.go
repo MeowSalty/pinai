@@ -28,7 +28,7 @@ func (s *service) NativeAnthropicMessagesStream(ctx context.Context, req *anthro
 	streamLogger.Info("开始处理 Anthropic 原生流式请求", "model", req.Model)
 
 	originalModel := req.Model
-	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
+	if mappedModel, exists := s.mapModel(req.Model); exists {
 		streamLogger.Debug("应用模型映射规则",
 			"original_model", originalModel,
 			"mapped_model", mappedModel)
