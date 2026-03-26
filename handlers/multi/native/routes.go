@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/MeowSalty/pinai/services/portal"
+	"github.com/MeowSalty/pinai/services/gateway"
 	"github.com/gin-gonic/gin"
 )
 
 // SetupNativeRoutes 设置多合一原生路由。
 func SetupNativeRoutes(
 	rootRouter *gin.RouterGroup,
-	portalService portal.Service,
+	gatewayService gateway.Service,
 	userAgent string,
 	passthroughHeaders bool,
 	logger *slog.Logger,
@@ -21,7 +21,7 @@ func SetupNativeRoutes(
 	v1Router := rootRouter.Group("/v1")
 	v1betaRouter := rootRouter.Group("/v1beta")
 
-	handler := New(portalService, userAgent, passthroughHeaders, logger)
+	handler := New(gatewayService, userAgent, passthroughHeaders, logger)
 
 	// 注册 OpenAI 原生路由
 	v1Router.POST("/chat/completions", handler.OpenAIChatCompletions)

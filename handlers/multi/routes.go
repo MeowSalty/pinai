@@ -8,7 +8,6 @@ import (
 	"github.com/MeowSalty/pinai/handlers/multi/auth"
 	"github.com/MeowSalty/pinai/handlers/multi/native"
 	"github.com/MeowSalty/pinai/services/gateway"
-	"github.com/MeowSalty/pinai/services/portal"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +15,6 @@ import (
 func SetupMultiRoutes(
 	rootRouter *gin.RouterGroup,
 	gatewayService gateway.Service,
-	portalService portal.Service,
 	userAgent string,
 	passthroughHeaders bool,
 	logger *slog.Logger,
@@ -34,7 +32,7 @@ func SetupMultiRoutes(
 	nativeRouter.Use(auth.NewProviderMiddleware(authRegistry, apiToken))
 
 	// 创建 Handler 实例，传入 userAgent 与 headers 透传配置
-	handler := New(gatewayService, portalService, userAgent, passthroughHeaders, logger)
+	handler := New(gatewayService, userAgent, passthroughHeaders, logger)
 
 	// 注册 OpenAI 兼容路由
 	v1Router.POST("/chat/completions", handler.ChatCompletions)
@@ -67,5 +65,5 @@ func SetupMultiRoutes(
 	v1betaRouter.GET("/models", handler.SelectGeminiModels())
 
 	// 原生请求
-	native.SetupNativeRoutes(nativeRouter, portalService, userAgent, passthroughHeaders, logger)
+	native.SetupNativeRoutes(nativeRouter, gatewayService, userAgent, passthroughHeaders, logger)
 }

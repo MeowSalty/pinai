@@ -15,5 +15,5 @@ func setupDataPlaneRoutes(web *gin.Engine, svcs *services.Services, config Confi
 	// 为业务 API 添加统计采集中间件
 	multiAPI.Use(createStatsCollectorMiddleware())
 
-	multi.SetupMultiRoutes(multiAPI, svcs.GatewayService, svcs.PortalService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
+	multi.SetupMultiRoutes(multiAPI, svcs.GatewayService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
 }
