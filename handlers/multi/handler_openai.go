@@ -207,7 +207,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
-	eventChan := h.gatewayService.OpenAICompatResponsesStream(ctx, req)
+	resultChan := h.gatewayService.OpenAICompatResponsesStreamResult(ctx, req)
 
 	collector := stats.GetCollector()
 	defer collector.DecrementConnection()
@@ -231,8 +231,22 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 		}
 	}()
 
-	for event := range eventChan {
-		data, err := json.Marshal(event)
+	for result := range resultChan {
+		if result.Event == nil {
+			continue
+		}
+
+		if result.ErrorMessage != "" {
+			streamFailed = true
+			cancel()
+			logger.Warn("上游返回 OpenAI Responses 流式错误事件", "error_message", result.ErrorMessage)
+			if sendErr := common.WriteOpenAIResponsesSSEError(c.Writer, result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)); sendErr != nil {
+				logger.Error("发送 OpenAI Responses 流式错误失败", "error", sendErr)
+			}
+			break
+		}
+
+		data, err := json.Marshal(result.Event)
 		if err != nil {
 			streamFailed = true
 			cancel()
@@ -254,6 +268,10 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 		}
 
 		flusher.Flush()
+
+		if result.Done {
+			break
+		}
 	}
 
 	if sendDone && !streamFailed {

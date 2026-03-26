@@ -43,6 +43,15 @@ type OpenAIChatStreamResult struct {
 	Done         bool
 }
 
+// OpenAIResponsesStreamResult 定义 OpenAI Responses 流式事件的最小收口结果。
+//
+// 网关负责将上游事件标准化为统一字段，handler 仅需负责 SSE/HTTP 协议写回。
+type OpenAIResponsesStreamResult struct {
+	Event        *openaiResponsesTypes.StreamEvent
+	ErrorMessage string
+	Done         bool
+}
+
 // Service 定义数据面网关应用服务接口。
 //
 // 当前仅提供第一批最小落地链路：OpenAI compat Chat Completions。
@@ -91,6 +100,9 @@ type Service interface {
 
 	// OpenAICompatResponsesStream 处理 OpenAI compat Responses 流式请求。
 	OpenAICompatResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent
+
+	// OpenAICompatResponsesStreamResult 处理 OpenAI compat Responses 流式请求并返回最小收口结果。
+	OpenAICompatResponsesStreamResult(ctx context.Context, req *openaiResponsesTypes.Request) <-chan OpenAIResponsesStreamResult
 
 	// OpenAINativeChatCompletion 处理 OpenAI native Chat Completions 非流式请求。
 	OpenAINativeChatCompletion(ctx context.Context, req *openaiChatTypes.Request) (*openaiChatTypes.Response, error)
@@ -284,6 +296,68 @@ func openAIResponsesModelFromRequest(req *openaiResponsesTypes.Request) string {
 	return *req.Model
 }
 
+func openAIResponsesStreamDone(event *openaiResponsesTypes.StreamEvent) bool {
+	if event == nil {
+		return false
+	}
+
+	return event.Completed != nil || event.Failed != nil || event.Incomplete != nil
+}
+
+func openAIResponsesStreamErrorMessage(event *openaiResponsesTypes.StreamEvent) (string, bool) {
+	if event == nil || event.Error == nil {
+		return "", false
+	}
+
+	return event.Error.Message, true
+}
+
+func normalizeOpenAIResponsesStream(streamCtx streamLogContext, source <-chan *openaiResponsesTypes.StreamEvent) <-chan OpenAIResponsesStreamResult {
+	out := make(chan OpenAIResponsesStreamResult)
+	go func() {
+		defer close(out)
+
+		streamCtx.logger.Info("开始消费 OpenAI Responses 流式结果", streamCtx.attrs...)
+		for event := range source {
+			if event == nil {
+				streamCtx.logger.Debug("忽略空 OpenAI Responses 流式事件", streamCtx.attrs...)
+				continue
+			}
+
+			result := OpenAIResponsesStreamResult{
+				Event: event,
+				Done:  openAIResponsesStreamDone(event),
+			}
+
+			if message, hasError := openAIResponsesStreamErrorMessage(event); hasError {
+				result.ErrorMessage = message
+				result.Done = true
+			}
+
+			streamCtx.logger.Debug("OpenAI Responses 流式事件已收口",
+				append(streamCtx.attrs,
+					"done", result.Done,
+					"has_error", result.ErrorMessage != "",
+				)...,
+			)
+
+			out <- result
+			if result.Done {
+				streamCtx.logger.Info("OpenAI Responses 流式结束条件满足",
+					append(streamCtx.attrs,
+						"has_error", result.ErrorMessage != "",
+					)...,
+				)
+				return
+			}
+		}
+
+		streamCtx.logger.Info("OpenAI Responses 流式上游通道关闭", streamCtx.attrs...)
+	}()
+
+	return out
+}
+
 func openAIChatStreamDone(event *openaiChatTypes.StreamEvent) bool {
 	if event == nil {
 		return false
@@ -466,6 +540,16 @@ func (s *service) OpenAICompatResponsesStream(ctx context.Context, req *openaiRe
 	return startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
 		return s.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
 	})
+}
+
+// OpenAICompatResponsesStreamResult 处理 OpenAI compat Responses 流式请求并返回最小收口结果。
+func (s *service) OpenAICompatResponsesStreamResult(ctx context.Context, req *openaiResponsesTypes.Request) <-chan OpenAIResponsesStreamResult {
+	streamCtx := newStreamLogContext(s.logger, "openai_compat_responses_stream_result", "OpenAI compat Responses", openAIResponsesModelFromRequest(req))
+	rawStream := startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
+		return s.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
+	})
+
+	return normalizeOpenAIResponsesStream(streamCtx, rawStream)
 }
 
 // OpenAINativeChatCompletion 处理 OpenAI native Chat Completions 非流式请求。
