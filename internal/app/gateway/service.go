@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MeowSalty/pinai/internal/infra/portal"
 	portalLib "github.com/MeowSalty/portal"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
@@ -156,12 +155,12 @@ type Service interface {
 }
 
 type service struct {
-	portalService portal.Service
+	portalService GatewayPort
 	logger        *slog.Logger
 }
 
 // New 创建网关应用服务。
-func New(portalService portal.Service, logger *slog.Logger) Service {
+func New(portalService GatewayPort, logger *slog.Logger) Service {
 	if logger == nil {
 		logger = slog.Default()
 	}
