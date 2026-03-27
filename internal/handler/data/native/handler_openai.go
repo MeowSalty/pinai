@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/MeowSalty/pinai/internal/app/gateway"
 	"github.com/MeowSalty/pinai/internal/handler/data/common"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
 	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
@@ -16,10 +17,10 @@ import (
 
 // OpenAIChatCompletions 处理原生 OpenAI 聊天补全请求，路径为 POST /multi/native/v1/chat/completions。
 // 解析请求体，处理 User-Agent 头部，根据 stream 参数决定返回流式或非流式响应。
-// 非流式错误通过 HTTP JSON 返回；流式错误通过 SSE error 事件返回。
+// 非流式错误通过 HTTP JSON 返回；流式模式下建流前错误返回 HTTP JSON，建流后错误通过 SSE error 事件返回。
 //
 //	@Summary      OpenAI 聊天补全
-//	@Description  处理原生 OpenAI API 的 chat completions 请求：非流式返回 JSON；流式模式下错误通过 SSE error 事件返回
+//	@Description  处理原生 OpenAI API 的 chat completions 请求：非流式返回 JSON；流式模式下建流前错误返回 HTTP JSON，建流后错误通过 SSE error 事件返回
 //	@Tags         native-openai
 //	@Accept       json
 //	@Produce      json
@@ -72,10 +73,10 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 
 // OpenAIResponses 处理原生 OpenAI 响应请求，路径为 POST /multi/native/v1/responses。
 // 解析请求体，处理 User-Agent 头部，根据 stream 参数决定返回流式或非流式响应。
-// 非流式错误通过 HTTP JSON 返回；流式错误通过 SSE typed event error 返回。
+// 非流式错误通过 HTTP JSON 返回；流式模式下建流前错误返回 HTTP JSON，建流后错误通过 SSE typed event response.error 返回。
 //
 //	@Summary      OpenAI 响应
-//	@Description  处理原生 OpenAI API 的 responses 请求：非流式返回 JSON；流式模式下错误通过 SSE typed event error 返回
+//	@Description  处理原生 OpenAI API 的 responses 请求：非流式返回 JSON；流式模式下建流前错误返回 HTTP JSON，建流后错误通过 SSE typed event response.error 返回
 //	@Tags         native-openai
 //	@Accept       json
 //	@Produce      json
@@ -127,8 +128,6 @@ func (h *Handler) OpenAIResponses(c *gin.Context) {
 }
 
 func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request, sendDone bool) {
-	common.SetBaseSSEHeaders(c)
-
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 	resultChan := h.gatewayService.OpenAINativeChatCompletionStreamResult(ctx, req)
@@ -139,6 +138,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
+	streamStarted := false
 
 	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "chat_completions", "protocol_mode", "sse", "flow", "stream")
 	defer func() {
@@ -147,14 +147,44 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			panicErr := fmt.Errorf("panic: %v", r)
 			logger.Error("原生流处理异常", "panic", r, "stack", stackLines, "stream_phase", "panic")
-			if err := common.WriteOpenAIChatSSEError(c.Writer, "服务器内部错误", http.StatusInternalServerError, fmt.Errorf("panic: %v", r)); err != nil {
+			if !streamStarted {
+				c.JSON(http.StatusInternalServerError, common.NewOpenAIHTTPErrorResponse("服务器内部错误", http.StatusInternalServerError, panicErr))
+				return
+			}
+			if err := common.WriteOpenAIChatSSEError(c.Writer, "服务器内部错误", http.StatusInternalServerError, panicErr); err != nil {
 				logger.Error("发送 OpenAI Chat 流式错误失败", "error", err)
+			}
+			if flusher != nil {
+				flusher.Flush()
 			}
 		}
 	}()
 
-	for result := range resultChan {
+	firstResult, ok := <-resultChan
+	if !ok {
+		return
+	}
+
+	if firstResult.ProtocolError != nil && firstResult.ProtocolError.ShouldProxyAsHTTPError {
+		logger.Warn("OpenAI Chat 原生流式建流前收到可代理 HTTP 协议错误",
+			"status_code", firstResult.ProtocolError.StatusCode,
+			"error_type", firstResult.ProtocolError.ErrorType,
+			"error_code", firstResult.ProtocolError.ErrorCode,
+			"stream_phase", "pre_stream",
+		)
+		c.JSON(
+			firstResult.ProtocolError.StatusCode,
+			common.NewOpenAIHTTPErrorResponse(firstResult.ProtocolError.Message, firstResult.ProtocolError.StatusCode, nil, firstResult.ProtocolError),
+		)
+		return
+	}
+
+	common.SetBaseSSEHeaders(c)
+	streamStarted = true
+
+	writeResult := func(result gateway.OpenAIChatStreamResult) bool {
 		if result.ProtocolError != nil {
 			streamFailed = true
 			cancel()
@@ -167,11 +197,14 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 			if sendErr := common.WriteOpenAIChatSSEError(c.Writer, result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError); sendErr != nil {
 				logger.Error("发送 OpenAI Chat 流式错误失败", "error", sendErr)
 			}
-			break
+			if flusher != nil {
+				flusher.Flush()
+			}
+			return true
 		}
 
 		if result.Event == nil {
-			continue
+			return false
 		}
 
 		data, err := json.Marshal(result.Event)
@@ -182,7 +215,10 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 			if sendErr := common.WriteOpenAIChatSSEError(c.Writer, fmt.Sprintf("序列化流事件失败: %v", err), http.StatusInternalServerError, err); sendErr != nil {
 				logger.Error("发送 OpenAI Chat 流式错误失败", "error", sendErr)
 			}
-			break
+			if flusher != nil {
+				flusher.Flush()
+			}
+			return true
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
@@ -192,27 +228,40 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 			if sendErr := common.WriteOpenAIChatSSEError(c.Writer, fmt.Sprintf("写入流事件失败: %v", err), http.StatusInternalServerError, err); sendErr != nil {
 				logger.Error("发送 OpenAI Chat 流式错误失败", "error", sendErr)
 			}
-			break
+			if flusher != nil {
+				flusher.Flush()
+			}
+			return true
 		}
 
-		flusher.Flush()
+		if flusher != nil {
+			flusher.Flush()
+		}
 
-		if result.Done || result.Terminal {
+		return result.Done || result.Terminal
+	}
+
+	if writeResult(firstResult) {
+		return
+	}
+
+	for result := range resultChan {
+		if writeResult(result) {
 			break
 		}
 	}
 
-	if sendDone && !streamFailed {
+	if sendDone && !streamFailed && streamStarted {
 		if _, err := fmt.Fprintf(c.Writer, "data: [DONE]\n\n"); err != nil {
 			logger.Error("写入流结束标识失败", "error", err)
 		}
-		flusher.Flush()
+		if flusher != nil {
+			flusher.Flush()
+		}
 	}
 }
 
 func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesTypes.Request, sendDone bool) {
-	common.SetBaseSSEHeaders(c)
-
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 	resultChan := h.gatewayService.OpenAINativeResponsesStreamResult(ctx, req)
@@ -223,6 +272,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
+	streamStarted := false
 
 	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "responses", "protocol_mode", "sse", "flow", "stream")
 	defer func() {
@@ -231,14 +281,44 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			panicErr := fmt.Errorf("panic: %v", r)
 			logger.Error("原生流处理异常", "panic", r, "stack", stackLines, "stream_phase", "panic")
-			if err := common.WriteOpenAIResponsesTypedEventError(c.Writer, "服务器内部错误", http.StatusInternalServerError, fmt.Errorf("panic: %v", r)); err != nil {
+			if !streamStarted {
+				c.JSON(http.StatusInternalServerError, common.NewOpenAIHTTPErrorResponse("服务器内部错误", http.StatusInternalServerError, panicErr))
+				return
+			}
+			if err := common.WriteOpenAIResponsesTypedEventError(c.Writer, "服务器内部错误", http.StatusInternalServerError, panicErr); err != nil {
 				logger.Error("发送 OpenAI Responses 流式错误失败", "error", err)
+			}
+			if flusher != nil {
+				flusher.Flush()
 			}
 		}
 	}()
 
-	for result := range resultChan {
+	firstResult, ok := <-resultChan
+	if !ok {
+		return
+	}
+
+	if firstResult.ProtocolError != nil && firstResult.ProtocolError.ShouldProxyAsHTTPError {
+		logger.Warn("OpenAI Responses 原生流式建流前收到可代理 HTTP 协议错误",
+			"status_code", firstResult.ProtocolError.StatusCode,
+			"error_type", firstResult.ProtocolError.ErrorType,
+			"error_code", firstResult.ProtocolError.ErrorCode,
+			"stream_phase", "pre_stream",
+		)
+		c.JSON(
+			firstResult.ProtocolError.StatusCode,
+			common.NewOpenAIHTTPErrorResponse(firstResult.ProtocolError.Message, firstResult.ProtocolError.StatusCode, nil, firstResult.ProtocolError),
+		)
+		return
+	}
+
+	common.SetBaseSSEHeaders(c)
+	streamStarted = true
+
+	writeResult := func(result gateway.OpenAIResponsesStreamResult) bool {
 		if result.ProtocolError != nil {
 			streamFailed = true
 			cancel()
@@ -251,11 +331,14 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 			if sendErr := common.WriteOpenAIResponsesTypedEventError(c.Writer, result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError); sendErr != nil {
 				logger.Error("发送 OpenAI Responses 流式错误失败", "error", sendErr)
 			}
-			break
+			if flusher != nil {
+				flusher.Flush()
+			}
+			return true
 		}
 
 		if result.Event == nil {
-			continue
+			return false
 		}
 
 		data, err := json.Marshal(result.Event)
@@ -266,7 +349,10 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 			if sendErr := common.WriteOpenAIResponsesTypedEventError(c.Writer, fmt.Sprintf("序列化流事件失败: %v", err), http.StatusInternalServerError, err); sendErr != nil {
 				logger.Error("发送 OpenAI Responses 流式错误失败", "error", sendErr)
 			}
-			break
+			if flusher != nil {
+				flusher.Flush()
+			}
+			return true
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
@@ -276,20 +362,35 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 			if sendErr := common.WriteOpenAIResponsesTypedEventError(c.Writer, fmt.Sprintf("写入流事件失败: %v", err), http.StatusInternalServerError, err); sendErr != nil {
 				logger.Error("发送 OpenAI Responses 流式错误失败", "error", sendErr)
 			}
-			break
+			if flusher != nil {
+				flusher.Flush()
+			}
+			return true
 		}
 
-		flusher.Flush()
+		if flusher != nil {
+			flusher.Flush()
+		}
 
-		if result.Done || result.Terminal {
+		return result.Done || result.Terminal
+	}
+
+	if writeResult(firstResult) {
+		return
+	}
+
+	for result := range resultChan {
+		if writeResult(result) {
 			break
 		}
 	}
 
-	if sendDone && !streamFailed {
+	if sendDone && !streamFailed && streamStarted {
 		if _, err := fmt.Fprintf(c.Writer, "data: [DONE]\n\n"); err != nil {
 			logger.Error("写入流结束标识失败", "error", err)
 		}
-		flusher.Flush()
+		if flusher != nil {
+			flusher.Flush()
+		}
 	}
 }

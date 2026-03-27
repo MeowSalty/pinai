@@ -132,7 +132,7 @@ func WriteOpenAIChatSSEError(w io.Writer, message string, status int, err error,
 	if marshalErr != nil {
 		return fmt.Errorf("序列化 OpenAI Chat 流式错误失败：%w", marshalErr)
 	}
-	if _, writeErr := fmt.Fprintf(w, "data: %s\n\n", data); writeErr != nil {
+	if _, writeErr := fmt.Fprintf(w, "event: error\ndata: %s\n\n", data); writeErr != nil {
 		return fmt.Errorf("写入 OpenAI Chat 流式错误失败：%w", writeErr)
 	}
 	return nil

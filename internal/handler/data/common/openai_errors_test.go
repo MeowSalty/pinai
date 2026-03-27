@@ -50,14 +50,15 @@ func TestWriteOpenAIChatSSEError_写入结构化错误事件(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.HasPrefix(out, "data: ") {
-		t.Fatalf("SSE 输出应以 data: 前缀开头，实际输出=%q", out)
+	const prefix = "event: error\ndata: "
+	if !strings.HasPrefix(out, prefix) {
+		t.Fatalf("SSE 输出应以 event: error + data: 前缀开头，实际输出=%q", out)
 	}
 	if !strings.HasSuffix(out, "\n\n") {
 		t.Fatalf("SSE 输出应以双换行结尾，实际输出=%q", out)
 	}
 
-	payload := strings.TrimSuffix(strings.TrimPrefix(out, "data: "), "\n\n")
+	payload := strings.TrimSuffix(strings.TrimPrefix(out, prefix), "\n\n")
 	var resp OpenAIHTTPErrorResponse
 	if err := json.Unmarshal([]byte(payload), &resp); err != nil {
 		t.Fatalf("解析 SSE 中的 JSON 负载失败：%v", err)
