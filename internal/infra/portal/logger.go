@@ -7,9 +7,6 @@ import (
 	"github.com/MeowSalty/portal/logger"
 )
 
-// slogAdapter 兼容既有命名，实际实现已下沉到 logadapter 子模块。
-type slogAdapter = logadapterpkg.SlogAdapter
-
 // NewSlogAdapter 创建一个新的 slog 适配器
 //
 // 参数：
