@@ -3,6 +3,8 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	portalLib "github.com/MeowSalty/portal"
@@ -74,12 +76,37 @@ func anthropicStreamEventType(event *anthropicTypes.StreamEvent) (anthropicTypes
 	}
 }
 
-func anthropicStreamErrorMessage(event *anthropicTypes.StreamEvent) (string, bool) {
+func anthropicStreamProtocolError(event *anthropicTypes.StreamEvent) (*DataPlaneError, bool) {
 	if event == nil || event.Error == nil {
-		return "", false
+		return nil, false
 	}
 
-	return event.Error.Error.Error.Message, true
+	payload := event.Error.Error
+	message := strings.TrimSpace(payload.Error.Message)
+	if message == "" {
+		message = "Anthropic 流式返回协议错误"
+	}
+
+	errorType := strings.TrimSpace(payload.Error.Type)
+	if errorType == "" {
+		errorType = "upstream_protocol_error"
+	}
+
+	mapped := DataPlaneError{
+		StatusCode:             http.StatusBadGateway,
+		Message:                message,
+		Provider:               "anthropic",
+		ErrorType:              errorType,
+		Raw:                    payload,
+		Retryable:              isRetryableByStatus(http.StatusBadGateway),
+		ShouldProxyAsHTTPError: true,
+	}
+
+	if code := strings.TrimSpace(payload.Type); code != "" && code != "error" {
+		mapped.ErrorCode = code
+	}
+
+	return &mapped, true
 }
 
 func normalizeAnthropicStream(streamCtx streamLogContext, source <-chan *anthropicTypes.StreamEvent) <-chan AnthropicStreamResult {
@@ -100,20 +127,23 @@ func normalizeAnthropicStream(streamCtx streamLogContext, source <-chan *anthrop
 				EventType: eventType,
 			}
 
-			if message, hasError := anthropicStreamErrorMessage(event); hasError {
-				result.ErrorMessage = message
+			if protocolError, hasProtocolError := anthropicStreamProtocolError(event); hasProtocolError {
+				result.ProtocolError = protocolError
+				result.Terminal = true
 				result.Done = true
 			}
 
 			if event.MessageStop != nil {
+				result.Terminal = true
 				result.Done = true
 			}
 
 			streamCtx.logger.Debug("Anthropic 流式事件已收口",
 				append(streamCtx.attrs,
 					"event_type", result.EventType,
+					"terminal", result.Terminal,
 					"done", result.Done,
-					"has_error", result.ErrorMessage != "",
+					"has_protocol_error", result.ProtocolError != nil,
 				)...,
 			)
 
@@ -122,7 +152,8 @@ func normalizeAnthropicStream(streamCtx streamLogContext, source <-chan *anthrop
 				streamCtx.logger.Info("Anthropic 流式结束条件满足",
 					append(streamCtx.attrs,
 						"event_type", result.EventType,
-						"has_error", result.ErrorMessage != "",
+						"terminal", result.Terminal,
+						"has_protocol_error", result.ProtocolError != nil,
 					)...,
 				)
 				return

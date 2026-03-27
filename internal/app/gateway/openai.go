@@ -3,6 +3,9 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	portalLib "github.com/MeowSalty/portal"
@@ -37,12 +40,190 @@ func openAIResponsesStreamDone(event *openaiResponsesTypes.StreamEvent) bool {
 	return event.Completed != nil || event.Failed != nil || event.Incomplete != nil
 }
 
-func openAIResponsesStreamErrorMessage(event *openaiResponsesTypes.StreamEvent) (string, bool) {
-	if event == nil || event.Error == nil {
-		return "", false
+func openAIStatusFromCodeOrMessage(code, message string) int {
+	code = strings.ToLower(strings.TrimSpace(code))
+	message = strings.ToLower(strings.TrimSpace(message))
+
+	switch {
+	case strings.Contains(code, "rate_limit"), strings.Contains(code, "quota"), strings.Contains(message, "rate limit"), strings.Contains(message, "too many requests"):
+		return http.StatusTooManyRequests
+	case strings.Contains(code, "invalid"), strings.Contains(code, "bad_request"), strings.Contains(message, "invalid request"), strings.Contains(message, "bad request"):
+		return http.StatusBadRequest
+	case strings.Contains(code, "authentication"), strings.Contains(code, "unauthorized"), strings.Contains(message, "unauthorized"), strings.Contains(message, "authentication"):
+		return http.StatusUnauthorized
+	case strings.Contains(code, "permission"), strings.Contains(code, "forbidden"), strings.Contains(message, "forbidden"):
+		return http.StatusForbidden
+	case strings.Contains(code, "not_found"), strings.Contains(message, "not found"):
+		return http.StatusNotFound
+	case strings.Contains(code, "timeout"), strings.Contains(message, "timeout"):
+		return http.StatusGatewayTimeout
+	default:
+		return http.StatusBadGateway
+	}
+}
+
+func openAIMapStringField(payload map[string]any, key string) string {
+	if payload == nil {
+		return ""
 	}
 
-	return event.Error.Message, true
+	raw, ok := payload[key]
+	if !ok || raw == nil {
+		return ""
+	}
+
+	text := strings.TrimSpace(fmt.Sprintf("%v", raw))
+	if text == "<nil>" {
+		return ""
+	}
+
+	return text
+}
+
+func openAIResponseProtocolErrorFromFailed(event *openaiResponsesTypes.StreamEvent) (*DataPlaneError, bool) {
+	if event == nil || event.Failed == nil {
+		return nil, false
+	}
+
+	failed := event.Failed.Response
+	if failed.Error == nil {
+		mapped := DataPlaneError{
+			StatusCode:             http.StatusBadGateway,
+			Message:                "OpenAI Responses 流式返回 failed 终止事件",
+			Provider:               "openai",
+			ErrorType:              "response_failed",
+			Raw:                    event.Failed,
+			Retryable:              isRetryableByStatus(http.StatusBadGateway),
+			ShouldProxyAsHTTPError: true,
+		}
+		if failed.Status != nil {
+			mapped.ErrorCode = strings.TrimSpace(*failed.Status)
+		}
+		return &mapped, true
+	}
+
+	errCode := strings.TrimSpace(string(failed.Error.Code))
+	errMessage := strings.TrimSpace(failed.Error.Message)
+	if errMessage == "" {
+		errMessage = "OpenAI Responses 流式返回 failed 错误"
+	}
+	statusCode := openAIStatusFromCodeOrMessage(errCode, errMessage)
+
+	mapped := DataPlaneError{
+		StatusCode:             statusCode,
+		Message:                errMessage,
+		Provider:               "openai",
+		ErrorType:              "response_failed",
+		ErrorCode:              errCode,
+		Raw:                    failed.Error,
+		Retryable:              isRetryableByStatus(statusCode),
+		ShouldProxyAsHTTPError: true,
+	}
+
+	return &mapped, true
+}
+
+func openAIResponsesProtocolError(event *openaiResponsesTypes.StreamEvent) (*DataPlaneError, bool) {
+	if event == nil {
+		return nil, false
+	}
+
+	if event.Error != nil {
+		errCode := ""
+		if event.Error.Code != nil {
+			errCode = strings.TrimSpace(*event.Error.Code)
+		}
+		errMessage := strings.TrimSpace(event.Error.Message)
+		if errMessage == "" {
+			errMessage = "OpenAI Responses 流式返回错误事件"
+		}
+
+		mapped := DataPlaneError{
+			StatusCode:             openAIStatusFromCodeOrMessage(errCode, errMessage),
+			Message:                errMessage,
+			Provider:               "openai",
+			ErrorType:              "response_error_event",
+			ErrorCode:              errCode,
+			Raw:                    event.Error,
+			Retryable:              isRetryableByStatus(openAIStatusFromCodeOrMessage(errCode, errMessage)),
+			ShouldProxyAsHTTPError: true,
+		}
+		if event.Error.Param != nil {
+			mapped.Param = strings.TrimSpace(*event.Error.Param)
+		}
+		return &mapped, true
+	}
+
+	return openAIResponseProtocolErrorFromFailed(event)
+}
+
+func openAIChatProtocolError(event *openaiChatTypes.StreamEvent) (*DataPlaneError, bool) {
+	if event == nil {
+		return nil, false
+	}
+
+	for _, choice := range event.Choices {
+		errorPayload, ok := choice.Delta.ExtraFields["error"]
+		if !ok {
+			continue
+		}
+
+		errMap, ok := errorPayload.(map[string]any)
+		if !ok {
+			mapped := DataPlaneError{
+				StatusCode:             http.StatusBadGateway,
+				Message:                "OpenAI Chat 流式返回错误负载",
+				Provider:               "openai",
+				ErrorType:              "chat_error_event",
+				Raw:                    errorPayload,
+				Retryable:              isRetryableByStatus(http.StatusBadGateway),
+				ShouldProxyAsHTTPError: true,
+			}
+			return &mapped, true
+		}
+
+		errMessage := strings.TrimSpace(fmt.Sprintf("%v", errMap["message"]))
+		if errMessage == "<nil>" {
+			errMessage = ""
+		}
+		if errMessage == "" {
+			errMessage = "OpenAI Chat 流式返回错误事件"
+		}
+		errType := openAIMapStringField(errMap, "type")
+		if errType == "" {
+			errType = "chat_error_event"
+		}
+		errCode := openAIMapStringField(errMap, "code")
+		param := openAIMapStringField(errMap, "param")
+		statusCode := http.StatusBadGateway
+		if statusRaw, ok := errMap["status"]; ok {
+			s := strings.TrimSpace(fmt.Sprintf("%v", statusRaw))
+			if s == "<nil>" {
+				s = ""
+			}
+			if v, err := strconv.Atoi(s); err == nil && validHTTPStatus(v) {
+				statusCode = v
+			}
+		}
+		if statusCode == http.StatusBadGateway {
+			statusCode = openAIStatusFromCodeOrMessage(errCode, errMessage)
+		}
+
+		mapped := DataPlaneError{
+			StatusCode:             statusCode,
+			Message:                errMessage,
+			Provider:               "openai",
+			ErrorType:              errType,
+			ErrorCode:              errCode,
+			Param:                  param,
+			Raw:                    errorPayload,
+			Retryable:              isRetryableByStatus(statusCode),
+			ShouldProxyAsHTTPError: true,
+		}
+		return &mapped, true
+	}
+
+	return nil, false
 }
 
 func normalizeOpenAIResponsesStream(streamCtx streamLogContext, source <-chan *openaiResponsesTypes.StreamEvent) <-chan OpenAIResponsesStreamResult {
@@ -62,15 +243,21 @@ func normalizeOpenAIResponsesStream(streamCtx streamLogContext, source <-chan *o
 				Done:  openAIResponsesStreamDone(event),
 			}
 
-			if message, hasError := openAIResponsesStreamErrorMessage(event); hasError {
-				result.ErrorMessage = message
+			if protocolError, hasProtocolError := openAIResponsesProtocolError(event); hasProtocolError {
+				result.ProtocolError = protocolError
+				result.Terminal = true
 				result.Done = true
+			}
+
+			if result.Done && !result.Terminal {
+				result.Terminal = true
 			}
 
 			streamCtx.logger.Debug("OpenAI Responses 流式事件已收口",
 				append(streamCtx.attrs,
+					"terminal", result.Terminal,
 					"done", result.Done,
-					"has_error", result.ErrorMessage != "",
+					"has_protocol_error", result.ProtocolError != nil,
 				)...,
 			)
 
@@ -78,7 +265,8 @@ func normalizeOpenAIResponsesStream(streamCtx streamLogContext, source <-chan *o
 			if result.Done {
 				streamCtx.logger.Info("OpenAI Responses 流式结束条件满足",
 					append(streamCtx.attrs,
-						"has_error", result.ErrorMessage != "",
+						"terminal", result.Terminal,
+						"has_protocol_error", result.ProtocolError != nil,
 					)...,
 				)
 				return
@@ -122,9 +310,21 @@ func normalizeOpenAIChatStream(streamCtx streamLogContext, source <-chan *openai
 				Done:  openAIChatStreamDone(event),
 			}
 
+			if protocolError, hasProtocolError := openAIChatProtocolError(event); hasProtocolError {
+				result.ProtocolError = protocolError
+				result.Terminal = true
+				result.Done = true
+			}
+
+			if result.Done && !result.Terminal {
+				result.Terminal = true
+			}
+
 			streamCtx.logger.Debug("OpenAI Chat 流式事件已收口",
 				append(streamCtx.attrs,
+					"terminal", result.Terminal,
 					"done", result.Done,
+					"has_protocol_error", result.ProtocolError != nil,
 				)...,
 			)
 
@@ -200,17 +400,21 @@ func (s *service) OpenAINativeChatCompletion(ctx context.Context, req *openaiCha
 
 func (s *service) executeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request, loggerGroup, requestName string, invoker openAIChatCompletionInvoker) (*openaiChatTypes.Response, error) {
 	logger := s.logger.WithGroup(loggerGroup)
-	logger.Info("开始执行非流式请求", "request_name", requestName, "model", req.Model)
+	modelName := ""
+	if req != nil {
+		modelName = req.Model
+	}
+	logger.Info("开始执行非流式请求", "request_name", requestName, "model", modelName)
 
 	startTime := time.Now()
 	resp, err := invoker(ctx, req)
 	duration := time.Since(startTime)
 	if err != nil {
-		logger.Error("非流式请求失败", "request_name", requestName, "error", err, "duration", duration, "model", req.Model)
+		logger.Error("非流式请求失败", "request_name", requestName, "error", err, "duration", duration, "model", modelName)
 		return nil, fmt.Errorf("处理 %s 请求失败：%w", requestName, err)
 	}
 
-	logger.Info("非流式请求成功", "request_name", requestName, "duration", duration, "model", req.Model)
+	logger.Info("非流式请求成功", "request_name", requestName, "duration", duration, "model", modelName)
 	return resp, nil
 }
 

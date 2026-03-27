@@ -3,6 +3,8 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	portalLib "github.com/MeowSalty/portal"
@@ -52,35 +54,106 @@ func geminiStreamDone(event *geminiTypes.StreamEvent) bool {
 		return false
 	}
 
-	if event.PromptFeedback != nil && event.PromptFeedback.BlockReason != "" {
-		return true
-	}
-
 	for _, candidate := range event.Candidates {
 		if candidate.FinishReason != "" && candidate.FinishReason != geminiTypes.FinishReasonUnspecified {
 			return true
 		}
 	}
 
+	if event.PromptFeedback != nil && event.PromptFeedback.BlockReason != "" && event.PromptFeedback.BlockReason != geminiTypes.BlockReasonUnspecified {
+		return true
+	}
+
 	return false
 }
 
-func geminiStreamErrorMessage(event *geminiTypes.StreamEvent) (string, bool) {
-	if event == nil {
-		return "", false
+func geminiFinishReasonIsProtocolError(reason geminiTypes.FinishReason) bool {
+	switch reason {
+	case geminiTypes.FinishReasonSafety,
+		geminiTypes.FinishReasonRecitation,
+		geminiTypes.FinishReasonBlocklist,
+		geminiTypes.FinishReasonProhibitedContent,
+		geminiTypes.FinishReasonSPII,
+		geminiTypes.FinishReasonMalformedFunction,
+		geminiTypes.FinishReasonImageSafety,
+		geminiTypes.FinishReasonImageProhibited,
+		geminiTypes.FinishReasonUnexpectedToolCall,
+		geminiTypes.FinishReasonMissingThoughtSig:
+		return true
+	default:
+		return false
+	}
+}
+
+func geminiFinishReasonMessage(reason geminiTypes.FinishReason, finishMessage string) string {
+	trimmed := strings.TrimSpace(finishMessage)
+	if trimmed != "" {
+		return trimmed
 	}
 
-	if event.PromptFeedback != nil && event.PromptFeedback.BlockReason != "" {
-		return fmt.Sprintf("提示内容被拦截：%s", event.PromptFeedback.BlockReason), true
+	return fmt.Sprintf("Gemini 流式生成终止，原因：%s", reason)
+}
+
+func geminiProtocolErrorFromPromptFeedback(event *geminiTypes.StreamEvent) (*DataPlaneError, bool) {
+	if event == nil {
+		return nil, false
+	}
+
+	if event.PromptFeedback == nil {
+		return nil, false
+	}
+
+	reason := event.PromptFeedback.BlockReason
+	if reason == "" || reason == geminiTypes.BlockReasonUnspecified {
+		return nil, false
+	}
+
+	message := fmt.Sprintf("提示内容被拦截：%s", reason)
+	mapped := DataPlaneError{
+		StatusCode:             http.StatusBadRequest,
+		Message:                message,
+		Provider:               "gemini",
+		ErrorType:              "prompt_blocked",
+		ErrorCode:              strings.ToLower(string(reason)),
+		Raw:                    event.PromptFeedback,
+		Retryable:              isRetryableByStatus(http.StatusBadRequest),
+		ShouldProxyAsHTTPError: true,
+	}
+
+	return &mapped, true
+}
+
+func geminiProtocolErrorFromCandidates(event *geminiTypes.StreamEvent) (*DataPlaneError, bool) {
+	if event == nil {
+		return nil, false
 	}
 
 	for _, candidate := range event.Candidates {
-		if candidate.FinishMessage != "" {
-			return candidate.FinishMessage, true
+		reason := candidate.FinishReason
+		if !geminiFinishReasonIsProtocolError(reason) {
+			continue
 		}
+
+		statusCode := http.StatusBadRequest
+		if reason == geminiTypes.FinishReasonUnexpectedToolCall || reason == geminiTypes.FinishReasonMissingThoughtSig {
+			statusCode = http.StatusBadGateway
+		}
+
+		mapped := DataPlaneError{
+			StatusCode:             statusCode,
+			Message:                geminiFinishReasonMessage(reason, candidate.FinishMessage),
+			Provider:               "gemini",
+			ErrorType:              "candidate_blocked",
+			ErrorCode:              strings.ToLower(string(reason)),
+			Raw:                    candidate,
+			Retryable:              isRetryableByStatus(statusCode),
+			ShouldProxyAsHTTPError: true,
+		}
+
+		return &mapped, true
 	}
 
-	return "", false
+	return nil, false
 }
 
 func normalizeGeminiStream(streamCtx streamLogContext, source <-chan *geminiTypes.StreamEvent) <-chan GeminiStreamResult {
@@ -100,15 +173,33 @@ func normalizeGeminiStream(streamCtx streamLogContext, source <-chan *geminiType
 				Done:  geminiStreamDone(event),
 			}
 
-			if message, hasError := geminiStreamErrorMessage(event); hasError {
-				result.ErrorMessage = message
+			if protocolError, hasProtocolError := geminiProtocolErrorFromPromptFeedback(event); hasProtocolError {
+				result.ProtocolError = protocolError
+				result.Terminal = true
+				result.Done = true
+			}
+
+			if result.ProtocolError == nil {
+				if protocolError, hasProtocolError := geminiProtocolErrorFromCandidates(event); hasProtocolError {
+					result.ProtocolError = protocolError
+					result.Terminal = true
+					result.Done = true
+				}
+			}
+
+			if result.Done && !result.Terminal {
+				result.Terminal = true
+			}
+
+			if result.ProtocolError != nil {
 				result.Done = true
 			}
 
 			streamCtx.logger.Debug("Gemini 流式事件已收口",
 				append(streamCtx.attrs,
+					"terminal", result.Terminal,
 					"done", result.Done,
-					"has_error", result.ErrorMessage != "",
+					"has_protocol_error", result.ProtocolError != nil,
 				)...,
 			)
 
@@ -116,7 +207,8 @@ func normalizeGeminiStream(streamCtx streamLogContext, source <-chan *geminiType
 			if result.Done {
 				streamCtx.logger.Info("Gemini 流式结束条件满足",
 					append(streamCtx.attrs,
-						"has_error", result.ErrorMessage != "",
+						"terminal", result.Terminal,
+						"has_protocol_error", result.ProtocolError != nil,
 					)...,
 				)
 				return
