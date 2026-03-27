@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/MeowSalty/pinai/internal/app/gateway"
 	"github.com/MeowSalty/pinai/internal/handler/data/common"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	"github.com/gin-gonic/gin"
@@ -56,7 +57,7 @@ func (h *Handler) Messages(c *gin.Context) {
 	resp, err := h.gatewayService.AnthropicCompatMessages(c.Request.Context(), &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "处理请求时出错")
-		c.JSON(mappedErr.StatusCode, common.NewAnthropicErrorResponse(mappedErr.Message, mappedErr.StatusCode, err))
+		c.JSON(mappedErr.StatusCode, common.NewAnthropicErrorResponse(mappedErr.Message, mappedErr.StatusCode, err, &mappedErr))
 		return
 	}
 
@@ -67,8 +68,6 @@ func (h *Handler) Messages(c *gin.Context) {
 // 设置 SSE 头部，通过 ChatCompletionStream 获取事件通道，将流式事件转换为 Anthropic 格式并写入响应流。
 // 包含 panic 恢复机制，发生错误时发送错误事件并记录日志。
 func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTypes.Request) {
-	common.SetBaseSSEHeaders(c)
-
 	// 创建可取消的上下文
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
@@ -82,6 +81,7 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 	}
 
 	flusher, _ := c.Writer.(http.Flusher)
+	streamStarted := false
 
 	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "compat", "flow", "stream")
 	// 添加 defer recover 来捕获流式处理中的 panic
@@ -94,8 +94,13 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 				"panic", r,
 				"stack", stackLines,
 			)
-			if err := common.WriteAnthropicSSEError(c.Writer, fmt.Sprintf("服务器内部错误: %v", r), http.StatusInternalServerError, fmt.Errorf("panic: %v", r)); err != nil {
-				logger.Error("panic 后发送 Anthropic 错误事件失败", "error", err)
+			panicErr := fmt.Errorf("panic: %v", r)
+			if !streamStarted {
+				c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse("服务器内部错误", http.StatusInternalServerError, panicErr))
+				return
+			}
+			if err := common.WriteAnthropicSSEError(c.Writer, "服务器内部错误", http.StatusInternalServerError, panicErr); err != nil {
+				logger.Error("panic 后发送 Anthropic 流式错误事件失败", "error", err)
 			}
 			if flusher != nil {
 				flusher.Flush()
@@ -103,54 +108,78 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 		}
 	}()
 
-	for result := range resultChan {
-		if result.Event == nil {
-			continue
-		}
+	firstResult, ok := <-resultChan
+	if !ok {
+		return
+	}
 
-		if result.ErrorMessage != "" {
-			logger.Warn("上游返回 Anthropic 流式错误事件",
+	if firstResult.ProtocolError != nil && firstResult.ProtocolError.ShouldProxyAsHTTPError {
+		logger.Warn("Anthropic 流式建流前收到可代理 HTTP 协议错误",
+			"status_code", firstResult.ProtocolError.StatusCode,
+			"error_type", firstResult.ProtocolError.ErrorType,
+			"error_code", firstResult.ProtocolError.ErrorCode,
+		)
+		c.JSON(
+			firstResult.ProtocolError.StatusCode,
+			common.NewAnthropicErrorResponse(firstResult.ProtocolError.Message, firstResult.ProtocolError.StatusCode, nil, firstResult.ProtocolError),
+		)
+		return
+	}
+
+	common.SetBaseSSEHeaders(c)
+	streamStarted = true
+
+	writeResult := func(result gateway.AnthropicStreamResult) bool {
+		if result.ProtocolError != nil {
+			logger.Warn("上游返回 Anthropic 流式协议错误事件",
 				"event_type", result.EventType,
-				"error_message", result.ErrorMessage,
+				"status_code", result.ProtocolError.StatusCode,
+				"error_type", result.ProtocolError.ErrorType,
+				"error_code", result.ProtocolError.ErrorCode,
 			)
 
-			if writeErr := common.WriteAnthropicSSEError(c.Writer, result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)); writeErr != nil {
+			if writeErr := common.WriteAnthropicSSEError(c.Writer, result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError); writeErr != nil {
 				cancel()
-				logger.Error("无法发送标准 Anthropic 错误事件", "error", writeErr)
-				break
+				logger.Error("无法发送 Anthropic 流式错误事件", "error", writeErr)
 			}
 
 			if flusher != nil {
 				flusher.Flush()
 			}
 
-			if result.Done {
-				break
-			}
-			continue
+			return true
 		}
 
-		// 发送事件
+		if result.Event == nil {
+			return false
+		}
+
 		data, marshalErr := json.Marshal(result.Event)
 		if marshalErr != nil {
 			cancel()
 			logger.Error("无法序列化流式事件", "error", marshalErr)
-			break
+			return true
 		}
-		_, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", result.EventType, data)
 
-		if err != nil {
+		if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", result.EventType, data); err != nil {
 			cancel()
 			logger.Error("写入流式响应失败", "error", err)
-			break
+			return true
 		}
 
-		// 刷新缓冲区
 		if flusher != nil {
 			flusher.Flush()
 		}
 
-		if result.Done {
+		return result.Done || result.Terminal
+	}
+
+	if writeResult(firstResult) {
+		return
+	}
+
+	for result := range resultChan {
+		if writeResult(result) {
 			break
 		}
 	}
