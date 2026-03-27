@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/internal/app/gateway"
+	"github.com/MeowSalty/pinai/services/stats"
 	"github.com/gin-gonic/gin"
 )
 
@@ -13,6 +14,7 @@ import (
 func SetupNativeRoutes(
 	rootRouter *gin.RouterGroup,
 	gatewayService gateway.Service,
+	collector *stats.Collector,
 	userAgent string,
 	passthroughHeaders bool,
 	logger *slog.Logger,
@@ -21,7 +23,7 @@ func SetupNativeRoutes(
 	v1Router := rootRouter.Group("/v1")
 	v1betaRouter := rootRouter.Group("/v1beta")
 
-	handler := New(gatewayService, userAgent, passthroughHeaders, logger)
+	handler := New(gatewayService, collector, userAgent, passthroughHeaders, logger)
 
 	// 注册 OpenAI 原生路由
 	v1Router.POST("/chat/completions", handler.OpenAIChatCompletions)

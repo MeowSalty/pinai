@@ -17,7 +17,6 @@ import (
 //   - Service: 统计服务实例
 func New(logger *slog.Logger) Service {
 	collector := NewCollector(logger.WithGroup("collector"))
-	SetGlobalCollector(collector)
 
 	return NewWithCollector(logger, collector)
 }

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/internal/handler/data/common"
-	"github.com/MeowSalty/pinai/services/stats"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
 	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
 	"github.com/gin-gonic/gin"
@@ -124,8 +123,9 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	defer cancel()
 	resultChan := h.gatewayService.OpenAINativeChatCompletionStreamResult(ctx, req)
 
-	collector := stats.GetCollector()
-	defer collector.DecrementConnection()
+	if h.collector != nil {
+		defer h.collector.DecrementConnection()
+	}
 
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
@@ -191,8 +191,9 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	defer cancel()
 	resultChan := h.gatewayService.OpenAINativeResponsesStreamResult(ctx, req)
 
-	collector := stats.GetCollector()
-	defer collector.DecrementConnection()
+	if h.collector != nil {
+		defer h.collector.DecrementConnection()
+	}
 
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false

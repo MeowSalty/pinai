@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/internal/handler/data/common"
-	"github.com/MeowSalty/pinai/services/stats"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	"github.com/gin-gonic/gin"
 )
@@ -66,8 +65,9 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 	defer cancel()
 	resultChan := h.gatewayService.AnthropicNativeMessagesStreamResult(ctx, req)
 
-	collector := stats.GetCollector()
-	defer collector.DecrementConnection()
+	if h.collector != nil {
+		defer h.collector.DecrementConnection()
+	}
 
 	flusher, _ := c.Writer.(http.Flusher)
 

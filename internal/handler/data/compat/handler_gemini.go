@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/internal/handler/data/common"
-	"github.com/MeowSalty/pinai/services/stats"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
 	"github.com/gin-gonic/gin"
 )
@@ -125,8 +124,9 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 	defer cancel()
 	resultChan := h.gatewayService.GeminiCompatGenerateContentStreamResult(ctx, req)
 
-	collector := stats.GetCollector()
-	defer collector.DecrementConnection()
+	if h.collector != nil {
+		defer h.collector.DecrementConnection()
+	}
 
 	flusher, _ := c.Writer.(http.Flusher)
 

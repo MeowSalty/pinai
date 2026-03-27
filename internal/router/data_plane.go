@@ -5,7 +5,7 @@ import (
 
 	appbootstrap "github.com/MeowSalty/pinai/internal/bootstrap"
 	multi "github.com/MeowSalty/pinai/internal/handler/data/compat"
-	statsService "github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/services/stats"
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,25 +23,25 @@ func SetupDataPlaneRoutes(web *gin.Engine, svcs *appbootstrap.Services, config D
 	// 为业务 API 添加统计采集中间件
 	multiAPI.Use(createStatsCollectorMiddleware(svcs.StatsCollector))
 
-	multi.SetupMultiRoutes(multiAPI, svcs.GatewayService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
+	multi.SetupMultiRoutes(multiAPI, svcs.GatewayService, svcs.StatsCollector, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
 }
 
 // createStatsCollectorMiddleware 创建统计数据采集中间件。
-func createStatsCollectorMiddleware(collector *statsService.Collector) gin.HandlerFunc {
+func createStatsCollectorMiddleware(collector *stats.Collector) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		activeCollector := collector
-		if activeCollector == nil {
-			// 兼容旧调用链：未显式注入时回退到全局采集器。
-			activeCollector = statsService.GetCollector()
+		if collector == nil {
+			// 主路径要求显式注入采集器；缺失时直接跳过采集，避免回退全局状态。
+			c.Next()
+			return
 		}
 
-		activeCollector.RecordRequest()
-		activeCollector.IncrementConnection()
+		collector.RecordRequest()
+		collector.IncrementConnection()
 
 		defer func() {
 			contentType := c.Writer.Header().Get("Content-Type")
 			if contentType != "text/event-stream" {
-				activeCollector.DecrementConnection()
+				collector.DecrementConnection()
 			}
 		}()
 

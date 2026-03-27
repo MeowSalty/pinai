@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/internal/handler/data/common"
-	"github.com/MeowSalty/pinai/services/stats"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	"github.com/gin-gonic/gin"
 )
@@ -77,9 +76,10 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 	// 获取流式响应通道
 	resultChan := h.gatewayService.AnthropicCompatMessagesStreamResult(ctx, req)
 
-	// 使用流式跟踪，确保在流结束时减少连接数
-	collector := stats.GetCollector()
-	defer collector.DecrementConnection()
+	if h.collector != nil {
+		// 使用流式跟踪，确保在流结束时减少连接数
+		defer h.collector.DecrementConnection()
+	}
 
 	flusher, _ := c.Writer.(http.Flusher)
 
