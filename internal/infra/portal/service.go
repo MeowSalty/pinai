@@ -7,17 +7,19 @@ import (
 	"github.com/MeowSalty/pinai/internal/app/gateway"
 )
 
-var _ gateway.GatewayPort = (*service)(nil)
+var _ gateway.GatewayPort = (*facadeService)(nil)
 
-// service Portal 服务实现
-type service struct {
-	runtime          portalRuntime
+// facadeService 是 portal 对 gateway ports 的门面实现。
+//
+// 运行时能力由 runtime 子模块提供，facade 仅负责协议适配与流程编排。
+type facadeService struct {
+	runtime          gatewayRuntime
 	modelMappingRule map[string]string
 	logger           *slog.Logger
 }
 
-func newService(logger *slog.Logger, deps *assembledDependencies) Service {
-	return &service{
+func newFacadeService(logger *slog.Logger, deps *portalFacadeDependencies) Service {
+	return &facadeService{
 		runtime:          deps.Runtime,
 		modelMappingRule: deps.ModelMappingRule,
 		logger:           logger,
@@ -41,11 +43,11 @@ func New(ctx context.Context, logger *slog.Logger, modelMappingStr string, healt
 	logger.Info("开始初始化 Portal 服务", "model_mapping", modelMappingStr)
 	_ = ctx
 
-	deps, err := buildServiceDependencies(logger, modelMappingStr, healthStorage)
+	deps, err := assemblePortalFacadeDependencies(logger, modelMappingStr, healthStorage)
 	if err != nil {
 		return nil, err
 	}
 
 	logger.Info("Portal 服务初始化完成")
-	return newService(logger, deps), nil
+	return newFacadeService(logger, deps), nil
 }

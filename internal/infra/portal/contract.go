@@ -19,7 +19,7 @@ type HealthStorage interface {
 // ChatCompletion 处理聊天完成请求
 //
 // 提供统一的聊天完成处理入口，包含日志记录和错误处理
-func (s *service) ChatCompletion(ctx context.Context, req *adapterTypes.RequestContract) (*adapterTypes.ResponseContract, error) {
+func (s *facadeService) ChatCompletion(ctx context.Context, req *adapterTypes.RequestContract) (*adapterTypes.ResponseContract, error) {
 	requestLogger := s.logger.WithGroup("chat_completion")
 	requestLogger.Info("开始处理聊天完成请求", "model", req.Model)
 
@@ -57,7 +57,7 @@ func (s *service) ChatCompletion(ctx context.Context, req *adapterTypes.RequestC
 }
 
 // ChatCompletionStream 处理流式聊天完成请求
-func (s *service) ChatCompletionStream(ctx context.Context, req *adapterTypes.RequestContract) (<-chan *adapterTypes.StreamEventContract, error) {
+func (s *facadeService) ChatCompletionStream(ctx context.Context, req *adapterTypes.RequestContract) (<-chan *adapterTypes.StreamEventContract, error) {
 	streamLogger := s.logger.WithGroup("chat_completion_stream")
 	streamLogger.Info("开始处理流式聊天完成请求", "model", req.Model)
 

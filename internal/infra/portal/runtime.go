@@ -4,5 +4,8 @@ import (
 	runtimepkg "github.com/MeowSalty/pinai/internal/infra/portal/runtime"
 )
 
-// portalRuntime 兼容既有 service 结构字段命名，实际能力定义由 runtime 子模块提供。
-type portalRuntime = runtimepkg.Runtime
+// gatewayRuntime 表示 facade 依赖的最小运行时能力。
+type gatewayRuntime = runtimepkg.Runtime
+
+// portalRuntime 兼容旧命名，逐步过渡到 gatewayRuntime。
+type portalRuntime = gatewayRuntime

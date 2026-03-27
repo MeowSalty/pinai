@@ -8,7 +8,7 @@ import (
 )
 
 // NativeAnthropicMessages 处理 Anthropic 原生 Messages 请求
-func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request, opts ...portalTypes.NativeOption) (*anthropicTypes.Response, error) {
+func (s *facadeService) NativeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request, opts ...portalTypes.NativeOption) (*anthropicTypes.Response, error) {
 	requestLogger := s.logger.WithGroup("raw_anthropic_messages")
 
 	originalModel := req.Model
@@ -23,7 +23,7 @@ func (s *service) NativeAnthropicMessages(ctx context.Context, req *anthropicTyp
 }
 
 // NativeAnthropicMessagesStream 处理 Anthropic 原生流式 Messages 请求
-func (s *service) NativeAnthropicMessagesStream(ctx context.Context, req *anthropicTypes.Request, opts ...portalTypes.NativeOption) <-chan *anthropicTypes.StreamEvent {
+func (s *facadeService) NativeAnthropicMessagesStream(ctx context.Context, req *anthropicTypes.Request, opts ...portalTypes.NativeOption) <-chan *anthropicTypes.StreamEvent {
 	streamLogger := s.logger.WithGroup("raw_anthropic_messages_stream")
 	streamLogger.Info("开始处理 Anthropic 原生流式请求", "model", req.Model)
 

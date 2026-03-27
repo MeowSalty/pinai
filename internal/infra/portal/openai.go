@@ -9,7 +9,7 @@ import (
 )
 
 // NativeOpenAIChatCompletion 处理 OpenAI 原生 Chat Completion 请求
-func (s *service) NativeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request, opts ...portalTypes.NativeOption) (*openaiChatTypes.Response, error) {
+func (s *facadeService) NativeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request, opts ...portalTypes.NativeOption) (*openaiChatTypes.Response, error) {
 	originalModel := req.Model
 	if mappedModel, exists := s.modelMappingRule[req.Model]; exists {
 		req.Model = mappedModel
@@ -22,7 +22,7 @@ func (s *service) NativeOpenAIChatCompletion(ctx context.Context, req *openaiCha
 }
 
 // NativeOpenAIChatCompletionStream 处理 OpenAI 原生 Chat Completion 流式请求
-func (s *service) NativeOpenAIChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request, opts ...portalTypes.NativeOption) <-chan *openaiChatTypes.StreamEvent {
+func (s *facadeService) NativeOpenAIChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request, opts ...portalTypes.NativeOption) <-chan *openaiChatTypes.StreamEvent {
 	streamLogger := s.logger.WithGroup("raw_openai_chat_completion_stream")
 	streamLogger.Info("开始处理 OpenAI Chat 原生流式请求", "model", req.Model)
 
@@ -40,7 +40,7 @@ func (s *service) NativeOpenAIChatCompletionStream(ctx context.Context, req *ope
 }
 
 // NativeOpenAIResponses 处理 OpenAI 原生 Responses 请求
-func (s *service) NativeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request, opts ...portalTypes.NativeOption) (*openaiResponsesTypes.Response, error) {
+func (s *facadeService) NativeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request, opts ...portalTypes.NativeOption) (*openaiResponsesTypes.Response, error) {
 	modelName := ""
 	if req.Model != nil {
 		modelName = *req.Model
@@ -61,7 +61,7 @@ func (s *service) NativeOpenAIResponses(ctx context.Context, req *openaiResponse
 }
 
 // NativeOpenAIResponsesStream 处理 OpenAI 原生 Responses 流式请求
-func (s *service) NativeOpenAIResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request, opts ...portalTypes.NativeOption) <-chan *openaiResponsesTypes.StreamEvent {
+func (s *facadeService) NativeOpenAIResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request, opts ...portalTypes.NativeOption) <-chan *openaiResponsesTypes.StreamEvent {
 	streamLogger := s.logger.WithGroup("raw_openai_responses_stream")
 
 	modelName := ""

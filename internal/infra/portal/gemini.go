@@ -10,7 +10,7 @@ import (
 )
 
 // NativeGeminiGenerateContent 处理 Gemini 原生 GenerateContent 请求
-func (s *service) NativeGeminiGenerateContent(ctx context.Context, req *geminiTypes.Request, opts ...portalTypes.NativeOption) (*geminiTypes.Response, error) {
+func (s *facadeService) NativeGeminiGenerateContent(ctx context.Context, req *geminiTypes.Request, opts ...portalTypes.NativeOption) (*geminiTypes.Response, error) {
 	requestLogger := s.logger.WithGroup("raw_gemini_generate_content")
 	requestLogger.Info("开始处理 Gemini 原生请求", "model", req.Model)
 
@@ -44,7 +44,7 @@ func (s *service) NativeGeminiGenerateContent(ctx context.Context, req *geminiTy
 }
 
 // NativeGeminiStreamGenerateContent 处理 Gemini 原生流式 StreamGenerateContent 请求
-func (s *service) NativeGeminiStreamGenerateContent(ctx context.Context, req *geminiTypes.Request, opts ...portalTypes.NativeOption) <-chan *geminiTypes.StreamEvent {
+func (s *facadeService) NativeGeminiStreamGenerateContent(ctx context.Context, req *geminiTypes.Request, opts ...portalTypes.NativeOption) <-chan *geminiTypes.StreamEvent {
 	streamLogger := s.logger.WithGroup("raw_gemini_stream_generate_content")
 	streamLogger.Info("开始处理 Gemini 原生流式请求", "model", req.Model)
 

@@ -7,7 +7,7 @@ import (
 // Close 优雅关闭服务
 //
 // 停止健康管理器和取消所有相关的上下文
-func (s *service) Close(timeout time.Duration) error {
+func (s *facadeService) Close(timeout time.Duration) error {
 	s.logger.Info("开始优雅关闭服务", "timeout", timeout)
 
 	err := s.runtime.Close(timeout)
