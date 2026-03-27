@@ -17,6 +17,7 @@ type Services struct {
 	GatewayService  gateway.Service
 	ProviderService provider.Service
 	StatsService    stats.Service
+	StatsCollector  *stats.Collector
 }
 
 // NewServices 初始化应用所需服务并返回聚合结果。
@@ -57,5 +58,6 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 		GatewayService:  gatewayService,
 		ProviderService: providerService,
 		StatsService:    statsService,
+		StatsCollector:  statsCollector,
 	}, nil
 }

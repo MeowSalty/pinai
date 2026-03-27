@@ -21,23 +21,27 @@ func SetupDataPlaneRoutes(web *gin.Engine, svcs *appbootstrap.Services, config D
 	multiAPI := web.Group("/multi")
 
 	// 为业务 API 添加统计采集中间件
-	multiAPI.Use(createStatsCollectorMiddleware())
+	multiAPI.Use(createStatsCollectorMiddleware(svcs.StatsCollector))
 
 	multi.SetupMultiRoutes(multiAPI, svcs.GatewayService, config.UserAgent, config.PassthroughHeaders, logger, config.ApiToken)
 }
 
 // createStatsCollectorMiddleware 创建统计数据采集中间件。
-func createStatsCollectorMiddleware() gin.HandlerFunc {
+func createStatsCollectorMiddleware(collector *statsService.Collector) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		collector := statsService.GetCollector()
+		activeCollector := collector
+		if activeCollector == nil {
+			// 兼容旧调用链：未显式注入时回退到全局采集器。
+			activeCollector = statsService.GetCollector()
+		}
 
-		collector.RecordRequest()
-		collector.IncrementConnection()
+		activeCollector.RecordRequest()
+		activeCollector.IncrementConnection()
 
 		defer func() {
 			contentType := c.Writer.Header().Get("Content-Type")
 			if contentType != "text/event-stream" {
-				collector.DecrementConnection()
+				activeCollector.DecrementConnection()
 			}
 		}()
 
