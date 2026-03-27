@@ -77,17 +77,20 @@ func DetectOpenAIErrorType(status int, err error) string {
 // NewOpenAIHTTPErrorResponse 构造 OpenAI 非流式错误响应体。
 func NewOpenAIHTTPErrorResponse(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) OpenAIHTTPErrorResponse {
 	resolvedStatus := status
-	resolvedMessage := strings.TrimSpace(message)
+	resolvedPublicMessage := strings.TrimSpace(message)
+	resolvedInternalDetail := ""
+	detailErr := err
 	resolvedType := ""
 	var resolvedParam *string
 	var resolvedCode *string
 
-	if mapped := firstOpenAIDataPlaneError(protocolErr...); mapped != nil {
+	if mapped := firstDataPlaneError(protocolErr...); mapped != nil {
 		if mapped.StatusCode >= 100 && mapped.StatusCode <= 599 {
 			resolvedStatus = mapped.StatusCode
 		}
 		if text := strings.TrimSpace(mapped.Message); text != "" {
-			resolvedMessage = text
+			resolvedPublicMessage = text
+			detailErr = nil
 		}
 		if text := strings.TrimSpace(mapped.ErrorType); text != "" {
 			resolvedType = text
@@ -100,12 +103,7 @@ func NewOpenAIHTTPErrorResponse(message string, status int, err error, protocolE
 		}
 	}
 
-	if resolvedMessage == "" && err != nil {
-		resolvedMessage = strings.TrimSpace(err.Error())
-	}
-	if resolvedMessage == "" {
-		resolvedMessage = "请求处理失败"
-	}
+	resolvedMessage := composePublicErrorMessage(resolvedPublicMessage, detailErr, resolvedInternalDetail)
 
 	if resolvedType == "" {
 		resolvedType = DetectOpenAIErrorType(resolvedStatus, err)
@@ -175,14 +173,4 @@ func WriteOpenAIResponsesTypedEventError(w io.Writer, message string, status int
 
 func stringPtr(s string) *string {
 	return &s
-}
-
-func firstOpenAIDataPlaneError(items ...*gateway.DataPlaneError) *gateway.DataPlaneError {
-	for _, item := range items {
-		if item != nil {
-			return item
-		}
-	}
-
-	return nil
 }

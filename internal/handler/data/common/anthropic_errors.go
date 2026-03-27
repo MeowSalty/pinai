@@ -61,7 +61,8 @@ func DetectAnthropicErrorType(status int, err error) string {
 
 func NewAnthropicErrorResponse(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) anthropicTypes.ErrorResponse {
 	resolvedStatus := status
-	resolvedMessage := strings.TrimSpace(message)
+	resolvedPublicMessage := strings.TrimSpace(message)
+	resolvedInternalDetail := ""
 	resolvedType := ""
 
 	if mapped := firstDataPlaneError(protocolErr...); mapped != nil {
@@ -69,19 +70,18 @@ func NewAnthropicErrorResponse(message string, status int, err error, protocolEr
 			resolvedStatus = mapped.StatusCode
 		}
 		if text := strings.TrimSpace(mapped.Message); text != "" {
-			resolvedMessage = text
+			if resolvedPublicMessage == "" {
+				resolvedPublicMessage = text
+			} else {
+				resolvedInternalDetail = text
+			}
 		}
 		if text := strings.TrimSpace(mapped.ErrorType); text != "" {
 			resolvedType = text
 		}
 	}
 
-	if resolvedMessage == "" && err != nil {
-		resolvedMessage = strings.TrimSpace(err.Error())
-	}
-	if resolvedMessage == "" {
-		resolvedMessage = "请求处理失败"
-	}
+	resolvedMessage := composePublicErrorMessage(resolvedPublicMessage, err, resolvedInternalDetail)
 	if resolvedType == "" {
 		resolvedType = DetectAnthropicErrorType(resolvedStatus, err)
 	}
@@ -105,16 +105,6 @@ func WriteAnthropicSSEError(w io.Writer, message string, status int, err error, 
 
 	if _, writeErr := fmt.Fprintf(w, "event: error\ndata: %s\n\n", data); writeErr != nil {
 		return fmt.Errorf("写入 Anthropic 流式错误失败：%w", writeErr)
-	}
-
-	return nil
-}
-
-func firstDataPlaneError(items ...*gateway.DataPlaneError) *gateway.DataPlaneError {
-	for _, item := range items {
-		if item != nil {
-			return item
-		}
 	}
 
 	return nil

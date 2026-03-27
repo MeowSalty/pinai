@@ -75,7 +75,8 @@ func DetectGeminiErrorStatus(status int, err error) string {
 // NewGeminiErrorResponse 构造 Gemini 标准错误响应体。
 func NewGeminiErrorResponse(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) geminiTypes.ErrorResponse {
 	resolvedStatus := status
-	resolvedMessage := strings.TrimSpace(message)
+	resolvedPublicMessage := strings.TrimSpace(message)
+	resolvedInternalDetail := ""
 	resolvedErrorStatus := ""
 
 	if mapped := firstGeminiDataPlaneError(protocolErr...); mapped != nil {
@@ -83,7 +84,11 @@ func NewGeminiErrorResponse(message string, status int, err error, protocolErr .
 			resolvedStatus = mapped.StatusCode
 		}
 		if text := strings.TrimSpace(mapped.Message); text != "" {
-			resolvedMessage = text
+			if resolvedPublicMessage == "" {
+				resolvedPublicMessage = text
+			} else {
+				resolvedInternalDetail = text
+			}
 		}
 		if text := strings.TrimSpace(mapped.ErrorCode); text != "" {
 			resolvedErrorStatus = text
@@ -92,12 +97,7 @@ func NewGeminiErrorResponse(message string, status int, err error, protocolErr .
 		}
 	}
 
-	if resolvedMessage == "" && err != nil {
-		resolvedMessage = strings.TrimSpace(err.Error())
-	}
-	if resolvedMessage == "" {
-		resolvedMessage = "请求处理失败"
-	}
+	resolvedMessage := composePublicErrorMessage(resolvedPublicMessage, err, resolvedInternalDetail)
 
 	if resolvedErrorStatus == "" {
 		resolvedErrorStatus = DetectGeminiErrorStatus(resolvedStatus, err)
@@ -119,11 +119,5 @@ func WriteGeminiJSONError(c *gin.Context, status int, message string, err error,
 }
 
 func firstGeminiDataPlaneError(items ...*gateway.DataPlaneError) *gateway.DataPlaneError {
-	for _, item := range items {
-		if item != nil {
-			return item
-		}
-	}
-
-	return nil
+	return firstDataPlaneError(items...)
 }

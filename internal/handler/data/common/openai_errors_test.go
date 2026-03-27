@@ -103,3 +103,19 @@ func TestWriteOpenAIResponsesTypedEventError_写入TypedEvent错误事件(t *tes
 		t.Fatalf("internal 错误应带默认 code=internal_error，实际值=%v", typedErr.Error.Code)
 	}
 }
+
+func TestNewOpenAIHTTPErrorResponse_主文案追加内部细节(t *testing.T) {
+	resp := NewOpenAIHTTPErrorResponse("请求处理失败", 500, errors.New("上游连接超时"))
+
+	if resp.Error.Message != "请求处理失败（内部细节：上游连接超时）" {
+		t.Fatalf("错误消息拼装不符合预期，实际值=%q", resp.Error.Message)
+	}
+}
+
+func TestNewOpenAIHTTPErrorResponse_避免重复拼接内部细节(t *testing.T) {
+	resp := NewOpenAIHTTPErrorResponse("请求参数错误", 400, errors.New("请求参数错误"))
+
+	if resp.Error.Message != "请求参数错误" {
+		t.Fatalf("错误消息不应重复拼接，实际值=%q", resp.Error.Message)
+	}
+}
