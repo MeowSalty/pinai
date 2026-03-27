@@ -3,7 +3,11 @@ package portal
 import (
 	"context"
 	"log/slog"
+
+	"github.com/MeowSalty/pinai/internal/app/gateway"
 )
+
+var _ gateway.GatewayPort = (*service)(nil)
 
 // service Portal 服务实现
 type service struct {
