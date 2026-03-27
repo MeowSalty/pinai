@@ -18,8 +18,8 @@ type service struct {
 
 func newService(logger *slog.Logger, deps *assembledDependencies) Service {
 	return &service{
-		runtime:          deps.runtime,
-		modelMappingRule: deps.modelMappingRule,
+		runtime:          deps.Runtime,
+		modelMappingRule: deps.ModelMappingRule,
 		logger:           logger,
 	}
 }
