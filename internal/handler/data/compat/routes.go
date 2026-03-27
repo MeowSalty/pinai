@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/internal/app/gateway"
-	"github.com/MeowSalty/pinai/internal/handler/data/auth"
-	"github.com/MeowSalty/pinai/internal/handler/data/native"
 	"github.com/MeowSalty/pinai/internal/app/stats"
+	"github.com/MeowSalty/pinai/internal/handler/data/auth"
+	"github.com/MeowSalty/pinai/internal/handler/data/common"
+	"github.com/MeowSalty/pinai/internal/handler/data/native"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,7 +49,7 @@ func SetupMultiRoutes(
 		action := c.Param("action")
 		parts := strings.SplitN(strings.TrimPrefix(action, "/"), ":", 2)
 		if len(parts) != 2 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 Gemini 路由格式"})
+			common.WriteGeminiJSONError(c, http.StatusBadRequest, "无效的 Gemini 路由格式", nil)
 			return
 		}
 		c.Set("gemini_model", parts[0])
@@ -58,7 +59,7 @@ func SetupMultiRoutes(
 		case "streamGenerateContent":
 			handler.GeminiStreamGenerateContent(c)
 		default:
-			c.JSON(http.StatusNotFound, gin.H{"error": "未知操作"})
+			common.WriteGeminiJSONError(c, http.StatusNotFound, "未知操作", nil)
 		}
 	})
 

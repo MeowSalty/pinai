@@ -1,12 +1,12 @@
 package multi
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/MeowSalty/pinai/database/query"
 	multiAuth "github.com/MeowSalty/pinai/internal/handler/data/auth"
+	"github.com/MeowSalty/pinai/internal/handler/data/common"
 	multiTypes "github.com/MeowSalty/pinai/internal/handler/data/types"
 	"github.com/gin-gonic/gin"
 )
@@ -28,15 +28,21 @@ import (
 // @Security     ApiKeyAuth
 func (h *Handler) SelectModels() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		provider := strings.ToLower(multiAuth.ProviderFromContext(c))
+
 		models, err := query.Q.Model.WithContext(c.Request.Context()).Find()
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("无法获取模型列表：%v", err),
-			})
+			switch provider {
+			case multiAuth.ProviderGemini:
+				c.JSON(http.StatusInternalServerError, common.NewGeminiErrorResponse("无法获取模型列表", http.StatusInternalServerError, err))
+			case multiAuth.ProviderAnthropic:
+				c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse("无法获取模型列表", http.StatusInternalServerError, err))
+			default:
+				c.JSON(http.StatusInternalServerError, common.NewOpenAIHTTPErrorResponse("无法获取模型列表", http.StatusInternalServerError, err))
+			}
 			return
 		}
 
-		provider := strings.ToLower(multiAuth.ProviderFromContext(c))
 		if provider == multiAuth.ProviderGemini {
 			modelList := multiTypes.GeminiModelList{
 				Models: make([]multiTypes.GeminiModel, 0, len(models)),
@@ -109,9 +115,7 @@ func (h *Handler) SelectGeminiModels() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		models, err := query.Q.Model.WithContext(c.Request.Context()).Find()
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("无法获取模型列表：%v", err),
-			})
+			c.JSON(http.StatusInternalServerError, common.NewGeminiErrorResponse("无法获取模型列表", http.StatusInternalServerError, err))
 			return
 		}
 

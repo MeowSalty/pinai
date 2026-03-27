@@ -65,7 +65,7 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 			"error_type", mappedErr.ErrorType,
 			"error_code", mappedErr.ErrorCode,
 		)
-		common.WriteGeminiJSONError(c, mappedErr.StatusCode, mappedErr.Message, err)
+		common.WriteGeminiJSONError(c, mappedErr.StatusCode, mappedErr.Message, err, &mappedErr)
 		return
 	}
 
