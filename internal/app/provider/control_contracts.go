@@ -7,7 +7,7 @@ import (
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
-	"github.com/MeowSalty/pinai/services/health"
+	"github.com/MeowSalty/pinai/internal/app/health"
 )
 
 // HealthReader 定义控制面读取健康状态所需的最小能力。

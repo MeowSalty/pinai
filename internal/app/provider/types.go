@@ -4,7 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/database/types"
-	"github.com/MeowSalty/pinai/services/health"
+	"github.com/MeowSalty/pinai/internal/app/health"
 )
 
 // service 是 Service 接口的具体实现

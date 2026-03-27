@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/MeowSalty/pinai/handlers/query"
+	"github.com/MeowSalty/pinai/internal/app/health"
 	"github.com/MeowSalty/pinai/internal/handler/response"
-	"github.com/MeowSalty/pinai/services/health"
 )
 
 // Handler 健康状态处理器结构体

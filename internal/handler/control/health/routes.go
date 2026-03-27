@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/MeowSalty/pinai/services/health"
+	"github.com/MeowSalty/pinai/internal/app/health"
 )
 
 // SetupHealthRoutes 配置健康状态统计相关的路由
