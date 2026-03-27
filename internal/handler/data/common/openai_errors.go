@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/MeowSalty/pinai/internal/app/gateway"
 )
 
 const (
@@ -33,6 +35,12 @@ type OpenAIHTTPErrorResponse struct {
 
 // OpenAIResponsesSSEErrorResponse 表示 OpenAI Responses 流式错误事件。
 type OpenAIResponsesSSEErrorResponse struct {
+	Type  string            `json:"type"`
+	Error OpenAIErrorDetail `json:"error"`
+}
+
+// OpenAIResponsesTypedEventError 表示 OpenAI Responses 更严格的 typed event 错误载荷。
+type OpenAIResponsesTypedEventError struct {
 	Type  string            `json:"type"`
 	Error OpenAIErrorDetail `json:"error"`
 }
@@ -67,26 +75,59 @@ func DetectOpenAIErrorType(status int, err error) string {
 }
 
 // NewOpenAIHTTPErrorResponse 构造 OpenAI 非流式错误响应体。
-func NewOpenAIHTTPErrorResponse(message string, status int, err error) OpenAIHTTPErrorResponse {
-	errorType := DetectOpenAIErrorType(status, err)
-	var code *string
-	if errorType == OpenAIErrorTypeInternal {
-		code = stringPtr(OpenAIErrorTypeInternal)
+func NewOpenAIHTTPErrorResponse(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) OpenAIHTTPErrorResponse {
+	resolvedStatus := status
+	resolvedMessage := strings.TrimSpace(message)
+	resolvedType := ""
+	var resolvedParam *string
+	var resolvedCode *string
+
+	if mapped := firstOpenAIDataPlaneError(protocolErr...); mapped != nil {
+		if mapped.StatusCode >= 100 && mapped.StatusCode <= 599 {
+			resolvedStatus = mapped.StatusCode
+		}
+		if text := strings.TrimSpace(mapped.Message); text != "" {
+			resolvedMessage = text
+		}
+		if text := strings.TrimSpace(mapped.ErrorType); text != "" {
+			resolvedType = text
+		}
+		if text := strings.TrimSpace(mapped.Param); text != "" {
+			resolvedParam = stringPtr(text)
+		}
+		if text := strings.TrimSpace(mapped.ErrorCode); text != "" {
+			resolvedCode = stringPtr(text)
+		}
+	}
+
+	if resolvedMessage == "" && err != nil {
+		resolvedMessage = strings.TrimSpace(err.Error())
+	}
+	if resolvedMessage == "" {
+		resolvedMessage = "请求处理失败"
+	}
+
+	if resolvedType == "" {
+		resolvedType = DetectOpenAIErrorType(resolvedStatus, err)
+	}
+
+	if resolvedCode == nil && resolvedType == OpenAIErrorTypeInternal {
+		resolvedCode = stringPtr(OpenAIErrorTypeInternal)
 	}
 
 	return OpenAIHTTPErrorResponse{
 		Error: OpenAIErrorDetail{
-			Message: message,
-			Type:    errorType,
-			Param:   nil,
-			Code:    code,
+			Message: resolvedMessage,
+			Type:    resolvedType,
+			Param:   resolvedParam,
+			Code:    resolvedCode,
 		},
 	}
 }
 
 // WriteOpenAIChatSSEError 写入 OpenAI Chat 流式错误事件。
-func WriteOpenAIChatSSEError(w io.Writer, message string, status int, err error) error {
-	errResp := NewOpenAIHTTPErrorResponse(message, status, err)
+func WriteOpenAIChatSSEError(w io.Writer, message string, status int, err error, protocolErr ...*gateway.DataPlaneError) error {
+	errResp := NewOpenAIHTTPErrorResponse(message, status, err, protocolErr...)
 	data, marshalErr := json.Marshal(errResp)
 	if marshalErr != nil {
 		return fmt.Errorf("序列化 OpenAI Chat 流式错误失败：%w", marshalErr)
@@ -98,8 +139,8 @@ func WriteOpenAIChatSSEError(w io.Writer, message string, status int, err error)
 }
 
 // WriteOpenAIResponsesSSEError 写入 OpenAI Responses 流式错误事件。
-func WriteOpenAIResponsesSSEError(w io.Writer, message string, status int, err error) error {
-	httpErr := NewOpenAIHTTPErrorResponse(message, status, err)
+func WriteOpenAIResponsesSSEError(w io.Writer, message string, status int, err error, protocolErr ...*gateway.DataPlaneError) error {
+	httpErr := NewOpenAIHTTPErrorResponse(message, status, err, protocolErr...)
 	errResp := OpenAIResponsesSSEErrorResponse{
 		Type:  "error",
 		Error: httpErr.Error,
@@ -114,6 +155,34 @@ func WriteOpenAIResponsesSSEError(w io.Writer, message string, status int, err e
 	return nil
 }
 
+// WriteOpenAIResponsesTypedEventError 写入 OpenAI Responses 更严格 typed event 错误事件。
+func WriteOpenAIResponsesTypedEventError(w io.Writer, message string, status int, err error, protocolErr ...*gateway.DataPlaneError) error {
+	httpErr := NewOpenAIHTTPErrorResponse(message, status, err, protocolErr...)
+	errResp := OpenAIResponsesTypedEventError{
+		Type:  "response.error",
+		Error: httpErr.Error,
+	}
+	data, marshalErr := json.Marshal(errResp)
+	if marshalErr != nil {
+		return fmt.Errorf("序列化 OpenAI Responses typed event 错误失败：%w", marshalErr)
+	}
+	if _, writeErr := fmt.Fprintf(w, "event: response.error\ndata: %s\n\n", data); writeErr != nil {
+		return fmt.Errorf("写入 OpenAI Responses typed event 错误失败：%w", writeErr)
+	}
+
+	return nil
+}
+
 func stringPtr(s string) *string {
 	return &s
+}
+
+func firstOpenAIDataPlaneError(items ...*gateway.DataPlaneError) *gateway.DataPlaneError {
+	for _, item := range items {
+		if item != nil {
+			return item
+		}
+	}
+
+	return nil
 }

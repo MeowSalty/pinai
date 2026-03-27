@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/MeowSalty/pinai/internal/app/gateway"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
 	"github.com/gin-gonic/gin"
 )
@@ -72,17 +73,57 @@ func DetectGeminiErrorStatus(status int, err error) string {
 }
 
 // NewGeminiErrorResponse 构造 Gemini 标准错误响应体。
-func NewGeminiErrorResponse(message string, status int, err error) geminiTypes.ErrorResponse {
+func NewGeminiErrorResponse(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) geminiTypes.ErrorResponse {
+	resolvedStatus := status
+	resolvedMessage := strings.TrimSpace(message)
+	resolvedErrorStatus := ""
+
+	if mapped := firstGeminiDataPlaneError(protocolErr...); mapped != nil {
+		if mapped.StatusCode >= 100 && mapped.StatusCode <= 599 {
+			resolvedStatus = mapped.StatusCode
+		}
+		if text := strings.TrimSpace(mapped.Message); text != "" {
+			resolvedMessage = text
+		}
+		if text := strings.TrimSpace(mapped.ErrorCode); text != "" {
+			resolvedErrorStatus = text
+		} else if text := strings.TrimSpace(mapped.ErrorType); text != "" {
+			resolvedErrorStatus = text
+		}
+	}
+
+	if resolvedMessage == "" && err != nil {
+		resolvedMessage = strings.TrimSpace(err.Error())
+	}
+	if resolvedMessage == "" {
+		resolvedMessage = "请求处理失败"
+	}
+
+	if resolvedErrorStatus == "" {
+		resolvedErrorStatus = DetectGeminiErrorStatus(resolvedStatus, err)
+	}
+
 	return geminiTypes.ErrorResponse{
 		Error: geminiTypes.ErrorDetail{
-			Code:    status,
-			Message: message,
-			Status:  DetectGeminiErrorStatus(status, err),
+			Code:    resolvedStatus,
+			Message: resolvedMessage,
+			Status:  resolvedErrorStatus,
 		},
 	}
 }
 
 // WriteGeminiJSONError 输出 Gemini 标准错误响应。
-func WriteGeminiJSONError(c *gin.Context, status int, message string, err error) {
-	c.JSON(status, NewGeminiErrorResponse(message, status, err))
+func WriteGeminiJSONError(c *gin.Context, status int, message string, err error, protocolErr ...*gateway.DataPlaneError) {
+	resp := NewGeminiErrorResponse(message, status, err, protocolErr...)
+	c.JSON(resp.Error.Code, resp)
+}
+
+func firstGeminiDataPlaneError(items ...*gateway.DataPlaneError) *gateway.DataPlaneError {
+	for _, item := range items {
+		if item != nil {
+			return item
+		}
+	}
+
+	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/MeowSalty/pinai/internal/app/gateway"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 )
 
@@ -57,19 +58,46 @@ func DetectAnthropicErrorType(status int, err error) string {
 }
 
 // NewAnthropicErrorResponse 构造 Anthropic 非流式错误响应体。
-func NewAnthropicErrorResponse(message string, status int, err error) anthropicTypes.ErrorResponse {
+
+func NewAnthropicErrorResponse(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) anthropicTypes.ErrorResponse {
+	resolvedStatus := status
+	resolvedMessage := strings.TrimSpace(message)
+	resolvedType := ""
+
+	if mapped := firstDataPlaneError(protocolErr...); mapped != nil {
+		if mapped.StatusCode >= 100 && mapped.StatusCode <= 599 {
+			resolvedStatus = mapped.StatusCode
+		}
+		if text := strings.TrimSpace(mapped.Message); text != "" {
+			resolvedMessage = text
+		}
+		if text := strings.TrimSpace(mapped.ErrorType); text != "" {
+			resolvedType = text
+		}
+	}
+
+	if resolvedMessage == "" && err != nil {
+		resolvedMessage = strings.TrimSpace(err.Error())
+	}
+	if resolvedMessage == "" {
+		resolvedMessage = "请求处理失败"
+	}
+	if resolvedType == "" {
+		resolvedType = DetectAnthropicErrorType(resolvedStatus, err)
+	}
+
 	return anthropicTypes.ErrorResponse{
 		Type: "error",
 		Error: anthropicTypes.Error{
-			Type:    DetectAnthropicErrorType(status, err),
-			Message: message,
+			Type:    resolvedType,
+			Message: resolvedMessage,
 		},
 	}
 }
 
 // WriteAnthropicSSEError 写入 Anthropic 流式错误事件。
-func WriteAnthropicSSEError(w io.Writer, message string, status int, err error) error {
-	errResp := NewAnthropicErrorResponse(message, status, err)
+func WriteAnthropicSSEError(w io.Writer, message string, status int, err error, protocolErr ...*gateway.DataPlaneError) error {
+	errResp := NewAnthropicErrorResponse(message, status, err, protocolErr...)
 	data, marshalErr := json.Marshal(errResp)
 	if marshalErr != nil {
 		return fmt.Errorf("序列化 Anthropic 流式错误失败：%w", marshalErr)
@@ -77,6 +105,16 @@ func WriteAnthropicSSEError(w io.Writer, message string, status int, err error) 
 
 	if _, writeErr := fmt.Fprintf(w, "event: error\ndata: %s\n\n", data); writeErr != nil {
 		return fmt.Errorf("写入 Anthropic 流式错误失败：%w", writeErr)
+	}
+
+	return nil
+}
+
+func firstDataPlaneError(items ...*gateway.DataPlaneError) *gateway.DataPlaneError {
+	for _, item := range items {
+		if item != nil {
+			return item
+		}
 	}
 
 	return nil
