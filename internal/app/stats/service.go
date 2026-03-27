@@ -25,13 +25,13 @@ func New(logger *slog.Logger) Service {
 //
 // 参数：
 //   - logger: 日志记录器，用于记录服务运行状态和关键操作
-//   - collector: 实时数据采集器；为 nil 时将回退到全局采集器兼容路径
+//   - collector: 实时数据采集器；为 nil 时实时统计能力不可用
 //
 // 返回值：
 //   - Service: 统计服务实例
 func NewWithCollector(logger *slog.Logger, collector *Collector) Service {
 	if collector == nil {
-		logger.Warn("未显式提供采集器，回退到全局采集器兼容路径")
+		logger.Warn("未显式提供采集器，实时统计能力不可用")
 	}
 
 	logger.Info("统计服务初始化完成")

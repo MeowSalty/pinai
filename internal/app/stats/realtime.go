@@ -2,6 +2,7 @@ package stats
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -16,8 +17,9 @@ func (s *service) GetRealtime(ctx context.Context) (*StatsRealtimeResponse, erro
 
 	collector := s.collector
 	if collector == nil {
-		logger.WarnContext(ctx, "服务未注入采集器，回退到全局采集器兼容路径")
-		collector = GetCollector()
+		err := fmt.Errorf("统计采集器未注入，无法获取实时数据")
+		logger.ErrorContext(ctx, "获取实时数据失败", "error", err)
+		return nil, err
 	}
 
 	// 获取过去 1 分钟的请求数 (RPM)

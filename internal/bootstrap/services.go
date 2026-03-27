@@ -7,8 +7,8 @@ import (
 	"github.com/MeowSalty/pinai/internal/app/gateway"
 	"github.com/MeowSalty/pinai/internal/app/health"
 	"github.com/MeowSalty/pinai/internal/app/provider"
-	"github.com/MeowSalty/pinai/internal/infra/portal"
 	"github.com/MeowSalty/pinai/internal/app/stats"
+	"github.com/MeowSalty/pinai/internal/infra/portal"
 )
 
 // Services 持有启动阶段装配得到的服务实例。
@@ -49,8 +49,6 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 	// 初始化统计服务（主路径：装配阶段显式创建并注入采集器）
 	statsLogger := logger.WithGroup("stats")
 	statsCollector := stats.NewCollector(statsLogger.WithGroup("collector"))
-	// 保留全局采集器兼容层，保障仍依赖全局入口的历史调用点行为不变。
-	stats.SetGlobalCollector(statsCollector)
 	statsService := stats.NewWithCollector(statsLogger, statsCollector)
 
 	return &Services{
