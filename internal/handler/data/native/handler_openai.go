@@ -16,10 +16,10 @@ import (
 
 // OpenAIChatCompletions 处理原生 OpenAI 聊天补全请求，路径为 POST /multi/native/v1/chat/completions。
 // 解析请求体，处理 User-Agent 头部，根据 stream 参数决定返回流式或非流式响应。
-// 成功时返回 200 和响应数据，失败时返回 400 或 500 错误。
+// 非流式错误通过 HTTP JSON 返回；流式错误通过 SSE error 事件返回。
 //
 //	@Summary      OpenAI 聊天补全
-//	@Description  处理原生 OpenAI API 的 chat completions 请求，支持流式和非流式两种模式
+//	@Description  处理原生 OpenAI API 的 chat completions 请求：非流式返回 JSON；流式模式下错误通过 SSE error 事件返回
 //	@Tags         native-openai
 //	@Accept       json
 //	@Produce      json
@@ -30,7 +30,7 @@ import (
 //	@Router       /multi/native/v1/chat/completions [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native")
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "chat_completions", "protocol_mode", "auto")
 	var req openaiChatTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("解析 OpenAI Chat 请求体失败", "error", err)
@@ -55,6 +55,11 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 	resp, err := h.gatewayService.OpenAINativeChatCompletion(c.Request.Context(), &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
+		logger.Warn("OpenAI 原生 ChatCompletions 请求失败，返回 HTTP JSON 错误",
+			"status_code", mappedErr.StatusCode,
+			"error_type", mappedErr.ErrorType,
+			"error_code", mappedErr.ErrorCode,
+		)
 		c.JSON(
 			mappedErr.StatusCode,
 			common.NewOpenAIHTTPErrorResponse(mappedErr.Message, mappedErr.StatusCode, err, &mappedErr),
@@ -67,10 +72,10 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 
 // OpenAIResponses 处理原生 OpenAI 响应请求，路径为 POST /multi/native/v1/responses。
 // 解析请求体，处理 User-Agent 头部，根据 stream 参数决定返回流式或非流式响应。
-// 成功时返回 200 和响应数据，失败时返回 400 或 500 错误。
+// 非流式错误通过 HTTP JSON 返回；流式错误通过 SSE typed event error 返回。
 //
 //	@Summary      OpenAI 响应
-//	@Description  处理原生 OpenAI API 的 responses 请求，支持流式和非流式两种模式
+//	@Description  处理原生 OpenAI API 的 responses 请求：非流式返回 JSON；流式模式下错误通过 SSE typed event error 返回
 //	@Tags         native-openai
 //	@Accept       json
 //	@Produce      json
@@ -81,7 +86,7 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 //	@Router       /multi/native/v1/responses [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) OpenAIResponses(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native")
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "responses", "protocol_mode", "auto")
 	var req openaiResponsesTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("解析 OpenAI Responses 请求体失败", "error", err)
@@ -106,6 +111,11 @@ func (h *Handler) OpenAIResponses(c *gin.Context) {
 	resp, err := h.gatewayService.OpenAINativeResponses(c.Request.Context(), &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
+		logger.Warn("OpenAI 原生 Responses 请求失败，返回 HTTP JSON 错误",
+			"status_code", mappedErr.StatusCode,
+			"error_type", mappedErr.ErrorType,
+			"error_code", mappedErr.ErrorCode,
+		)
 		c.JSON(
 			mappedErr.StatusCode,
 			common.NewOpenAIHTTPErrorResponse(mappedErr.Message, mappedErr.StatusCode, err, &mappedErr),
@@ -130,14 +140,14 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "flow", "stream")
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "chat_completions", "protocol_mode", "sse", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			streamFailed = true
 			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
+			logger.Error("原生流处理异常", "panic", r, "stack", stackLines, "stream_phase", "panic")
 			if err := common.WriteOpenAIChatSSEError(c.Writer, "服务器内部错误", http.StatusInternalServerError, fmt.Errorf("panic: %v", r)); err != nil {
 				logger.Error("发送 OpenAI Chat 流式错误失败", "error", err)
 			}
@@ -152,6 +162,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 				"status_code", result.ProtocolError.StatusCode,
 				"error_type", result.ProtocolError.ErrorType,
 				"error_code", result.ProtocolError.ErrorCode,
+				"stream_phase", "streaming",
 			)
 			if sendErr := common.WriteOpenAIChatSSEError(c.Writer, result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError); sendErr != nil {
 				logger.Error("发送 OpenAI Chat 流式错误失败", "error", sendErr)
@@ -167,7 +178,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 		if err != nil {
 			streamFailed = true
 			cancel()
-			logger.Error("序列化流事件失败", "error", err)
+			logger.Error("序列化流事件失败", "error", err, "stream_phase", "streaming")
 			if sendErr := common.WriteOpenAIChatSSEError(c.Writer, fmt.Sprintf("序列化流事件失败: %v", err), http.StatusInternalServerError, err); sendErr != nil {
 				logger.Error("发送 OpenAI Chat 流式错误失败", "error", sendErr)
 			}
@@ -177,7 +188,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
 			streamFailed = true
 			cancel()
-			logger.Error("写入流事件失败", "error", err)
+			logger.Error("写入流事件失败", "error", err, "stream_phase", "streaming")
 			if sendErr := common.WriteOpenAIChatSSEError(c.Writer, fmt.Sprintf("写入流事件失败: %v", err), http.StatusInternalServerError, err); sendErr != nil {
 				logger.Error("发送 OpenAI Chat 流式错误失败", "error", sendErr)
 			}
@@ -213,14 +224,14 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "flow", "stream")
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "responses", "protocol_mode", "sse", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			streamFailed = true
 			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
+			logger.Error("原生流处理异常", "panic", r, "stack", stackLines, "stream_phase", "panic")
 			if err := common.WriteOpenAIResponsesTypedEventError(c.Writer, "服务器内部错误", http.StatusInternalServerError, fmt.Errorf("panic: %v", r)); err != nil {
 				logger.Error("发送 OpenAI Responses 流式错误失败", "error", err)
 			}
@@ -235,6 +246,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 				"status_code", result.ProtocolError.StatusCode,
 				"error_type", result.ProtocolError.ErrorType,
 				"error_code", result.ProtocolError.ErrorCode,
+				"stream_phase", "streaming",
 			)
 			if sendErr := common.WriteOpenAIResponsesTypedEventError(c.Writer, result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError); sendErr != nil {
 				logger.Error("发送 OpenAI Responses 流式错误失败", "error", sendErr)
@@ -250,7 +262,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 		if err != nil {
 			streamFailed = true
 			cancel()
-			logger.Error("序列化流事件失败", "error", err)
+			logger.Error("序列化流事件失败", "error", err, "stream_phase", "streaming")
 			if sendErr := common.WriteOpenAIResponsesTypedEventError(c.Writer, fmt.Sprintf("序列化流事件失败: %v", err), http.StatusInternalServerError, err); sendErr != nil {
 				logger.Error("发送 OpenAI Responses 流式错误失败", "error", sendErr)
 			}
@@ -260,7 +272,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
 			streamFailed = true
 			cancel()
-			logger.Error("写入流事件失败", "error", err)
+			logger.Error("写入流事件失败", "error", err, "stream_phase", "streaming")
 			if sendErr := common.WriteOpenAIResponsesTypedEventError(c.Writer, fmt.Sprintf("写入流事件失败: %v", err), http.StatusInternalServerError, err); sendErr != nil {
 				logger.Error("发送 OpenAI Responses 流式错误失败", "error", sendErr)
 			}

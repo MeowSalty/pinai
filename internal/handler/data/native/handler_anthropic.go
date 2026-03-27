@@ -15,11 +15,11 @@ import (
 )
 
 // AnthropicMessages 处理原生 Anthropic 消息请求，路径为 POST /multi/native/v1/messages。
-// 解析请求体，处理 User-Agent 头部，根据 stream 参数决定返回流式或非流式响应。
-// 成功时返回 200 和响应数据，失败时返回 400 或 500 错误。
+// 解析请求体，处理 User-Agent 头部，根据 stream 参数决定返回 JSON 或 SSE。
+// 当 stream=false 时，错误统一以 HTTP JSON 返回；当 stream=true 时，建流前协议错误以 HTTP JSON 返回，建流后错误以 SSE error 事件返回。
 //
 //	@Summary      发送 Anthropic 消息
-//	@Description  处理原生 Anthropic API 的 messages 请求，支持流式和非流式两种模式
+//	@Description  处理原生 Anthropic API 的 messages 请求：非流式返回 JSON；流式模式下建流前错误返回 HTTP JSON，建流后错误通过 SSE error 事件返回
 //	@Tags         native-anthropic
 //	@Accept       json
 //	@Produce      json
@@ -30,7 +30,7 @@ import (
 //	@Router       /multi/native/v1/messages [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) AnthropicMessages(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "native")
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "native", "request_name", "messages", "protocol_mode", "auto")
 	var req anthropicTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("请求参数绑定失败", "error", err)
@@ -52,6 +52,11 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 	resp, err := h.gatewayService.AnthropicNativeMessages(c.Request.Context(), &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
+		logger.Warn("Anthropic 原生 Messages 请求失败，返回 HTTP JSON 错误",
+			"status_code", mappedErr.StatusCode,
+			"error_type", mappedErr.ErrorType,
+			"error_code", mappedErr.ErrorCode,
+		)
 		c.JSON(mappedErr.StatusCode, common.NewAnthropicErrorResponse(mappedErr.Message, mappedErr.StatusCode, err, &mappedErr))
 		return
 	}
@@ -71,13 +76,13 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 	flusher, _ := c.Writer.(http.Flusher)
 	streamStarted := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "native", "flow", "stream")
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "native", "request_name", "messages", "protocol_mode", "sse", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
+			logger.Error("原生流处理异常", "panic", r, "stack", stackLines, "stream_phase", "panic")
 			panicErr := fmt.Errorf("panic: %v", r)
 			if !streamStarted {
 				c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse("服务器内部错误", http.StatusInternalServerError, panicErr))
@@ -103,6 +108,7 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 			"status_code", firstResult.ProtocolError.StatusCode,
 			"error_type", firstResult.ProtocolError.ErrorType,
 			"error_code", firstResult.ProtocolError.ErrorCode,
+			"stream_phase", "pre_stream",
 		)
 		c.JSON(
 			firstResult.ProtocolError.StatusCode,
@@ -121,6 +127,7 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 				"status_code", result.ProtocolError.StatusCode,
 				"error_type", result.ProtocolError.ErrorType,
 				"error_code", result.ProtocolError.ErrorCode,
+				"stream_phase", "streaming",
 			)
 
 			if err := common.WriteAnthropicSSEError(c.Writer, result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError); err != nil {

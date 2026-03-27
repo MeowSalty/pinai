@@ -15,11 +15,11 @@ import (
 )
 
 // GeminiGenerateContent 处理 Gemini generateContent 请求，路径为 POST /multi/v1beta/models/{model}:generateContent。
-// 解析请求体并从参数或查询字符串中获取模型名称，转换为统一格式后调用 ChatCompletion 服务。
-// 成功时返回 200 状态码及生成内容响应，失败时返回 400/500 状态码。
+// 解析请求体并从参数或查询字符串中获取模型名称，转换为统一格式后调用网关服务。
+// 该接口为非流式请求，错误统一以 HTTP JSON 返回。
 //
 // @Summary      生成内容
-// @Description  调用 Gemini 模型生成内容，支持通过路径参数或查询参数指定模型
+// @Description  调用 Gemini 模型生成内容（非流式）；校验失败、上游协议错误与网关错误均通过 HTTP JSON 返回
 // @Tags         Gemini
 // @Accept       json
 // @Produce      json
@@ -32,7 +32,7 @@ import (
 // @Router       /multi/v1beta/models/{model}:generateContent [post]
 // @Security     ApiKeyAuth
 func (h *Handler) GeminiGenerateContent(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat")
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat", "request_name", "generate_content", "protocol_mode", "json")
 
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -61,6 +61,11 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 	resp, err := h.gatewayService.GeminiCompatGenerateContent(c.Request.Context(), &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "处理请求时出错")
+		logger.Warn("Gemini generateContent 请求失败，返回 HTTP JSON 错误",
+			"status_code", mappedErr.StatusCode,
+			"error_type", mappedErr.ErrorType,
+			"error_code", mappedErr.ErrorCode,
+		)
 		common.WriteGeminiJSONError(c, mappedErr.StatusCode, mappedErr.Message, err, &mappedErr)
 		return
 	}
@@ -70,23 +75,23 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 
 // GeminiStreamGenerateContent 处理 Gemini streamGenerateContent 请求，路径为 POST /multi/v1beta/models/{model}:streamGenerateContent。
 // 解析请求体并从参数或查询字符串中获取模型名称，转换为统一格式后返回流式响应。
-// 成功时返回流式 SSE 响应，失败时返回 400/500 状态码。
+// 建流前错误以 HTTP JSON 返回；建流后若出现协议错误或写入错误，将直接终止流，不伪造 JSON error chunk。
 //
 // @Summary      流式生成内容
-// @Description  调用 Gemini 模型流式生成内容，支持通过路径参数或查询参数指定模型
+// @Description  调用 Gemini 模型流式生成内容；建流前错误返回 HTTP JSON，建流后错误终止流（不写入伪造的 JSON error chunk）
 // @Tags         Gemini
 // @Accept       json
 // @Produce      text/event-stream
 // @Param        model    path      string                           true   "模型名称"
 // @Param        request  body      geminiTypes.Request  true  "生成内容请求"
-// @Success      200      {object}  geminiTypes.Candidate
+// @Success      200      {string}  string
 // @Failure      400      {object}  geminiTypes.ErrorResponse
 // @Failure      401      {object}  geminiTypes.ErrorResponse
 // @Failure      500      {object}  geminiTypes.ErrorResponse
 // @Router       /multi/v1beta/models/{model}:streamGenerateContent [post]
 // @Security     ApiKeyAuth
 func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat")
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat", "request_name", "stream_generate_content", "protocol_mode", "json")
 
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -129,13 +134,13 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 
 	flusher, _ := c.Writer.(http.Flusher)
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat", "flow", "stream")
+	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat", "request_name", "stream_generate_content", "protocol_mode", "sse", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
 			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-			logger.Error("流式响应处理发生 panic", "panic", r, "stack", stackLines)
+			logger.Error("流式响应处理发生 panic", "panic", r, "stack", stackLines, "stream_phase", "panic")
 		}
 	}()
 
@@ -149,6 +154,7 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 			"status_code", firstResult.ProtocolError.StatusCode,
 			"error_type", firstResult.ProtocolError.ErrorType,
 			"error_code", firstResult.ProtocolError.ErrorCode,
+			"stream_phase", "pre_stream",
 		)
 		common.WriteGeminiJSONError(
 			c,
@@ -169,6 +175,7 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 				"status_code", result.ProtocolError.StatusCode,
 				"error_type", result.ProtocolError.ErrorType,
 				"error_code", result.ProtocolError.ErrorCode,
+				"stream_phase", "streaming",
 				"terminal", result.Terminal,
 				"done", result.Done,
 			)
@@ -182,13 +189,13 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 		data, err := json.Marshal(result.Event)
 		if err != nil {
 			cancel()
-			logger.Error("无法序列化事件", "error", err)
+			logger.Error("无法序列化事件", "error", err, "stream_phase", "streaming")
 			return true
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
 			cancel()
-			logger.Error("写入流式响应失败", "error", err)
+			logger.Error("写入流式响应失败", "error", err, "stream_phase", "streaming")
 			return true
 		}
 
