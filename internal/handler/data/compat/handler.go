@@ -4,7 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/internal/app/gateway"
-	"github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/internal/app/stats"
 )
 
 // Handler 统一的多供应商处理器，处理 OpenAI 和 Anthropic 兼容 API 的请求

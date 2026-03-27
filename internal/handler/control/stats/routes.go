@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/internal/app/stats"
 )
 
 // SetupStatsRoutes 配置统计相关的路由

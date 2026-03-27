@@ -5,7 +5,7 @@ import (
 
 	appbootstrap "github.com/MeowSalty/pinai/internal/bootstrap"
 	multi "github.com/MeowSalty/pinai/internal/handler/data/compat"
-	"github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/internal/app/stats"
 	"github.com/gin-gonic/gin"
 )
 

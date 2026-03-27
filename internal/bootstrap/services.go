@@ -8,7 +8,7 @@ import (
 	"github.com/MeowSalty/pinai/internal/app/health"
 	"github.com/MeowSalty/pinai/internal/app/provider"
 	"github.com/MeowSalty/pinai/internal/infra/portal"
-	"github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/internal/app/stats"
 )
 
 // Services 持有启动阶段装配得到的服务实例。

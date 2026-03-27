@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/MeowSalty/pinai/internal/app/gateway"
-	"github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/internal/app/stats"
 	"github.com/gin-gonic/gin"
 )
 

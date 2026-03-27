@@ -4,7 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/internal/app/gateway"
-	"github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/internal/app/stats"
 )
 
 // Handler 处理多平台原生请求

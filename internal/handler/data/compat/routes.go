@@ -8,7 +8,7 @@ import (
 	"github.com/MeowSalty/pinai/internal/app/gateway"
 	"github.com/MeowSalty/pinai/internal/handler/data/auth"
 	"github.com/MeowSalty/pinai/internal/handler/data/native"
-	"github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/internal/app/stats"
 	"github.com/gin-gonic/gin"
 )
 

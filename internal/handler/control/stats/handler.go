@@ -10,7 +10,7 @@ import (
 
 	"github.com/MeowSalty/pinai/handlers/query"
 	"github.com/MeowSalty/pinai/internal/handler/response"
-	"github.com/MeowSalty/pinai/services/stats"
+	"github.com/MeowSalty/pinai/internal/app/stats"
 )
 
 // StatsHandler 统计处理器结构体
