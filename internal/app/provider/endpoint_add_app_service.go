@@ -27,13 +27,13 @@ func (s *service) addEndpointToPlatformApp(ctx context.Context, platformID uint,
 	exists, err := s.endpointControlRepo.ExistsPlatform(ctx, platformID)
 	if err != nil {
 		logger.Error("检查平台是否存在失败", slog.Any("error", err))
-		_ = s.logEndpointCreateAudit(ctx, platformID, 0, "failed", fmt.Sprintf("检查平台是否存在失败：%v", err))
+		_ = s.logEndpointCreateAudit(ctx, 0, "failed", fmt.Sprintf("检查平台是否存在失败：%v", err))
 		return nil, fmt.Errorf("检查平台是否存在失败：%w", err)
 	}
 	if !exists {
 		logger.Warn("平台不存在")
 		err = fmt.Errorf("未找到 ID 为 %d 的平台：%w", platformID, ErrResourceNotFound)
-		_ = s.logEndpointCreateAudit(ctx, platformID, 0, "failed", err.Error())
+		_ = s.logEndpointCreateAudit(ctx, 0, "failed", err.Error())
 		return nil, err
 	}
 
@@ -59,16 +59,16 @@ func (s *service) addEndpointToPlatformApp(ctx context.Context, platformID uint,
 	})
 	if err != nil {
 		logger.Error("创建端点失败", slog.Any("error", err))
-		_ = s.logEndpointCreateAudit(ctx, platformID, 0, "failed", fmt.Sprintf("创建端点失败：%v", err))
+		_ = s.logEndpointCreateAudit(ctx, 0, "failed", fmt.Sprintf("创建端点失败：%v", err))
 		return nil, fmt.Errorf("创建端点失败：%w", err)
 	}
 
 	logger.Info("成功为平台添加端点", slog.Uint64("endpoint_id", uint64(endpoint.ID)))
-	_ = s.logEndpointCreateAudit(ctx, platformID, endpoint.ID, "success", fmt.Sprintf("创建端点成功，platform_id=%d", platformID))
+	_ = s.logEndpointCreateAudit(ctx, endpoint.ID, "success", fmt.Sprintf("创建端点成功，platform_id=%d", platformID))
 	return &endpoint, nil
 }
 
-func (s *service) logEndpointCreateAudit(ctx context.Context, platformID, endpointID uint, result, detail string) error {
+func (s *service) logEndpointCreateAudit(ctx context.Context, endpointID uint, result, detail string) error {
 	if s.controlAudit == nil {
 		return nil
 	}

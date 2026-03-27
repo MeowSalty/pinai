@@ -27,13 +27,13 @@ func (s *service) addKeyToPlatformApp(ctx context.Context, platformID uint, key 
 	exists, err := s.keyControlRepo.ExistsPlatform(ctx, platformID)
 	if err != nil {
 		logger.Error("检查平台是否存在失败", slog.Any("error", err))
-		_ = s.logKeyCreateAudit(ctx, platformID, 0, "failed", fmt.Sprintf("检查平台是否存在失败：%v", err))
+		_ = s.logKeyCreateAudit(ctx, 0, "failed", fmt.Sprintf("检查平台是否存在失败：%v", err))
 		return nil, fmt.Errorf("检查平台是否存在失败：%w", err)
 	}
 	if !exists {
 		logger.Warn("平台不存在")
 		err = fmt.Errorf("未找到 ID 为 %d 的平台：%w", platformID, ErrResourceNotFound)
-		_ = s.logKeyCreateAudit(ctx, platformID, 0, "failed", err.Error())
+		_ = s.logKeyCreateAudit(ctx, 0, "failed", err.Error())
 		return nil, err
 	}
 
@@ -48,16 +48,16 @@ func (s *service) addKeyToPlatformApp(ctx context.Context, platformID uint, key 
 	})
 	if err != nil {
 		logger.Error("创建 API 密钥失败", slog.Any("error", err))
-		_ = s.logKeyCreateAudit(ctx, platformID, 0, "failed", fmt.Sprintf("创建 API 密钥失败：%v", err))
+		_ = s.logKeyCreateAudit(ctx, 0, "failed", fmt.Sprintf("创建 API 密钥失败：%v", err))
 		return nil, fmt.Errorf("创建 API 密钥失败：%w", err)
 	}
 
 	logger.Info("成功为平台添加 API 密钥", slog.Uint64("key_id", uint64(key.ID)))
-	_ = s.logKeyCreateAudit(ctx, platformID, key.ID, "success", fmt.Sprintf("创建 API 密钥成功，platform_id=%d", platformID))
+	_ = s.logKeyCreateAudit(ctx, key.ID, "success", fmt.Sprintf("创建 API 密钥成功，platform_id=%d", platformID))
 	return &key, nil
 }
 
-func (s *service) logKeyCreateAudit(ctx context.Context, platformID, keyID uint, result, detail string) error {
+func (s *service) logKeyCreateAudit(ctx context.Context, keyID uint, result, detail string) error {
 	if s.controlAudit == nil {
 		return nil
 	}

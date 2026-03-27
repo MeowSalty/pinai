@@ -2,7 +2,6 @@
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -31,52 +30,6 @@ func (s *service) getPlatformByID(ctx context.Context, platformId uint) (*types.
 func (s *service) validatePlatformExists(ctx context.Context, platformId uint) error {
 	_, err := s.getPlatformByID(ctx, platformId)
 	return err
-}
-
-// batchValidateAPIKeys 辅助函数：批量验证 API 密钥
-// 通过一次查询验证所有需要的密钥是否存在且属于该平台，避免 N+1 查询问题
-func (s *service) batchValidateAPIKeys(ctx context.Context, platformId uint, models []types.Model, logger *slog.Logger) error {
-	// 收集所有模型中不重复的 API 密钥 ID（使用 map 作为 Set 去重）
-	apiKeyIDSet := make(map[uint]struct{})
-	for _, model := range models {
-		if len(model.APIKeys) == 0 {
-			return fmt.Errorf("模型 '%s' 必须至少关联一个 API 密钥", model.Name)
-		}
-		for _, key := range model.APIKeys {
-			apiKeyIDSet[key.ID] = struct{}{}
-		}
-	}
-
-	// 转换为切片用于查询
-	apiKeyIDs := make([]uint, 0, len(apiKeyIDSet))
-	for id := range apiKeyIDSet {
-		apiKeyIDs = append(apiKeyIDs, id)
-	}
-
-	// 一次性查询所有相关的、属于该平台的有效密钥
-	validKeys, err := query.Q.APIKey.WithContext(ctx).
-		Where(query.Q.APIKey.ID.In(apiKeyIDs...), query.Q.APIKey.PlatformID.Eq(platformId)).
-		Find()
-	if err != nil {
-		logger.Error("批量查询 API 密钥失败", slog.Any("error", err))
-		return fmt.Errorf("批量验证 API 密钥失败：%w", err)
-	}
-
-	// 检查是否所有请求的密钥都有效
-	if len(validKeys) != len(apiKeyIDs) {
-		// 找出哪个密钥是无效的，提供更清晰的错误信息
-		validKeyMap := make(map[uint]struct{}, len(validKeys))
-		for _, key := range validKeys {
-			validKeyMap[key.ID] = struct{}{}
-		}
-		for _, id := range apiKeyIDs {
-			if _, ok := validKeyMap[id]; !ok {
-				return fmt.Errorf("API 密钥 ID %d 不存在或不属于平台 ID %d: %w", id, platformId, ErrResourceNotBelong)
-			}
-		}
-	}
-
-	return nil
 }
 
 // getAPIKeyByID 辅助函数：根据 ID 查询 API 密钥
@@ -155,52 +108,6 @@ func (s *service) validatePlatformDefaultUniqueWithQuery(ctx context.Context, q 
 		return fmt.Errorf("平台 ID %d 存在多个默认端点：%w", platformId, ErrDefaultConflict)
 	}
 	return nil
-}
-
-func (s *service) ensurePlatformDefaultExists(ctx context.Context, platformId uint) error {
-	count, err := query.Q.Endpoint.WithContext(ctx).
-		Where(query.Q.Endpoint.PlatformID.Eq(platformId), query.Q.Endpoint.IsDefault.Is(true)).
-		Count()
-	if err != nil {
-		return fmt.Errorf("查询默认端点失败：%w", err)
-	}
-	if count > 0 {
-		return nil
-	}
-
-	endpoint, err := query.Q.Endpoint.WithContext(ctx).
-		Where(query.Q.Endpoint.PlatformID.Eq(platformId)).
-		Order(query.Q.Endpoint.ID.Desc()).
-		First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil
-		}
-		return fmt.Errorf("查询端点失败：%w", err)
-	}
-
-	if _, err := query.Q.Endpoint.WithContext(ctx).
-		Where(query.Q.Endpoint.ID.Eq(endpoint.ID)).
-		Updates(types.Endpoint{IsDefault: true}); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("默认端点不存在：%w", ErrResourceNotFound)
-		}
-		return fmt.Errorf("设置默认端点失败：%w", err)
-	}
-
-	return nil
-}
-
-// getModelByID 辅助函数：根据 ID 查询模型
-func (s *service) getModelByID(ctx context.Context, modelId uint) (*types.Model, error) {
-	model, err := query.Q.Model.WithContext(ctx).Where(query.Q.Model.ID.Eq(modelId)).First()
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到 ID 为 %d 的模型：%w", modelId, ErrResourceNotFound)
-		}
-		return nil, fmt.Errorf("查询模型失败：%w", err)
-	}
-	return model, nil
 }
 
 // getModelWithAPIKeys 辅助函数：根据 ID 查询模型（预加载 API 密钥）
