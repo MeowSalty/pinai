@@ -9,27 +9,14 @@ import (
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
 	openaiChatTypes "github.com/MeowSalty/portal/request/adapter/openai/types/chat"
 	openaiResponsesTypes "github.com/MeowSalty/portal/request/adapter/openai/types/responses"
-	adapterTypes "github.com/MeowSalty/portal/request/adapter/types"
 )
 
 // Service Portal 服务接口
 //
 // 封装所有与 Portal 相关的业务逻辑
 type Service interface {
-	// ChatCompletion 处理聊天完成请求
-	//
-	// Deprecated: 将在未来的版本中被移除，使用 Native* 方法替代
-	ChatCompletion(ctx context.Context, req *adapterTypes.RequestContract) (*adapterTypes.ResponseContract, error)
-
 	// Close 优雅关闭服务
 	Close(timeout time.Duration) error
-
-	// ChatCompletionStream 处理流式聊天完成请求
-	//
-	// Deprecated: 将在未来的版本中被移除，使用 Native* 方法替代
-	ChatCompletionStream(ctx context.Context, req *adapterTypes.RequestContract) (<-chan *adapterTypes.StreamEventContract, error)
-
-	// === Native ===
 
 	// Anthropic
 	NativeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request, opts ...portal.NativeOption) (*anthropicTypes.Response, error)
