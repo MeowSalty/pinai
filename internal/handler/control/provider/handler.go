@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"github.com/MeowSalty/pinai/services/provider"
+	"github.com/MeowSalty/pinai/internal/app/provider"
 )
 
 // Handler 结构体封装了所有供应方相关的处理函数

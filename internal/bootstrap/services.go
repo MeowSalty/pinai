@@ -5,9 +5,9 @@ import (
 	"log/slog"
 
 	"github.com/MeowSalty/pinai/internal/app/gateway"
+	"github.com/MeowSalty/pinai/internal/app/provider"
 	"github.com/MeowSalty/pinai/internal/infra/portal"
 	"github.com/MeowSalty/pinai/services/health"
-	"github.com/MeowSalty/pinai/services/provider"
 	"github.com/MeowSalty/pinai/services/stats"
 )
 

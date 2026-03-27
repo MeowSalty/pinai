@@ -1,4 +1,4 @@
-﻿package provider
+package provider
 
 import (
 	"fmt"
@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/MeowSalty/pinai/database/types"
+	"github.com/MeowSalty/pinai/internal/app/provider"
 	"github.com/MeowSalty/pinai/internal/handler/response"
-	"github.com/MeowSalty/pinai/services/provider"
 
 	"github.com/gin-gonic/gin"
 )

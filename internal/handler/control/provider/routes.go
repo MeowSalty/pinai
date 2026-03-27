@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"github.com/MeowSalty/pinai/services/provider"
+	"github.com/MeowSalty/pinai/internal/app/provider"
 
 	"github.com/gin-gonic/gin"
 )
