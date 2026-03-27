@@ -45,38 +45,3 @@ func createOpenAIAuthMiddleware(validToken string) gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-// createAnthropicAuthMiddleware 创建 Anthropic API 身份验证中间件
-func createAnthropicAuthMiddleware(validToken string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// 获取 x-api-key 头
-		apiKey := c.GetHeader("x-api-key")
-		if apiKey == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"type": "error",
-				"error": gin.H{
-					"type":    "authentication_error",
-					"message": "缺少 x-api-key 头",
-				},
-			})
-			c.Abort()
-			return
-		}
-
-		// 验证 API key
-		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(validToken)) != 1 {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"type": "error",
-				"error": gin.H{
-					"type":    "authentication_error",
-					"message": "无效的 API key",
-				},
-			})
-			c.Abort()
-			return
-		}
-
-		// API key 验证通过，继续处理请求
-		c.Next()
-	}
-}
