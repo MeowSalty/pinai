@@ -14,7 +14,11 @@ func (s *service) GetRealtime(ctx context.Context) (*StatsRealtimeResponse, erro
 
 	logger.DebugContext(ctx, "开始获取实时数据")
 
-	collector := GetCollector()
+	collector := s.collector
+	if collector == nil {
+		logger.WarnContext(ctx, "服务未注入采集器，回退到全局采集器兼容路径")
+		collector = GetCollector()
+	}
 
 	// 获取过去 1 分钟的请求数 (RPM)
 	rpm := collector.GetRPM()

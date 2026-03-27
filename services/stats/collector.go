@@ -27,9 +27,11 @@ type Collector struct {
 var globalCollector *Collector
 var once sync.Once
 
-// InitCollector 初始化全局采集器
-func InitCollector(logger *slog.Logger) {
-	globalCollector = &Collector{
+// NewCollector 创建采集器实例。
+//
+// 该函数用于显式依赖注入场景，由装配层决定采集器生命周期。
+func NewCollector(logger *slog.Logger) *Collector {
+	collector := &Collector{
 		requestCounts: make([]int64, 60), // 保存过去 60 秒的数据
 		currentSecond: time.Now().Unix(),
 		logger:        logger,
@@ -38,7 +40,24 @@ func InitCollector(logger *slog.Logger) {
 	logger.Info("实时数据采集器初始化完成")
 
 	// 启动后台清理协程
-	go globalCollector.cleanup()
+	go collector.cleanup()
+
+	return collector
+}
+
+// InitCollector 初始化全局采集器
+func InitCollector(logger *slog.Logger) {
+	SetGlobalCollector(NewCollector(logger))
+}
+
+// SetGlobalCollector 设置全局采集器实例。
+//
+// 该函数仅用于兼容历史调用路径；新代码应优先通过依赖注入直接持有采集器实例。
+func SetGlobalCollector(collector *Collector) {
+	if collector == nil {
+		return
+	}
+	globalCollector = collector
 }
 
 // GetCollector 获取全局采集器实例
@@ -136,4 +155,3 @@ func (c *Collector) cleanup() {
 		c.mu.Unlock()
 	}
 }
-

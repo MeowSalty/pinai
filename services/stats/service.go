@@ -16,12 +16,30 @@ import (
 // 返回值：
 //   - Service: 统计服务实例
 func New(logger *slog.Logger) Service {
-	// 初始化全局采集器
-	InitCollector(logger.WithGroup("collector"))
+	collector := NewCollector(logger.WithGroup("collector"))
+	SetGlobalCollector(collector)
+
+	return NewWithCollector(logger, collector)
+}
+
+// NewWithCollector 创建一个使用显式采集器依赖的统计服务实例。
+//
+// 参数：
+//   - logger: 日志记录器，用于记录服务运行状态和关键操作
+//   - collector: 实时数据采集器；为 nil 时将回退到全局采集器兼容路径
+//
+// 返回值：
+//   - Service: 统计服务实例
+func NewWithCollector(logger *slog.Logger, collector *Collector) Service {
+	if collector == nil {
+		logger.Warn("未显式提供采集器，回退到全局采集器兼容路径")
+	}
+
 	logger.Info("统计服务初始化完成")
 
 	return &service{
-		logger: logger,
+		logger:    logger,
+		collector: collector,
 	}
 }
 

@@ -7,7 +7,8 @@ import (
 
 // service 是 ServiceInterface 接口的具体实现
 type service struct {
-	logger *slog.Logger
+	logger    *slog.Logger
+	collector *Collector
 }
 
 // StatsOverviewResponse 定义了全局概览数据的响应结构
