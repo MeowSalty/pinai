@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/MeowSalty/pinai/internal/app/gateway"
 	"github.com/MeowSalty/pinai/internal/handler/data/common"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 	"github.com/gin-gonic/gin"
@@ -51,7 +52,7 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 	resp, err := h.gatewayService.AnthropicNativeMessages(c.Request.Context(), &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
-		c.JSON(mappedErr.StatusCode, common.NewAnthropicErrorResponse(mappedErr.Message, mappedErr.StatusCode, err))
+		c.JSON(mappedErr.StatusCode, common.NewAnthropicErrorResponse(mappedErr.Message, mappedErr.StatusCode, err, &mappedErr))
 		return
 	}
 
@@ -59,8 +60,6 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 }
 
 func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
-	common.SetBaseSSEHeaders(c)
-
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 	resultChan := h.gatewayService.AnthropicNativeMessagesStreamResult(ctx, req)
@@ -70,14 +69,22 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 	}
 
 	flusher, _ := c.Writer.(http.Flusher)
+	streamStarted := false
 
 	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "native", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
+			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
 			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
-			if err := common.WriteAnthropicSSEError(c.Writer, fmt.Sprintf("服务器内部错误: %v", r), http.StatusInternalServerError, fmt.Errorf("panic: %v", r)); err != nil {
+			panicErr := fmt.Errorf("panic: %v", r)
+			if !streamStarted {
+				c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse("服务器内部错误", http.StatusInternalServerError, panicErr))
+				return
+			}
+
+			if err := common.WriteAnthropicSSEError(c.Writer, "服务器内部错误", http.StatusInternalServerError, panicErr); err != nil {
 				logger.Error("panic 后发送 Anthropic 标准错误事件失败", "error", err)
 			}
 			if flusher != nil {
@@ -86,45 +93,78 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 		}
 	}()
 
-	for result := range resultChan {
-		if result.Event == nil {
-			continue
-		}
+	firstResult, ok := <-resultChan
+	if !ok {
+		return
+	}
 
-		if result.ErrorMessage != "" {
-			logger.Warn("上游返回 Anthropic 流式错误事件", "event_type", result.EventType, "error_message", result.ErrorMessage)
+	if firstResult.ProtocolError != nil && firstResult.ProtocolError.ShouldProxyAsHTTPError {
+		logger.Warn("Anthropic 原生流式建流前收到可代理 HTTP 协议错误",
+			"status_code", firstResult.ProtocolError.StatusCode,
+			"error_type", firstResult.ProtocolError.ErrorType,
+			"error_code", firstResult.ProtocolError.ErrorCode,
+		)
+		c.JSON(
+			firstResult.ProtocolError.StatusCode,
+			common.NewAnthropicErrorResponse(firstResult.ProtocolError.Message, firstResult.ProtocolError.StatusCode, nil, firstResult.ProtocolError),
+		)
+		return
+	}
 
-			if err := common.WriteAnthropicSSEError(c.Writer, result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)); err != nil {
+	common.SetBaseSSEHeaders(c)
+	streamStarted = true
+
+	writeResult := func(result gateway.AnthropicStreamResult) bool {
+		if result.ProtocolError != nil {
+			logger.Warn("上游返回 Anthropic 原生流式协议错误事件",
+				"event_type", result.EventType,
+				"status_code", result.ProtocolError.StatusCode,
+				"error_type", result.ProtocolError.ErrorType,
+				"error_code", result.ProtocolError.ErrorCode,
+			)
+
+			if err := common.WriteAnthropicSSEError(c.Writer, result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError); err != nil {
+				cancel()
 				logger.Error("发送 Anthropic 标准错误事件失败", "error", err)
-				break
 			}
 
 			if flusher != nil {
 				flusher.Flush()
 			}
 
-			if result.Done {
-				break
-			}
-			continue
+			return true
+		}
+
+		if result.Event == nil {
+			return false
 		}
 
 		data, err := json.Marshal(result.Event)
 		if err != nil {
+			cancel()
 			logger.Error("序列化流事件失败", "error", err)
-			break
+			return true
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", result.EventType, data); err != nil {
+			cancel()
 			logger.Error("写入流事件失败", "error", err)
-			break
+			return true
 		}
 
 		if flusher != nil {
 			flusher.Flush()
 		}
 
-		if result.Done {
+		return result.Done || result.Terminal
+	}
+
+	if writeResult(firstResult) {
+		return
+	}
+
+	for result := range resultChan {
+		if writeResult(result) {
 			break
 		}
 	}

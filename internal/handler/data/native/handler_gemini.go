@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/MeowSalty/pinai/internal/app/gateway"
 	"github.com/MeowSalty/pinai/internal/handler/data/common"
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
 	"github.com/gin-gonic/gin"
@@ -112,8 +113,6 @@ func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 }
 
 func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
-	common.SetBaseSSEHeaders(c)
-
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 	resultChan := h.gatewayService.GeminiNativeGenerateContentStreamResult(ctx, req)
@@ -127,52 +126,79 @@ func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "native", "flow", "stream")
 	defer func() {
 		if r := recover(); r != nil {
+			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
 			logger.Error("原生流处理异常", "panic", r, "stack", stackLines)
 		}
 	}()
 
-	for result := range resultChan {
-		if result.Event == nil {
-			continue
+	firstResult, ok := <-resultChan
+	if !ok {
+		return
+	}
+
+	if firstResult.ProtocolError != nil && firstResult.ProtocolError.ShouldProxyAsHTTPError {
+		logger.Warn("Gemini 原生流式建流前收到可代理 HTTP 协议错误",
+			"status_code", firstResult.ProtocolError.StatusCode,
+			"error_type", firstResult.ProtocolError.ErrorType,
+			"error_code", firstResult.ProtocolError.ErrorCode,
+		)
+		common.WriteGeminiJSONError(
+			c,
+			firstResult.ProtocolError.StatusCode,
+			firstResult.ProtocolError.Message,
+			nil,
+			firstResult.ProtocolError,
+		)
+		return
+	}
+
+	common.SetBaseSSEHeaders(c)
+
+	writeResult := func(result gateway.GeminiStreamResult) bool {
+		if result.ProtocolError != nil {
+			cancel()
+			logger.Warn("Gemini 原生流中收到协议错误，终止流",
+				"status_code", result.ProtocolError.StatusCode,
+				"error_type", result.ProtocolError.ErrorType,
+				"error_code", result.ProtocolError.ErrorCode,
+				"terminal", result.Terminal,
+				"done", result.Done,
+			)
+			return true
 		}
 
-		if result.ErrorMessage != "" {
-			logger.Warn("上游返回 Gemini 流式错误事件", "error_message", result.ErrorMessage)
-			errorData, marshalErr := json.Marshal(common.NewGeminiErrorResponse(result.ErrorMessage, http.StatusInternalServerError, fmt.Errorf("%s", result.ErrorMessage)))
-			if marshalErr != nil {
-				cancel()
-				logger.Error("序列化 Gemini 标准错误事件失败", "error", marshalErr)
-				break
-			}
-
-			if _, writeErr := fmt.Fprintf(c.Writer, "data: %s\n\n", errorData); writeErr != nil {
-				cancel()
-				logger.Error("写入 Gemini 标准错误事件失败", "error", writeErr)
-				break
-			}
-
-			flusher.Flush()
-			break
+		if result.Event == nil {
+			return false
 		}
 
 		data, err := json.Marshal(result.Event)
 		if err != nil {
 			cancel()
-			logger.Error("序列化流事件失败", "error", err)
-			break
+			logger.Error("序列化流事件失败，终止流", "error", err)
+			return true
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
 			cancel()
-			logger.Error("写入流事件失败", "error", err)
-			break
+			logger.Error("写入流事件失败，终止流", "error", err)
+			return true
 		}
 
-		flusher.Flush()
+		if flusher != nil {
+			flusher.Flush()
+		}
 
-		if result.Done {
+		return result.Done || result.Terminal
+	}
+
+	if writeResult(firstResult) {
+		return
+	}
+
+	for result := range resultChan {
+		if writeResult(result) {
 			break
 		}
 	}
