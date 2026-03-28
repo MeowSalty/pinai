@@ -59,7 +59,7 @@ require (
 )
 
 require (
-	github.com/MeowSalty/portal v0.8.1-0.20260322152351-c30d7ba3eee6
+	github.com/MeowSalty/portal v0.8.1-0.20260328041259-ef73c24f9f2e
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/orandin/slog-gorm v1.4.0
