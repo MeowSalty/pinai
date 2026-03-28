@@ -72,8 +72,24 @@ func (c *Collector) IncrementConnection() {
 
 // DecrementConnection 减少活动连接数
 func (c *Collector) DecrementConnection() {
-	newCount := atomic.AddInt64(&c.activeConnections, -1)
-	c.logger.Debug("减少活动连接", "active_connections", newCount)
+	after := atomic.AddInt64(&c.activeConnections, -1)
+	before := after + 1
+
+	if after < 0 {
+		atomic.StoreInt64(&c.activeConnections, 0)
+		c.logger.Warn("活动连接计数出现负数，已自动修正为 0",
+			"active_connections_before", before,
+			"active_connections_after", after,
+			"correction_applied", true,
+		)
+		return
+	}
+
+	c.logger.Debug("减少活动连接",
+		"active_connections_before", before,
+		"active_connections_after", after,
+		"correction_applied", false,
+	)
 }
 
 // GetRPM 获取过去 1 分钟的 RPM (每分钟请求数)
