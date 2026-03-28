@@ -58,6 +58,11 @@ func (h *Handler) ChatCompletions(c *gin.Context) {
 	}
 
 	// 非流式响应
+	if h.collector != nil {
+		h.collector.IncrementConnection()
+		defer h.collector.DecrementConnection()
+	}
+
 	resp, err := h.gatewayService.OpenAICompatChatCompletion(c.Request.Context(), &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "处理请求时出错")
@@ -115,6 +120,11 @@ func (h *Handler) Responses(c *gin.Context) {
 		return
 	}
 
+	if h.collector != nil {
+		h.collector.IncrementConnection()
+		defer h.collector.DecrementConnection()
+	}
+
 	resp, err := h.gatewayService.OpenAICompatResponses(c.Request.Context(), &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "处理请求时出错")
@@ -138,9 +148,18 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	defer cancel()
 	resultChan := h.gatewayService.OpenAICompatChatCompletionStreamResult(ctx, req)
 
-	if h.collector != nil {
-		defer h.collector.DecrementConnection()
+	connectionCounted := false
+	releaseConnection := func() {
+		if h.collector != nil && connectionCounted {
+			h.collector.DecrementConnection()
+			connectionCounted = false
+		}
 	}
+	if h.collector != nil {
+		h.collector.IncrementConnection()
+		connectionCounted = true
+	}
+	defer releaseConnection()
 
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
@@ -310,9 +329,18 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	defer cancel()
 	resultChan := h.gatewayService.OpenAICompatResponsesStreamResult(ctx, req)
 
-	if h.collector != nil {
-		defer h.collector.DecrementConnection()
+	connectionCounted := false
+	releaseConnection := func() {
+		if h.collector != nil && connectionCounted {
+			h.collector.DecrementConnection()
+			connectionCounted = false
+		}
 	}
+	if h.collector != nil {
+		h.collector.IncrementConnection()
+		connectionCounted = true
+	}
+	defer releaseConnection()
 
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
