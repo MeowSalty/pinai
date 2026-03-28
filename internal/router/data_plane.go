@@ -36,14 +36,6 @@ func createStatsCollectorMiddleware(collector *stats.Collector) gin.HandlerFunc 
 		}
 
 		collector.RecordRequest()
-		collector.IncrementConnection()
-
-		defer func() {
-			contentType := c.Writer.Header().Get("Content-Type")
-			if contentType != "text/event-stream" {
-				collector.DecrementConnection()
-			}
-		}()
 
 		c.Next()
 	}
