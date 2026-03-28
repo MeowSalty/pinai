@@ -58,6 +58,11 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 	}
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
+	if h.collector != nil {
+		h.collector.IncrementConnection()
+		defer h.collector.DecrementConnection()
+	}
+
 	resp, err := h.gatewayService.GeminiCompatGenerateContent(c.Request.Context(), &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "处理请求时出错")
@@ -128,9 +133,18 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 	defer cancel()
 	resultChan := h.gatewayService.GeminiCompatGenerateContentStreamResult(ctx, req)
 
-	if h.collector != nil {
-		defer h.collector.DecrementConnection()
+	connectionCounted := false
+	releaseConnection := func() {
+		if h.collector != nil && connectionCounted {
+			h.collector.DecrementConnection()
+			connectionCounted = false
+		}
 	}
+	if h.collector != nil {
+		h.collector.IncrementConnection()
+		connectionCounted = true
+	}
+	defer releaseConnection()
 
 	flusher, _ := c.Writer.(http.Flusher)
 	streamFailed := false
