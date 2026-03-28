@@ -53,6 +53,11 @@ func (h *Handler) Messages(c *gin.Context) {
 		return
 	}
 
+	if h.collector != nil {
+		h.collector.IncrementConnection()
+		defer h.collector.DecrementConnection()
+	}
+
 	// 非流式响应
 	resp, err := h.gatewayService.AnthropicCompatMessages(c.Request.Context(), &req)
 	if err != nil {
@@ -79,11 +84,21 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 
 	// 获取流式响应通道
 	resultChan := h.gatewayService.AnthropicCompatMessagesStreamResult(ctx, req)
+	connectionReleased := false
+	releaseConnection := func() {
+		if connectionReleased {
+			return
+		}
+		connectionReleased = true
+		if h.collector != nil {
+			h.collector.DecrementConnection()
+		}
+	}
 
 	if h.collector != nil {
-		// 使用流式跟踪，确保在流结束时减少连接数
-		defer h.collector.DecrementConnection()
+		h.collector.IncrementConnection()
 	}
+	defer releaseConnection()
 
 	flusher, _ := c.Writer.(http.Flusher)
 	streamWriterBroken := false
@@ -94,6 +109,7 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 	defer func() {
 		if r := recover(); r != nil {
 			cancel()
+			releaseConnection()
 			stack := debug.Stack()
 			// 将堆栈信息按行分割，以数组形式记录，提高 JSON 日志可读性
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
