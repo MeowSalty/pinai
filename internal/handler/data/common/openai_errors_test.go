@@ -17,7 +17,7 @@ func (w failWriter) Write(_ []byte) (int, error) {
 	return 0, io.ErrClosedPipe
 }
 
-func TestNewOpenAIHTTPErrorResponse_使用结构化协议错误字段(t *testing.T) {
+func TestNewOpenAIHTTPErrorResponse_主文案优先并拼装结构化协议错误细节(t *testing.T) {
 	protocolErr := &gateway.DataPlaneError{
 		StatusCode: 429,
 		Message:    "配额不足",
@@ -28,8 +28,8 @@ func TestNewOpenAIHTTPErrorResponse_使用结构化协议错误字段(t *testing
 
 	resp := NewOpenAIHTTPErrorResponse("兜底错误", 500, errors.New("内部错误"), protocolErr)
 
-	if resp.Error.Message != "配额不足" {
-		t.Fatalf("错误消息应优先使用协议错误字段，实际值=%q", resp.Error.Message)
+	if resp.Error.Message != "兜底错误（内部细节：配额不足；内部错误）" {
+		t.Fatalf("错误消息应保留主文案并拼装协议错误与底层错误细节，实际值=%q", resp.Error.Message)
 	}
 	if resp.Error.Type != OpenAIErrorTypeRateLimit {
 		t.Fatalf("错误类型应优先使用协议错误字段，实际值=%q", resp.Error.Type)
@@ -71,7 +71,7 @@ func TestWriteOpenAIChatSSEError_写入结构化错误事件(t *testing.T) {
 		t.Fatalf("解析 SSE 中的 JSON 负载失败：%v", err)
 	}
 
-	if resp.Error.Message != "请求参数错误" {
+	if resp.Error.Message != "兜底错误（内部细节：请求参数错误；内部错误）" {
 		t.Fatalf("错误消息不符合预期，实际值=%q", resp.Error.Message)
 	}
 	if resp.Error.Type != OpenAIErrorTypeInvalidRequest {
@@ -124,6 +124,15 @@ func TestNewOpenAIHTTPErrorResponse_避免重复拼接内部细节(t *testing.T)
 
 	if resp.Error.Message != "请求参数错误" {
 		t.Fatalf("错误消息不应重复拼接，实际值=%q", resp.Error.Message)
+	}
+}
+
+func TestNewOpenAIHTTPErrorResponse_主文案映射文案底层错误重复时去重(t *testing.T) {
+	protocolErr := &gateway.DataPlaneError{Message: "请求参数错误"}
+	resp := NewOpenAIHTTPErrorResponse("请求参数错误", 400, errors.New("请求参数错误"), protocolErr)
+
+	if resp.Error.Message != "请求参数错误" {
+		t.Fatalf("主文案、映射文案与底层错误重复时不应堆叠，实际值=%q", resp.Error.Message)
 	}
 }
 

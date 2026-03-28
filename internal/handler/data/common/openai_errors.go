@@ -105,7 +105,6 @@ func NewOpenAIHTTPErrorResponse(message string, status int, err error, protocolE
 	resolvedStatus := status
 	resolvedPublicMessage := strings.TrimSpace(message)
 	resolvedInternalDetail := ""
-	detailErr := err
 	resolvedType := ""
 	var resolvedParam *string
 	var resolvedCode *string
@@ -115,8 +114,11 @@ func NewOpenAIHTTPErrorResponse(message string, status int, err error, protocolE
 			resolvedStatus = mapped.StatusCode
 		}
 		if text := strings.TrimSpace(mapped.Message); text != "" {
-			resolvedPublicMessage = text
-			detailErr = nil
+			if resolvedPublicMessage == "" {
+				resolvedPublicMessage = text
+			} else if text != resolvedPublicMessage {
+				resolvedInternalDetail = text
+			}
 		}
 		if text := strings.TrimSpace(mapped.ErrorType); text != "" {
 			resolvedType = text
@@ -129,7 +131,7 @@ func NewOpenAIHTTPErrorResponse(message string, status int, err error, protocolE
 		}
 	}
 
-	resolvedMessage := composePublicErrorMessage(resolvedPublicMessage, detailErr, resolvedInternalDetail)
+	resolvedMessage := composePublicErrorMessage(resolvedPublicMessage, err, resolvedInternalDetail)
 
 	if resolvedType == "" {
 		resolvedType = DetectOpenAIErrorType(resolvedStatus, err)
