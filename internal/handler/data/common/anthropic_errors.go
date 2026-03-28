@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -9,6 +10,31 @@ import (
 	"github.com/MeowSalty/pinai/internal/app/gateway"
 	anthropicTypes "github.com/MeowSalty/portal/request/adapter/anthropic/types"
 )
+
+// AnthropicStreamWriteError 表示向客户端写入 Anthropic 流式事件失败（通常意味着连接不可恢复）。
+type AnthropicStreamWriteError struct {
+	Err error
+}
+
+func (e *AnthropicStreamWriteError) Error() string {
+	if e == nil || e.Err == nil {
+		return "写入 Anthropic 流式响应失败"
+	}
+	return fmt.Sprintf("写入 Anthropic 流式响应失败：%v", e.Err)
+}
+
+func (e *AnthropicStreamWriteError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// IsAnthropicStreamWriteError 判断错误是否为 Anthropic 流式写入失败。
+func IsAnthropicStreamWriteError(err error) bool {
+	var writeErr *AnthropicStreamWriteError
+	return errors.As(err, &writeErr)
+}
 
 const (
 	// AnthropicErrorTypeInvalidRequest 表示请求参数或格式错误。
@@ -104,7 +130,7 @@ func WriteAnthropicSSEError(w io.Writer, message string, status int, err error, 
 	}
 
 	if _, writeErr := fmt.Fprintf(w, "event: error\ndata: %s\n\n", data); writeErr != nil {
-		return fmt.Errorf("写入 Anthropic 流式错误失败：%w", writeErr)
+		return &AnthropicStreamWriteError{Err: writeErr}
 	}
 
 	return nil

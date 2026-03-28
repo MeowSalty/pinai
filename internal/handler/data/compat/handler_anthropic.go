@@ -86,12 +86,14 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 	}
 
 	flusher, _ := c.Writer.(http.Flusher)
+	streamWriterBroken := false
 	streamStarted := false
 
 	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "compat", "request_name", "messages", "protocol_mode", "sse", "flow", "stream")
 	// 添加 defer recover 来捕获流式处理中的 panic
 	defer func() {
 		if r := recover(); r != nil {
+			cancel()
 			stack := debug.Stack()
 			// 将堆栈信息按行分割，以数组形式记录，提高 JSON 日志可读性
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
@@ -105,9 +107,22 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 				c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse("服务器内部错误", http.StatusInternalServerError, panicErr))
 				return
 			}
-			if err := common.WriteAnthropicSSEError(c.Writer, "服务器内部错误", http.StatusInternalServerError, panicErr); err != nil {
-				logger.Error("panic 后发送 Anthropic 流式错误事件失败", "error", err)
+
+			if streamWriterBroken {
+				logger.Error("panic 后连接已不可恢复，跳过补写 Anthropic 流式错误事件")
+				return
 			}
+
+			if sendErr := common.WriteAnthropicSSEError(c.Writer, "服务器内部错误", http.StatusInternalServerError, panicErr); sendErr != nil {
+				if common.IsAnthropicStreamWriteError(sendErr) {
+					streamWriterBroken = true
+					logger.Error("panic 后发送 Anthropic 流式错误事件失败，连接已不可恢复", "error", sendErr)
+					return
+				}
+				logger.Error("panic 后发送 Anthropic 流式错误事件失败", "error", sendErr)
+				return
+			}
+
 			if flusher != nil {
 				flusher.Flush()
 			}
@@ -138,6 +153,7 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 
 	writeResult := func(result gateway.AnthropicStreamResult) bool {
 		if result.ProtocolError != nil {
+			cancel()
 			logger.Warn("上游返回 Anthropic 流式协议错误事件",
 				"event_type", result.EventType,
 				"status_code", result.ProtocolError.StatusCode,
@@ -147,8 +163,13 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 			)
 
 			if writeErr := common.WriteAnthropicSSEError(c.Writer, result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError); writeErr != nil {
-				cancel()
-				logger.Error("无法发送 Anthropic 流式错误事件", "error", writeErr)
+				if common.IsAnthropicStreamWriteError(writeErr) {
+					streamWriterBroken = true
+					logger.Error("无法发送 Anthropic 流式错误事件，连接已不可恢复", "error", writeErr)
+				} else {
+					logger.Error("无法发送 Anthropic 流式错误事件", "error", writeErr)
+				}
+				return true
 			}
 
 			if flusher != nil {
@@ -165,13 +186,33 @@ func (h *Handler) handleAnthropicStreamResponse(c *gin.Context, req *anthropicTy
 		data, marshalErr := json.Marshal(result.Event)
 		if marshalErr != nil {
 			cancel()
-			logger.Error("无法序列化流式事件", "error", marshalErr)
+			logger.Error("无法序列化流式事件", "error", marshalErr, "stream_phase", "streaming")
+
+			if streamWriterBroken {
+				logger.Error("连接已不可恢复，跳过补写 Anthropic 流式错误事件")
+				return true
+			}
+
+			if writeErr := common.WriteAnthropicSSEError(c.Writer, "无法序列化流式事件", http.StatusInternalServerError, marshalErr); writeErr != nil {
+				if common.IsAnthropicStreamWriteError(writeErr) {
+					streamWriterBroken = true
+					logger.Error("序列化失败后补写 Anthropic 流式错误事件失败，连接已不可恢复", "error", writeErr)
+				} else {
+					logger.Error("序列化失败后补写 Anthropic 流式错误事件失败", "error", writeErr)
+				}
+				return true
+			}
+
+			if flusher != nil {
+				flusher.Flush()
+			}
 			return true
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", result.EventType, data); err != nil {
+			streamWriterBroken = true
 			cancel()
-			logger.Error("写入流式响应失败", "error", err)
+			logger.Error("写入流式响应失败，连接已不可恢复", "error", err, "stream_phase", "streaming")
 			return true
 		}
 
