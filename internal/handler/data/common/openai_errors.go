@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -43,6 +44,31 @@ type OpenAIResponsesSSEErrorResponse struct {
 type OpenAIResponsesTypedEventError struct {
 	Type  string            `json:"type"`
 	Error OpenAIErrorDetail `json:"error"`
+}
+
+// OpenAIStreamWriteError 表示向客户端写入流式事件失败（通常意味着连接不可恢复）。
+type OpenAIStreamWriteError struct {
+	Err error
+}
+
+func (e *OpenAIStreamWriteError) Error() string {
+	if e == nil || e.Err == nil {
+		return "写入 OpenAI 流式响应失败"
+	}
+	return fmt.Sprintf("写入 OpenAI 流式响应失败：%v", e.Err)
+}
+
+func (e *OpenAIStreamWriteError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// IsOpenAIStreamWriteError 判断错误是否为流式写入失败。
+func IsOpenAIStreamWriteError(err error) bool {
+	var writeErr *OpenAIStreamWriteError
+	return errors.As(err, &writeErr)
 }
 
 // DetectOpenAIErrorType 根据状态码与错误内容推断 OpenAI 错误类型。
@@ -131,7 +157,7 @@ func WriteOpenAIChatSSEError(w io.Writer, message string, status int, err error,
 		return fmt.Errorf("序列化 OpenAI Chat 流式错误失败：%w", marshalErr)
 	}
 	if _, writeErr := fmt.Fprintf(w, "event: error\ndata: %s\n\n", data); writeErr != nil {
-		return fmt.Errorf("写入 OpenAI Chat 流式错误失败：%w", writeErr)
+		return &OpenAIStreamWriteError{Err: writeErr}
 	}
 	return nil
 }
@@ -148,7 +174,7 @@ func WriteOpenAIResponsesSSEError(w io.Writer, message string, status int, err e
 		return fmt.Errorf("序列化 OpenAI Responses 流式错误失败：%w", marshalErr)
 	}
 	if _, writeErr := fmt.Fprintf(w, "data: %s\n\n", data); writeErr != nil {
-		return fmt.Errorf("写入 OpenAI Responses 流式错误失败：%w", writeErr)
+		return &OpenAIStreamWriteError{Err: writeErr}
 	}
 	return nil
 }
@@ -165,7 +191,7 @@ func WriteOpenAIResponsesTypedEventError(w io.Writer, message string, status int
 		return fmt.Errorf("序列化 OpenAI Responses typed event 错误失败：%w", marshalErr)
 	}
 	if _, writeErr := fmt.Fprintf(w, "event: response.error\ndata: %s\n\n", data); writeErr != nil {
-		return fmt.Errorf("写入 OpenAI Responses typed event 错误失败：%w", writeErr)
+		return &OpenAIStreamWriteError{Err: writeErr}
 	}
 
 	return nil

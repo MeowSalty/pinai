@@ -4,11 +4,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/MeowSalty/pinai/internal/app/gateway"
 )
+
+type failWriter struct{}
+
+func (w failWriter) Write(_ []byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
 
 func TestNewOpenAIHTTPErrorResponse_使用结构化协议错误字段(t *testing.T) {
 	protocolErr := &gateway.DataPlaneError{
@@ -117,5 +124,31 @@ func TestNewOpenAIHTTPErrorResponse_避免重复拼接内部细节(t *testing.T)
 
 	if resp.Error.Message != "请求参数错误" {
 		t.Fatalf("错误消息不应重复拼接，实际值=%q", resp.Error.Message)
+	}
+}
+
+func TestWriteOpenAIChatSSEError_写入失败时返回流式写入错误(t *testing.T) {
+	err := WriteOpenAIChatSSEError(failWriter{}, "写入失败", 500, errors.New("boom"))
+	if err == nil {
+		t.Fatalf("预期返回写入失败错误")
+	}
+	if !IsOpenAIStreamWriteError(err) {
+		t.Fatalf("预期为 OpenAI 流式写入错误，实际=%v", err)
+	}
+}
+
+func TestWriteOpenAIResponsesTypedEventError_写入失败时返回流式写入错误(t *testing.T) {
+	err := WriteOpenAIResponsesTypedEventError(failWriter{}, "写入失败", 500, errors.New("boom"))
+	if err == nil {
+		t.Fatalf("预期返回写入失败错误")
+	}
+	if !IsOpenAIStreamWriteError(err) {
+		t.Fatalf("预期为 OpenAI 流式写入错误，实际=%v", err)
+	}
+}
+
+func TestIsOpenAIStreamWriteError_非写入错误返回false(t *testing.T) {
+	if IsOpenAIStreamWriteError(errors.New("普通错误")) {
+		t.Fatalf("普通错误不应被识别为流式写入错误")
 	}
 }
