@@ -1,6 +1,10 @@
 package common
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -8,6 +12,31 @@ import (
 	geminiTypes "github.com/MeowSalty/portal/request/adapter/gemini/types"
 	"github.com/gin-gonic/gin"
 )
+
+// GeminiStreamWriteError 表示向客户端写入 Gemini 流式错误块失败（通常意味着连接不可恢复）。
+type GeminiStreamWriteError struct {
+	Err error
+}
+
+func (e *GeminiStreamWriteError) Error() string {
+	if e == nil || e.Err == nil {
+		return "写入 Gemini 流式错误块失败"
+	}
+	return fmt.Sprintf("写入 Gemini 流式错误块失败：%v", e.Err)
+}
+
+func (e *GeminiStreamWriteError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// IsGeminiStreamWriteError 判断错误是否为 Gemini 流式写入失败。
+func IsGeminiStreamWriteError(err error) bool {
+	var writeErr *GeminiStreamWriteError
+	return errors.As(err, &writeErr)
+}
 
 const (
 	// GeminiErrorStatusInvalidArgument 表示请求参数或格式错误。
@@ -116,6 +145,21 @@ func NewGeminiErrorResponse(message string, status int, err error, protocolErr .
 func WriteGeminiJSONError(c *gin.Context, status int, message string, err error, protocolErr ...*gateway.DataPlaneError) {
 	resp := NewGeminiErrorResponse(message, status, err, protocolErr...)
 	c.JSON(resp.Error.Code, resp)
+}
+
+// WriteGeminiStreamError 写入 Gemini 流式错误 JSON 块。
+func WriteGeminiStreamError(w io.Writer, message string, status int, err error, protocolErr ...*gateway.DataPlaneError) error {
+	errResp := NewGeminiErrorResponse(message, status, err, protocolErr...)
+	data, marshalErr := json.Marshal(errResp)
+	if marshalErr != nil {
+		return fmt.Errorf("序列化 Gemini 流式错误失败：%w", marshalErr)
+	}
+
+	if _, writeErr := fmt.Fprintf(w, "data: %s\n\n", data); writeErr != nil {
+		return &GeminiStreamWriteError{Err: writeErr}
+	}
+
+	return nil
 }
 
 func firstGeminiDataPlaneError(items ...*gateway.DataPlaneError) *gateway.DataPlaneError {

@@ -133,14 +133,43 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 	}
 
 	flusher, _ := c.Writer.(http.Flusher)
+	streamFailed := false
+	streamStarted := false
+	canWriteErrorChunk := true
 
 	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "compat", "request_name", "stream_generate_content", "protocol_mode", "sse", "flow", "stream")
+	writeGeminiStreamError := func(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) {
+		if !canWriteErrorChunk {
+			logger.Error("Gemini 流式连接已不可恢复，跳过错误块补写", "stream_phase", "streaming")
+			return
+		}
+		sendErr := common.WriteGeminiStreamError(c.Writer, message, status, err, protocolErr...)
+		if sendErr != nil {
+			if common.IsGeminiStreamWriteError(sendErr) {
+				canWriteErrorChunk = false
+				logger.Error("发送 Gemini 流式错误块失败，连接已不可恢复", "error", sendErr)
+				return
+			}
+			logger.Error("发送 Gemini 流式错误块失败", "error", sendErr)
+			return
+		}
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
 	defer func() {
 		if r := recover(); r != nil {
+			streamFailed = true
 			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+			panicErr := fmt.Errorf("panic: %v", r)
 			logger.Error("流式响应处理发生 panic", "panic", r, "stack", stackLines, "stream_phase", "panic")
+			if !streamStarted {
+				common.WriteGeminiJSONError(c, http.StatusInternalServerError, "服务器内部错误", panicErr)
+				return
+			}
+			writeGeminiStreamError("服务器内部错误", http.StatusInternalServerError, panicErr)
 		}
 	}()
 
@@ -167,9 +196,11 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 	}
 
 	common.SetBaseSSEHeaders(c)
+	streamStarted = true
 
 	writeResult := func(result gateway.GeminiStreamResult) bool {
 		if result.ProtocolError != nil {
+			streamFailed = true
 			cancel()
 			logger.Warn("Gemini 流中收到协议错误，终止流",
 				"status_code", result.ProtocolError.StatusCode,
@@ -179,6 +210,7 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 				"terminal", result.Terminal,
 				"done", result.Done,
 			)
+			writeGeminiStreamError(result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError)
 			return true
 		}
 
@@ -188,12 +220,16 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 
 		data, err := json.Marshal(result.Event)
 		if err != nil {
+			streamFailed = true
 			cancel()
 			logger.Error("无法序列化事件", "error", err, "stream_phase", "streaming")
+			writeGeminiStreamError(fmt.Sprintf("无法序列化事件: %v", err), http.StatusInternalServerError, err)
 			return true
 		}
 
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
+			streamFailed = true
+			canWriteErrorChunk = false
 			cancel()
 			logger.Error("写入流式响应失败", "error", err, "stream_phase", "streaming")
 			return true
@@ -216,7 +252,7 @@ func (h *Handler) handleGeminiStreamResponse(c *gin.Context, req *geminiTypes.Re
 		}
 	}
 
-	if flusher != nil {
+	if flusher != nil && !streamFailed {
 		flusher.Flush()
 	}
 }
