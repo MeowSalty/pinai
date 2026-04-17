@@ -1,7 +1,7 @@
 filippo.io/edwards25519 v1.1.1 h1:YpjwWWlNmGIDyXOn8zLzqiD+9TyIlPhGFG96P39uBpw=
 filippo.io/edwards25519 v1.1.1/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
-github.com/MeowSalty/portal v0.8.1-0.20260415150336-52384f8a30d4 h1:JJf1jlBgugGkUhm9Z+RlZXPr09K9CK4GN5TlNeFr1dE=
-github.com/MeowSalty/portal v0.8.1-0.20260415150336-52384f8a30d4/go.mod h1:KMc2A9RT9rtAQMVoNUXgmfaPani+zqw/Sc9flsbDruY=
+github.com/MeowSalty/portal v0.8.1-0.20260417031719-234f9c7ae89a h1:2cQcMpJNIGhJoVfIetnr3wJ4XaLq3Cp/oPwmxTXlGxc=
+github.com/MeowSalty/portal v0.8.1-0.20260417031719-234f9c7ae89a/go.mod h1:KMc2A9RT9rtAQMVoNUXgmfaPani+zqw/Sc9flsbDruY=
 github.com/bytedance/gopkg v0.1.3 h1:TPBSwH8RsouGCBcMBktLt1AymVo2TVsBVCY4b6TnZ/M=
 github.com/bytedance/gopkg v0.1.3/go.mod h1:576VvJ+eJgyCzdjS+c4+77QF3p7ubbtiKARP3TxducM=
 github.com/bytedance/sonic v1.15.0 h1:/PXeWFaR5ElNcVE84U0dOHjiMHQOwNIx3K4ymzh/uSE=
