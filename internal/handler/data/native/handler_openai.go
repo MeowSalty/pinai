@@ -31,7 +31,10 @@ import (
 //	@Router       /multi/native/v1/chat/completions [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "chat_completions", "protocol_mode", "auto")
+	logCtx := common.NewRequestLogContext(c, "openai", "native", "chat_completions").
+		WithExtra(map[string]string{"protocol_mode": "auto"})
+	logger := logCtx.EnrichLogger(h.logger)
+
 	var req openaiChatTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("解析 OpenAI Chat 请求体失败", "error", err)
@@ -42,6 +45,8 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 		return
 	}
 
+	logCtx = logCtx.WithModel(req.Model)
+
 	// 处理并透传 HTTP 头部
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
@@ -49,18 +54,14 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
-		h.streamOpenAIChat(c, &req, true)
+		h.streamOpenAIChat(c, &req, logCtx, true)
 		return
 	}
 
-	resp, err := h.gatewayService.OpenAINativeChatCompletion(c.Request.Context(), &req)
+	ctx := logCtx.WithContext(c.Request.Context())
+	resp, err := h.gatewayService.OpenAINativeChatCompletion(ctx, &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
-		logger.Warn("OpenAI 原生 ChatCompletions 请求失败，返回 HTTP JSON 错误",
-			"status_code", mappedErr.StatusCode,
-			"error_type", mappedErr.ErrorType,
-			"error_code", mappedErr.ErrorCode,
-		)
 		c.JSON(
 			mappedErr.StatusCode,
 			common.NewOpenAIHTTPErrorResponse(mappedErr.Message, mappedErr.StatusCode, err, &mappedErr),
@@ -87,7 +88,10 @@ func (h *Handler) OpenAIChatCompletions(c *gin.Context) {
 //	@Router       /multi/native/v1/responses [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) OpenAIResponses(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "responses", "protocol_mode", "auto")
+	logCtx := common.NewRequestLogContext(c, "openai", "native", "responses").
+		WithExtra(map[string]string{"protocol_mode": "auto"})
+	logger := logCtx.EnrichLogger(h.logger)
+
 	var req openaiResponsesTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("解析 OpenAI Responses 请求体失败", "error", err)
@@ -98,6 +102,10 @@ func (h *Handler) OpenAIResponses(c *gin.Context) {
 		return
 	}
 
+	if req.Model != nil {
+		logCtx = logCtx.WithModel(*req.Model)
+	}
+
 	// 处理并透传 HTTP 头部
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
@@ -105,7 +113,7 @@ func (h *Handler) OpenAIResponses(c *gin.Context) {
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
-		h.streamOpenAIResponses(c, &req, true)
+		h.streamOpenAIResponses(c, &req, logCtx, true)
 		return
 	}
 
@@ -114,14 +122,10 @@ func (h *Handler) OpenAIResponses(c *gin.Context) {
 		defer h.collector.DecrementConnection()
 	}
 
-	resp, err := h.gatewayService.OpenAINativeResponses(c.Request.Context(), &req)
+	ctx := logCtx.WithContext(c.Request.Context())
+	resp, err := h.gatewayService.OpenAINativeResponses(ctx, &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
-		logger.Warn("OpenAI 原生 Responses 请求失败，返回 HTTP JSON 错误",
-			"status_code", mappedErr.StatusCode,
-			"error_type", mappedErr.ErrorType,
-			"error_code", mappedErr.ErrorCode,
-		)
 		c.JSON(
 			mappedErr.StatusCode,
 			common.NewOpenAIHTTPErrorResponse(mappedErr.Message, mappedErr.StatusCode, err, &mappedErr),
@@ -132,8 +136,10 @@ func (h *Handler) OpenAIResponses(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request, sendDone bool) {
-	ctx, cancel := context.WithCancel(c.Request.Context())
+func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request, logCtx common.RequestLogContext, sendDone bool) {
+	streamLogCtx := logCtx.WithExtra(map[string]string{"protocol_mode": "sse", "flow": "stream"})
+	ctx := streamLogCtx.WithContext(c.Request.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	resultChan := h.gatewayService.OpenAINativeChatCompletionStreamResult(ctx, req)
 
@@ -155,7 +161,7 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	streamWriterBroken := false
 	streamStarted := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "chat_completions", "protocol_mode", "sse", "flow", "stream")
+	logger := streamLogCtx.EnrichLogger(h.logger)
 	writeChatSSEError := func(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) {
 		if streamWriterBroken {
 			logger.Error("OpenAI Chat 原生流式连接已不可恢复，跳过补写错误事件",
@@ -180,7 +186,6 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 			return
 		}
 
-		logger.Warn("已补写 OpenAI Chat 原生流式错误事件", "stream_phase", "streaming", "error_write", "sent")
 		if flusher != nil {
 			flusher.Flush()
 		}
@@ -216,12 +221,6 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	}
 
 	if firstResult.ProtocolError != nil && firstResult.ProtocolError.ShouldProxyAsHTTPError {
-		logger.Warn("OpenAI Chat 原生流式建流前收到可代理 HTTP 协议错误",
-			"status_code", firstResult.ProtocolError.StatusCode,
-			"error_type", firstResult.ProtocolError.ErrorType,
-			"error_code", firstResult.ProtocolError.ErrorCode,
-			"stream_phase", "pre_stream",
-		)
 		c.JSON(
 			firstResult.ProtocolError.StatusCode,
 			common.NewOpenAIHTTPErrorResponse(firstResult.ProtocolError.Message, firstResult.ProtocolError.StatusCode, nil, firstResult.ProtocolError),
@@ -236,12 +235,6 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 		if result.ProtocolError != nil {
 			streamFailed = true
 			cancel()
-			logger.Warn("上游返回 OpenAI Chat 原生流式协议错误事件",
-				"status_code", result.ProtocolError.StatusCode,
-				"error_type", result.ProtocolError.ErrorType,
-				"error_code", result.ProtocolError.ErrorCode,
-				"stream_phase", "streaming",
-			)
 			writeChatSSEError(result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError)
 			return true
 		}
@@ -309,8 +302,10 @@ func (h *Handler) streamOpenAIChat(c *gin.Context, req *openaiChatTypes.Request,
 	}
 }
 
-func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesTypes.Request, sendDone bool) {
-	ctx, cancel := context.WithCancel(c.Request.Context())
+func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesTypes.Request, logCtx common.RequestLogContext, sendDone bool) {
+	streamLogCtx := logCtx.WithExtra(map[string]string{"protocol_mode": "sse", "flow": "stream"})
+	ctx := streamLogCtx.WithContext(c.Request.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	resultChan := h.gatewayService.OpenAINativeResponsesStreamResult(ctx, req)
 
@@ -332,7 +327,7 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	streamWriterBroken := false
 	streamStarted := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "openai", "api_style", "native", "request_name", "responses", "protocol_mode", "sse", "flow", "stream")
+	logger := streamLogCtx.EnrichLogger(h.logger)
 	writeResponsesSSEError := func(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) {
 		if streamWriterBroken {
 			logger.Error("OpenAI Responses 原生流式连接已不可恢复，跳过补写错误事件",
@@ -357,7 +352,6 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 			return
 		}
 
-		logger.Warn("已补写 OpenAI Responses 原生流式错误事件", "stream_phase", "streaming", "error_write", "sent")
 		if flusher != nil {
 			flusher.Flush()
 		}
@@ -393,12 +387,6 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 	}
 
 	if firstResult.ProtocolError != nil && firstResult.ProtocolError.ShouldProxyAsHTTPError {
-		logger.Warn("OpenAI Responses 原生流式建流前收到可代理 HTTP 协议错误",
-			"status_code", firstResult.ProtocolError.StatusCode,
-			"error_type", firstResult.ProtocolError.ErrorType,
-			"error_code", firstResult.ProtocolError.ErrorCode,
-			"stream_phase", "pre_stream",
-		)
 		c.JSON(
 			firstResult.ProtocolError.StatusCode,
 			common.NewOpenAIHTTPErrorResponse(firstResult.ProtocolError.Message, firstResult.ProtocolError.StatusCode, nil, firstResult.ProtocolError),
@@ -413,12 +401,6 @@ func (h *Handler) streamOpenAIResponses(c *gin.Context, req *openaiResponsesType
 		if result.ProtocolError != nil {
 			streamFailed = true
 			cancel()
-			logger.Warn("上游返回 OpenAI Responses 原生流式协议错误事件",
-				"status_code", result.ProtocolError.StatusCode,
-				"error_type", result.ProtocolError.ErrorType,
-				"error_code", result.ProtocolError.ErrorCode,
-				"stream_phase", "streaming",
-			)
 			writeResponsesSSEError(result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError)
 			return true
 		}

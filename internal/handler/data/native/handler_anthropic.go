@@ -30,13 +30,18 @@ import (
 //	@Router       /multi/native/v1/messages [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) AnthropicMessages(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "native", "request_name", "messages", "protocol_mode", "auto")
+	logCtx := common.NewRequestLogContext(c, "anthropic", "native", "messages").
+		WithExtra(map[string]string{"protocol_mode": "auto"})
+	logger := logCtx.EnrichLogger(h.logger)
+
 	var req anthropicTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("请求参数绑定失败", "error", err)
 		c.JSON(http.StatusBadRequest, common.NewAnthropicErrorResponse(fmt.Sprintf("无效的请求体: %v", err), http.StatusBadRequest, err))
 		return
 	}
+
+	logCtx = logCtx.WithModel(req.Model)
 
 	// 处理并透传 HTTP 头部
 	if req.Headers == nil {
@@ -45,7 +50,7 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 	common.ApplyHTTPHeaders(req.Headers, h.userAgent, h.passthroughHeaders, c)
 
 	if req.Stream != nil && *req.Stream {
-		h.streamAnthropic(c, &req)
+		h.streamAnthropic(c, &req, logCtx)
 		return
 	}
 
@@ -54,14 +59,10 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 		defer h.collector.DecrementConnection()
 	}
 
-	resp, err := h.gatewayService.AnthropicNativeMessages(c.Request.Context(), &req)
+	ctx := logCtx.WithContext(c.Request.Context())
+	resp, err := h.gatewayService.AnthropicNativeMessages(ctx, &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
-		logger.Warn("Anthropic 原生 Messages 请求失败，返回 HTTP JSON 错误",
-			"status_code", mappedErr.StatusCode,
-			"error_type", mappedErr.ErrorType,
-			"error_code", mappedErr.ErrorCode,
-		)
 		c.JSON(mappedErr.StatusCode, common.NewAnthropicErrorResponse(mappedErr.Message, mappedErr.StatusCode, err, &mappedErr))
 		return
 	}
@@ -69,8 +70,10 @@ func (h *Handler) AnthropicMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
-	ctx, cancel := context.WithCancel(c.Request.Context())
+func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request, logCtx common.RequestLogContext) {
+	streamLogCtx := logCtx.WithExtra(map[string]string{"protocol_mode": "sse", "flow": "stream"})
+	ctx := streamLogCtx.WithContext(c.Request.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	resultChan := h.gatewayService.AnthropicNativeMessagesStreamResult(ctx, req)
 
@@ -91,14 +94,14 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 	streamWriterBroken := false
 	streamStarted := false
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "anthropic", "api_style", "native", "request_name", "messages", "protocol_mode", "sse", "flow", "stream")
+	logger := streamLogCtx.EnrichLogger(h.logger)
 	defer func() {
 		if r := recover(); r != nil {
 			cancel()
 			stack := debug.Stack()
 			stackLines := strings.Split(strings.TrimSpace(string(stack)), "\n")
-			logger.Error("原生流处理异常", "panic", r, "stack", stackLines, "stream_phase", "panic")
 			panicErr := fmt.Errorf("panic: %v", r)
+			logger.Error("原生流处理异常", "panic", r, "stack", stackLines, "stream_phase", "panic")
 			if !streamStarted {
 				c.JSON(http.StatusInternalServerError, common.NewAnthropicErrorResponse("服务器内部错误", http.StatusInternalServerError, panicErr))
 				return
@@ -129,12 +132,6 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 	}
 
 	if firstResult.ProtocolError != nil && firstResult.ProtocolError.ShouldProxyAsHTTPError {
-		logger.Warn("Anthropic 原生流式建流前收到可代理 HTTP 协议错误",
-			"status_code", firstResult.ProtocolError.StatusCode,
-			"error_type", firstResult.ProtocolError.ErrorType,
-			"error_code", firstResult.ProtocolError.ErrorCode,
-			"stream_phase", "pre_stream",
-		)
 		c.JSON(
 			firstResult.ProtocolError.StatusCode,
 			common.NewAnthropicErrorResponse(firstResult.ProtocolError.Message, firstResult.ProtocolError.StatusCode, nil, firstResult.ProtocolError),
@@ -148,13 +145,6 @@ func (h *Handler) streamAnthropic(c *gin.Context, req *anthropicTypes.Request) {
 	writeResult := func(result gateway.AnthropicStreamResult) bool {
 		if result.ProtocolError != nil {
 			cancel()
-			logger.Warn("上游返回 Anthropic 原生流式协议错误事件",
-				"event_type", result.EventType,
-				"status_code", result.ProtocolError.StatusCode,
-				"error_type", result.ProtocolError.ErrorType,
-				"error_code", result.ProtocolError.ErrorCode,
-				"stream_phase", "streaming",
-			)
 
 			if err := common.WriteAnthropicSSEError(c.Writer, result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError); err != nil {
 				if common.IsAnthropicStreamWriteError(err) {

@@ -31,7 +31,10 @@ import (
 //	@Router       /multi/native/v1beta/models/{model}:generateContent [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) GeminiGenerateContent(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "native", "request_name", "generate_content", "protocol_mode", "json")
+	logCtx := common.NewRequestLogContext(c, "gemini", "native", "generate_content").
+		WithExtra(map[string]string{"protocol_mode": "json"})
+	logger := logCtx.EnrichLogger(h.logger)
+
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("请求参数绑定失败", "error", err)
@@ -57,19 +60,17 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 		return
 	}
 
+	logCtx = logCtx.WithModel(req.Model)
+
 	if h.collector != nil {
 		h.collector.IncrementConnection()
 		defer h.collector.DecrementConnection()
 	}
 
-	resp, err := h.gatewayService.GeminiNativeGenerateContent(c.Request.Context(), &req)
+	ctx := logCtx.WithContext(c.Request.Context())
+	resp, err := h.gatewayService.GeminiNativeGenerateContent(ctx, &req)
 	if err != nil {
 		mappedErr := h.gatewayService.MapDataPlaneError(err, "请求失败")
-		logger.Warn("Gemini 原生 generateContent 请求失败，返回 HTTP JSON 错误",
-			"status_code", mappedErr.StatusCode,
-			"error_type", mappedErr.ErrorType,
-			"error_code", mappedErr.ErrorCode,
-		)
 		common.WriteGeminiJSONError(c, mappedErr.StatusCode, mappedErr.Message, err, &mappedErr)
 		return
 	}
@@ -93,7 +94,10 @@ func (h *Handler) GeminiGenerateContent(c *gin.Context) {
 //	@Router       /multi/native/v1beta/models/{model}:streamGenerateContent [post]
 //	@Security     ApiKeyAuth
 func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "native", "request_name", "stream_generate_content", "protocol_mode", "json")
+	logCtx := common.NewRequestLogContext(c, "gemini", "native", "stream_generate_content").
+		WithExtra(map[string]string{"protocol_mode": "json"})
+	logger := logCtx.EnrichLogger(h.logger)
+
 	var req geminiTypes.Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Warn("请求参数绑定失败", "error", err)
@@ -119,11 +123,15 @@ func (h *Handler) GeminiStreamGenerateContent(c *gin.Context) {
 		return
 	}
 
-	h.streamGemini(c, &req)
+	logCtx = logCtx.WithModel(req.Model)
+
+	h.streamGemini(c, &req, logCtx)
 }
 
-func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
-	ctx, cancel := context.WithCancel(c.Request.Context())
+func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request, logCtx common.RequestLogContext) {
+	streamLogCtx := logCtx.WithExtra(map[string]string{"protocol_mode": "sse", "flow": "stream"})
+	ctx := streamLogCtx.WithContext(c.Request.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	resultChan := h.gatewayService.GeminiNativeGenerateContentStreamResult(ctx, req)
 
@@ -145,7 +153,7 @@ func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 	streamStarted := false
 	canWriteErrorChunk := true
 
-	logger := h.logger.With("path", c.Request.URL.Path, "method", c.Request.Method, "provider", "gemini", "api_style", "native", "request_name", "stream_generate_content", "protocol_mode", "sse", "flow", "stream")
+	logger := streamLogCtx.EnrichLogger(h.logger)
 	writeGeminiStreamError := func(message string, status int, err error, protocolErr ...*gateway.DataPlaneError) {
 		if !canWriteErrorChunk {
 			logger.Error("Gemini 流式连接已不可恢复，跳过错误块补写", "stream_phase", "streaming")
@@ -187,12 +195,6 @@ func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 	}
 
 	if firstResult.ProtocolError != nil && firstResult.ProtocolError.ShouldProxyAsHTTPError {
-		logger.Warn("Gemini 原生流式建流前收到可代理 HTTP 协议错误",
-			"status_code", firstResult.ProtocolError.StatusCode,
-			"error_type", firstResult.ProtocolError.ErrorType,
-			"error_code", firstResult.ProtocolError.ErrorCode,
-			"stream_phase", "pre_stream",
-		)
 		common.WriteGeminiJSONError(
 			c,
 			firstResult.ProtocolError.StatusCode,
@@ -210,14 +212,6 @@ func (h *Handler) streamGemini(c *gin.Context, req *geminiTypes.Request) {
 		if result.ProtocolError != nil {
 			streamFailed = true
 			cancel()
-			logger.Warn("Gemini 原生流中收到协议错误，终止流",
-				"status_code", result.ProtocolError.StatusCode,
-				"error_type", result.ProtocolError.ErrorType,
-				"error_code", result.ProtocolError.ErrorCode,
-				"stream_phase", "streaming",
-				"terminal", result.Terminal,
-				"done", result.Done,
-			)
 			writeGeminiStreamError(result.ProtocolError.Message, result.ProtocolError.StatusCode, nil, result.ProtocolError)
 			return true
 		}
