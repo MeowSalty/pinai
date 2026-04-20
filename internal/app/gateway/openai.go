@@ -400,7 +400,7 @@ func (s *service) OpenAINativeChatCompletion(ctx context.Context, req *openaiCha
 }
 
 func (s *service) executeOpenAIChatCompletion(ctx context.Context, req *openaiChatTypes.Request, loggerGroup, requestName string, invoker openAIChatCompletionInvoker) (*openaiChatTypes.Response, error) {
-	logger := s.logger.WithGroup(loggerGroup)
+	logger := enrichLoggerFromContext(ctx, s.logger.WithGroup(loggerGroup))
 	modelName := ""
 	if req != nil {
 		modelName = req.Model
@@ -411,7 +411,7 @@ func (s *service) executeOpenAIChatCompletion(ctx context.Context, req *openaiCh
 	resp, err := invoker(ctx, req)
 	duration := time.Since(startTime)
 	if err != nil {
-		logger.Error("非流式请求失败", "request_name", requestName, "error", err, "duration", duration, "model", modelName)
+		s.logNonStreamError(logger, requestName, err, duration, modelName)
 		return nil, fmt.Errorf("处理 %s 请求失败：%w", requestName, err)
 	}
 
@@ -420,7 +420,7 @@ func (s *service) executeOpenAIChatCompletion(ctx context.Context, req *openaiCh
 }
 
 func (s *service) executeOpenAIResponses(ctx context.Context, req *openaiResponsesTypes.Request, loggerGroup, requestName string, invoker openAIResponsesInvoker) (*openaiResponsesTypes.Response, error) {
-	logger := s.logger.WithGroup(loggerGroup)
+	logger := enrichLoggerFromContext(ctx, s.logger.WithGroup(loggerGroup))
 	modelName := ""
 	if req != nil && req.Model != nil {
 		modelName = *req.Model
@@ -431,7 +431,7 @@ func (s *service) executeOpenAIResponses(ctx context.Context, req *openaiRespons
 	resp, err := invoker(ctx, req)
 	duration := time.Since(startTime)
 	if err != nil {
-		logger.Error("非流式请求失败", "request_name", requestName, "error", err, "duration", duration, "model", modelName)
+		s.logNonStreamError(logger, requestName, err, duration, modelName)
 		return nil, fmt.Errorf("处理 %s 请求失败：%w", requestName, err)
 	}
 

@@ -21,7 +21,7 @@ func (s *service) GeminiNativeGenerateContent(ctx context.Context, req *geminiTy
 }
 
 func (s *service) executeGeminiGenerateContent(ctx context.Context, req *geminiTypes.Request, loggerGroup, requestName string, invoker geminiGenerateContentInvoker) (*geminiTypes.Response, error) {
-	logger := s.logger.WithGroup(loggerGroup)
+	logger := enrichLoggerFromContext(ctx, s.logger.WithGroup(loggerGroup))
 	modelName := ""
 	if req != nil {
 		modelName = req.Model
@@ -33,7 +33,7 @@ func (s *service) executeGeminiGenerateContent(ctx context.Context, req *geminiT
 	resp, err := invoker(ctx, req)
 	duration := time.Since(startTime)
 	if err != nil {
-		logger.Error("非流式请求失败", "request_name", requestName, "error", err, "duration", duration, "model", modelName)
+		s.logNonStreamError(logger, requestName, err, duration, modelName)
 		return nil, fmt.Errorf("处理 %s 请求失败：%w", requestName, err)
 	}
 

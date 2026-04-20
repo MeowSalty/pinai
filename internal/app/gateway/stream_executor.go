@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"log/slog"
+	"time"
 )
 
 // logCtxAttrsFromContext 从 context.Context 提取日志上下文属性。
@@ -22,6 +23,31 @@ func RegisterLogCtxAttrsFromContext(fn func(context.Context) []any) {
 	}
 }
 
+// enrichLoggerFromContext 从 context.Context 读取统一日志上下文字段并附加到 logger。
+//
+// 复用 logCtxAttrsFromContext 桥接函数，过滤掉 gateway 侧已通过参数管理的
+// request_name 和 model 字段，防止重复。
+// 未注册桥接函数或上下文中无字段时返回原始 logger，不影响现有日志行为。
+func enrichLoggerFromContext(ctx context.Context, base *slog.Logger) *slog.Logger {
+	ctxAttrs := logCtxAttrsFromContext(ctx)
+	if len(ctxAttrs) == 0 {
+		return base
+	}
+	filtered := make([]any, 0, len(ctxAttrs))
+	for i := 0; i+1 < len(ctxAttrs); i += 2 {
+		if key, isStr := ctxAttrs[i].(string); isStr {
+			if key == "request_name" || key == "model" {
+				continue
+			}
+			filtered = append(filtered, ctxAttrs[i], ctxAttrs[i+1])
+		}
+	}
+	if len(filtered) == 0 {
+		return base
+	}
+	return base.With(filtered...)
+}
+
 // streamLogContext 承载流式请求的日志上下文。
 //
 // logger 已附加 WithGroup(loggerGroup) 以及从 context.Context 透传的统一日志字段；
@@ -38,25 +64,7 @@ type streamLogContext struct {
 // 同时保留 gateway 侧的 request_name 和 model 字段，避免上下文字段退化。
 // request_name 和 model 从上下文字段中过滤，防止与 gateway 侧 attrs 重复。
 func newStreamLogContext(ctx context.Context, baseLogger *slog.Logger, loggerGroup, requestName, modelName string) streamLogContext {
-	logger := baseLogger.WithGroup(loggerGroup)
-
-	// 从 context.Context 读取 Handler 透传的统一日志上下文
-	ctxAttrs := logCtxAttrsFromContext(ctx)
-	if len(ctxAttrs) > 0 {
-		// 过滤掉 gateway 侧已通过 attrs 管理的 request_name 和 model，防止重复
-		filtered := make([]any, 0, len(ctxAttrs))
-		for i := 0; i+1 < len(ctxAttrs); i += 2 {
-			if key, isStr := ctxAttrs[i].(string); isStr {
-				if key == "request_name" || key == "model" {
-					continue
-				}
-				filtered = append(filtered, ctxAttrs[i], ctxAttrs[i+1])
-			}
-		}
-		if len(filtered) > 0 {
-			logger = logger.With(filtered...)
-		}
-	}
+	logger := enrichLoggerFromContext(ctx, baseLogger.WithGroup(loggerGroup))
 
 	return streamLogContext{
 		logger: logger,
@@ -85,4 +93,32 @@ func logStreamComplete(streamCtx streamLogContext, reason string, extraAttrs ...
 	attrs = append(attrs, "reason", reason)
 	attrs = append(attrs, extraAttrs...)
 	streamCtx.logger.Info("流式请求完成", attrs...)
+}
+
+// logNonStreamError 根据上游错误的状态码选择日志级别并记录非流式请求错误。
+//
+// 上游 4xx 协议错误记 WARN，上游 5xx 及本地执行异常记 ERROR。
+// 通过 MapDataPlaneError 提取结构化状态码，确保分级边界清晰。
+func (s *service) logNonStreamError(logger *slog.Logger, requestName string, err error, duration time.Duration, modelName string) {
+	mapped := s.MapDataPlaneError(err, requestName)
+	attrs := []any{
+		"request_name", requestName,
+		"error", err,
+		"duration", duration,
+		"model", modelName,
+		"status_code", mapped.StatusCode,
+		"error_type", mapped.ErrorType,
+	}
+	if mapped.ErrorCode != "" {
+		attrs = append(attrs, "error_code", mapped.ErrorCode)
+	}
+	if mapped.Provider != "" {
+		attrs = append(attrs, "provider", mapped.Provider)
+	}
+
+	if mapped.StatusCode >= 400 && mapped.StatusCode < 500 {
+		logger.Warn("非流式请求上游返回协议错误", attrs...)
+	} else {
+		logger.Error("非流式请求执行失败", attrs...)
+	}
 }

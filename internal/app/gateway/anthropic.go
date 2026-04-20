@@ -21,7 +21,7 @@ func (s *service) AnthropicNativeMessages(ctx context.Context, req *anthropicTyp
 }
 
 func (s *service) executeAnthropicMessages(ctx context.Context, req *anthropicTypes.Request, loggerGroup, requestName string, invoker anthropicMessagesInvoker) (*anthropicTypes.Response, error) {
-	logger := s.logger.WithGroup(loggerGroup)
+	logger := enrichLoggerFromContext(ctx, s.logger.WithGroup(loggerGroup))
 	modelName := ""
 	if req != nil {
 		modelName = req.Model
@@ -33,7 +33,7 @@ func (s *service) executeAnthropicMessages(ctx context.Context, req *anthropicTy
 	resp, err := invoker(ctx, req)
 	duration := time.Since(startTime)
 	if err != nil {
-		logger.Error("非流式请求失败", "request_name", requestName, "error", err, "duration", duration, "model", modelName)
+		s.logNonStreamError(logger, requestName, err, duration, modelName)
 		return nil, fmt.Errorf("处理 %s 请求失败：%w", requestName, err)
 	}
 
