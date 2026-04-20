@@ -114,7 +114,7 @@ func normalizeAnthropicStream(streamCtx streamLogContext, source <-chan *anthrop
 	go func() {
 		defer close(out)
 
-		streamCtx.logger.Info("开始消费 Anthropic 流式结果", streamCtx.attrs...)
+		streamCtx.logger.Debug("开始消费 Anthropic 流式结果", streamCtx.attrs...)
 		for event := range source {
 			eventType, ok := anthropicStreamEventType(event)
 			if !ok {
@@ -149,18 +149,16 @@ func normalizeAnthropicStream(streamCtx streamLogContext, source <-chan *anthrop
 
 			out <- result
 			if result.Done {
-				streamCtx.logger.Info("Anthropic 流式结束条件满足",
-					append(streamCtx.attrs,
-						"event_type", result.EventType,
-						"terminal", result.Terminal,
-						"has_protocol_error", result.ProtocolError != nil,
-					)...,
+				logStreamComplete(streamCtx, "done",
+					"event_type", result.EventType,
+					"terminal", result.Terminal,
+					"has_protocol_error", result.ProtocolError != nil,
 				)
 				return
 			}
 		}
 
-		streamCtx.logger.Info("Anthropic 流式上游通道关闭", streamCtx.attrs...)
+		logStreamComplete(streamCtx, "channel_closed")
 	}()
 
 	return out
@@ -168,7 +166,7 @@ func normalizeAnthropicStream(streamCtx streamLogContext, source <-chan *anthrop
 
 // AnthropicNativeMessagesStream 处理 Anthropic native Messages 流式请求。
 func (s *service) AnthropicNativeMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent {
-	streamCtx := newStreamLogContext(s.logger, "anthropic_native_messages_stream", "Anthropic native Messages", anthropicModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "anthropic_native_messages_stream", "Anthropic native Messages", anthropicModelFromRequest(req))
 	return startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
 		return s.portalService.NativeAnthropicMessagesStream(ctx, req)
 	})
@@ -176,7 +174,7 @@ func (s *service) AnthropicNativeMessagesStream(ctx context.Context, req *anthro
 
 // AnthropicNativeMessagesStreamResult 处理 Anthropic native Messages 流式请求并返回最小收口结果。
 func (s *service) AnthropicNativeMessagesStreamResult(ctx context.Context, req *anthropicTypes.Request) <-chan AnthropicStreamResult {
-	streamCtx := newStreamLogContext(s.logger, "anthropic_native_messages_stream_result", "Anthropic native Messages", anthropicModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "anthropic_native_messages_stream_result", "Anthropic native Messages", anthropicModelFromRequest(req))
 	rawStream := startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
 		return s.portalService.NativeAnthropicMessagesStream(ctx, req)
 	})
@@ -193,7 +191,7 @@ func (s *service) AnthropicCompatMessages(ctx context.Context, req *anthropicTyp
 
 // AnthropicCompatMessagesStream 处理 Anthropic compat Messages 流式请求。
 func (s *service) AnthropicCompatMessagesStream(ctx context.Context, req *anthropicTypes.Request) <-chan *anthropicTypes.StreamEvent {
-	streamCtx := newStreamLogContext(s.logger, "anthropic_compat_messages_stream", "Anthropic compat Messages", anthropicModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "anthropic_compat_messages_stream", "Anthropic compat Messages", anthropicModelFromRequest(req))
 	return startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
 		return s.portalService.NativeAnthropicMessagesStream(ctx, req, portalLib.WithCompatMode())
 	})
@@ -201,7 +199,7 @@ func (s *service) AnthropicCompatMessagesStream(ctx context.Context, req *anthro
 
 // AnthropicCompatMessagesStreamResult 处理 Anthropic compat Messages 流式请求并返回最小收口结果。
 func (s *service) AnthropicCompatMessagesStreamResult(ctx context.Context, req *anthropicTypes.Request) <-chan AnthropicStreamResult {
-	streamCtx := newStreamLogContext(s.logger, "anthropic_compat_messages_stream_result", "Anthropic compat Messages", anthropicModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "anthropic_compat_messages_stream_result", "Anthropic compat Messages", anthropicModelFromRequest(req))
 	rawStream := startStream(streamCtx, func() <-chan *anthropicTypes.StreamEvent {
 		return s.portalService.NativeAnthropicMessagesStream(ctx, req, portalLib.WithCompatMode())
 	})

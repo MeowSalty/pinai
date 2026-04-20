@@ -231,7 +231,7 @@ func normalizeOpenAIResponsesStream(streamCtx streamLogContext, source <-chan *o
 	go func() {
 		defer close(out)
 
-		streamCtx.logger.Info("开始消费 OpenAI Responses 流式结果", streamCtx.attrs...)
+		streamCtx.logger.Debug("开始消费 OpenAI Responses 流式结果", streamCtx.attrs...)
 		for event := range source {
 			if event == nil {
 				streamCtx.logger.Debug("忽略空 OpenAI Responses 流式事件", streamCtx.attrs...)
@@ -263,17 +263,15 @@ func normalizeOpenAIResponsesStream(streamCtx streamLogContext, source <-chan *o
 
 			out <- result
 			if result.Done {
-				streamCtx.logger.Info("OpenAI Responses 流式结束条件满足",
-					append(streamCtx.attrs,
-						"terminal", result.Terminal,
-						"has_protocol_error", result.ProtocolError != nil,
-					)...,
+				logStreamComplete(streamCtx, "done",
+					"terminal", result.Terminal,
+					"has_protocol_error", result.ProtocolError != nil,
 				)
 				return
 			}
 		}
 
-		streamCtx.logger.Info("OpenAI Responses 流式上游通道关闭", streamCtx.attrs...)
+		logStreamComplete(streamCtx, "channel_closed")
 	}()
 
 	return out
@@ -298,7 +296,7 @@ func normalizeOpenAIChatStream(streamCtx streamLogContext, source <-chan *openai
 	go func() {
 		defer close(out)
 
-		streamCtx.logger.Info("开始消费 OpenAI Chat 流式结果", streamCtx.attrs...)
+		streamCtx.logger.Debug("开始消费 OpenAI Chat 流式结果", streamCtx.attrs...)
 		for event := range source {
 			if event == nil {
 				streamCtx.logger.Debug("忽略空 OpenAI Chat 流式事件", streamCtx.attrs...)
@@ -330,12 +328,15 @@ func normalizeOpenAIChatStream(streamCtx streamLogContext, source <-chan *openai
 
 			out <- result
 			if result.Done {
-				streamCtx.logger.Info("OpenAI Chat 流式结束条件满足", streamCtx.attrs...)
+				logStreamComplete(streamCtx, "done",
+					"terminal", result.Terminal,
+					"has_protocol_error", result.ProtocolError != nil,
+				)
 				return
 			}
 		}
 
-		streamCtx.logger.Info("OpenAI Chat 流式上游通道关闭", streamCtx.attrs...)
+		logStreamComplete(streamCtx, "channel_closed")
 	}()
 
 	return out
@@ -350,7 +351,7 @@ func (s *service) OpenAICompatChatCompletion(ctx context.Context, req *openaiCha
 
 // OpenAICompatChatCompletionStream 处理 OpenAI compat Chat Completions 流式请求。
 func (s *service) OpenAICompatChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent {
-	streamCtx := newStreamLogContext(s.logger, "openai_compat_chat_completion_stream", "OpenAI compat Chat Completions", openAIChatModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "openai_compat_chat_completion_stream", "OpenAI compat Chat Completions", openAIChatModelFromRequest(req))
 	return startStream(streamCtx, func() <-chan *openaiChatTypes.StreamEvent {
 		return s.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
 	})
@@ -358,7 +359,7 @@ func (s *service) OpenAICompatChatCompletionStream(ctx context.Context, req *ope
 
 // OpenAICompatChatCompletionStreamResult 处理 OpenAI compat Chat Completions 流式请求并返回最小收口结果。
 func (s *service) OpenAICompatChatCompletionStreamResult(ctx context.Context, req *openaiChatTypes.Request) <-chan OpenAIChatStreamResult {
-	streamCtx := newStreamLogContext(s.logger, "openai_compat_chat_completion_stream_result", "OpenAI compat Chat Completions", openAIChatModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "openai_compat_chat_completion_stream_result", "OpenAI compat Chat Completions", openAIChatModelFromRequest(req))
 	rawStream := startStream(streamCtx, func() <-chan *openaiChatTypes.StreamEvent {
 		return s.portalService.NativeOpenAIChatCompletionStream(ctx, req, portalLib.WithCompatMode())
 	})
@@ -375,7 +376,7 @@ func (s *service) OpenAICompatResponses(ctx context.Context, req *openaiResponse
 
 // OpenAICompatResponsesStream 处理 OpenAI compat Responses 流式请求。
 func (s *service) OpenAICompatResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent {
-	streamCtx := newStreamLogContext(s.logger, "openai_compat_responses_stream", "OpenAI compat Responses", openAIResponsesModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "openai_compat_responses_stream", "OpenAI compat Responses", openAIResponsesModelFromRequest(req))
 	return startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
 		return s.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
 	})
@@ -383,7 +384,7 @@ func (s *service) OpenAICompatResponsesStream(ctx context.Context, req *openaiRe
 
 // OpenAICompatResponsesStreamResult 处理 OpenAI compat Responses 流式请求并返回最小收口结果。
 func (s *service) OpenAICompatResponsesStreamResult(ctx context.Context, req *openaiResponsesTypes.Request) <-chan OpenAIResponsesStreamResult {
-	streamCtx := newStreamLogContext(s.logger, "openai_compat_responses_stream_result", "OpenAI compat Responses", openAIResponsesModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "openai_compat_responses_stream_result", "OpenAI compat Responses", openAIResponsesModelFromRequest(req))
 	rawStream := startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
 		return s.portalService.NativeOpenAIResponsesStream(ctx, req, portalLib.WithCompatMode())
 	})
@@ -440,7 +441,7 @@ func (s *service) executeOpenAIResponses(ctx context.Context, req *openaiRespons
 
 // OpenAINativeChatCompletionStream 处理 OpenAI native Chat Completions 流式请求。
 func (s *service) OpenAINativeChatCompletionStream(ctx context.Context, req *openaiChatTypes.Request) <-chan *openaiChatTypes.StreamEvent {
-	streamCtx := newStreamLogContext(s.logger, "openai_native_chat_completion_stream", "OpenAI native Chat Completions", openAIChatModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "openai_native_chat_completion_stream", "OpenAI native Chat Completions", openAIChatModelFromRequest(req))
 	return startStream(streamCtx, func() <-chan *openaiChatTypes.StreamEvent {
 		return s.portalService.NativeOpenAIChatCompletionStream(ctx, req)
 	})
@@ -448,7 +449,7 @@ func (s *service) OpenAINativeChatCompletionStream(ctx context.Context, req *ope
 
 // OpenAINativeChatCompletionStreamResult 处理 OpenAI native Chat Completions 流式请求并返回最小收口结果。
 func (s *service) OpenAINativeChatCompletionStreamResult(ctx context.Context, req *openaiChatTypes.Request) <-chan OpenAIChatStreamResult {
-	streamCtx := newStreamLogContext(s.logger, "openai_native_chat_completion_stream_result", "OpenAI native Chat Completions", openAIChatModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "openai_native_chat_completion_stream_result", "OpenAI native Chat Completions", openAIChatModelFromRequest(req))
 	rawStream := startStream(streamCtx, func() <-chan *openaiChatTypes.StreamEvent {
 		return s.portalService.NativeOpenAIChatCompletionStream(ctx, req)
 	})
@@ -465,7 +466,7 @@ func (s *service) OpenAINativeResponses(ctx context.Context, req *openaiResponse
 
 // OpenAINativeResponsesStream 处理 OpenAI native Responses 流式请求。
 func (s *service) OpenAINativeResponsesStream(ctx context.Context, req *openaiResponsesTypes.Request) <-chan *openaiResponsesTypes.StreamEvent {
-	streamCtx := newStreamLogContext(s.logger, "openai_native_responses_stream", "OpenAI native Responses", openAIResponsesModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "openai_native_responses_stream", "OpenAI native Responses", openAIResponsesModelFromRequest(req))
 	return startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
 		return s.portalService.NativeOpenAIResponsesStream(ctx, req)
 	})
@@ -473,7 +474,7 @@ func (s *service) OpenAINativeResponsesStream(ctx context.Context, req *openaiRe
 
 // OpenAINativeResponsesStreamResult 处理 OpenAI native Responses 流式请求并返回最小收口结果。
 func (s *service) OpenAINativeResponsesStreamResult(ctx context.Context, req *openaiResponsesTypes.Request) <-chan OpenAIResponsesStreamResult {
-	streamCtx := newStreamLogContext(s.logger, "openai_native_responses_stream_result", "OpenAI native Responses", openAIResponsesModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "openai_native_responses_stream_result", "OpenAI native Responses", openAIResponsesModelFromRequest(req))
 	rawStream := startStream(streamCtx, func() <-chan *openaiResponsesTypes.StreamEvent {
 		return s.portalService.NativeOpenAIResponsesStream(ctx, req)
 	})

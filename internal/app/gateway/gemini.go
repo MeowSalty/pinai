@@ -161,7 +161,7 @@ func normalizeGeminiStream(streamCtx streamLogContext, source <-chan *geminiType
 	go func() {
 		defer close(out)
 
-		streamCtx.logger.Info("开始消费 Gemini 流式结果", streamCtx.attrs...)
+		streamCtx.logger.Debug("开始消费 Gemini 流式结果", streamCtx.attrs...)
 		for event := range source {
 			if event == nil {
 				streamCtx.logger.Debug("忽略空 Gemini 流式事件", streamCtx.attrs...)
@@ -205,17 +205,15 @@ func normalizeGeminiStream(streamCtx streamLogContext, source <-chan *geminiType
 
 			out <- result
 			if result.Done {
-				streamCtx.logger.Info("Gemini 流式结束条件满足",
-					append(streamCtx.attrs,
-						"terminal", result.Terminal,
-						"has_protocol_error", result.ProtocolError != nil,
-					)...,
+				logStreamComplete(streamCtx, "done",
+					"terminal", result.Terminal,
+					"has_protocol_error", result.ProtocolError != nil,
 				)
 				return
 			}
 		}
 
-		streamCtx.logger.Info("Gemini 流式上游通道关闭", streamCtx.attrs...)
+		logStreamComplete(streamCtx, "channel_closed")
 	}()
 
 	return out
@@ -223,7 +221,7 @@ func normalizeGeminiStream(streamCtx streamLogContext, source <-chan *geminiType
 
 // GeminiNativeGenerateContentStream 处理 Gemini native streamGenerateContent 流式请求。
 func (s *service) GeminiNativeGenerateContentStream(ctx context.Context, req *geminiTypes.Request) <-chan *geminiTypes.StreamEvent {
-	streamCtx := newStreamLogContext(s.logger, "gemini_native_generate_content_stream", "Gemini native streamGenerateContent", geminiModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "gemini_native_generate_content_stream", "Gemini native streamGenerateContent", geminiModelFromRequest(req))
 	return startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
 		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req)
 	})
@@ -231,7 +229,7 @@ func (s *service) GeminiNativeGenerateContentStream(ctx context.Context, req *ge
 
 // GeminiNativeGenerateContentStreamResult 处理 Gemini native streamGenerateContent 流式请求并返回最小收口结果。
 func (s *service) GeminiNativeGenerateContentStreamResult(ctx context.Context, req *geminiTypes.Request) <-chan GeminiStreamResult {
-	streamCtx := newStreamLogContext(s.logger, "gemini_native_generate_content_stream_result", "Gemini native streamGenerateContent", geminiModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "gemini_native_generate_content_stream_result", "Gemini native streamGenerateContent", geminiModelFromRequest(req))
 	rawStream := startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
 		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req)
 	})
@@ -248,7 +246,7 @@ func (s *service) GeminiCompatGenerateContent(ctx context.Context, req *geminiTy
 
 // GeminiCompatGenerateContentStream 处理 Gemini compat streamGenerateContent 流式请求。
 func (s *service) GeminiCompatGenerateContentStream(ctx context.Context, req *geminiTypes.Request) <-chan *geminiTypes.StreamEvent {
-	streamCtx := newStreamLogContext(s.logger, "gemini_compat_generate_content_stream", "Gemini compat streamGenerateContent", geminiModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "gemini_compat_generate_content_stream", "Gemini compat streamGenerateContent", geminiModelFromRequest(req))
 	return startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
 		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req, portalLib.WithCompatMode())
 	})
@@ -256,7 +254,7 @@ func (s *service) GeminiCompatGenerateContentStream(ctx context.Context, req *ge
 
 // GeminiCompatGenerateContentStreamResult 处理 Gemini compat streamGenerateContent 流式请求并返回最小收口结果。
 func (s *service) GeminiCompatGenerateContentStreamResult(ctx context.Context, req *geminiTypes.Request) <-chan GeminiStreamResult {
-	streamCtx := newStreamLogContext(s.logger, "gemini_compat_generate_content_stream_result", "Gemini compat streamGenerateContent", geminiModelFromRequest(req))
+	streamCtx := newStreamLogContext(ctx, s.logger, "gemini_compat_generate_content_stream_result", "Gemini compat streamGenerateContent", geminiModelFromRequest(req))
 	rawStream := startStream(streamCtx, func() <-chan *geminiTypes.StreamEvent {
 		return s.portalService.NativeGeminiStreamGenerateContent(ctx, req, portalLib.WithCompatMode())
 	})

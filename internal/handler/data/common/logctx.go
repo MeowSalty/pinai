@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/MeowSalty/pinai/internal/app/gateway"
 	"github.com/gin-gonic/gin"
 )
 
@@ -198,4 +199,15 @@ func requestIDFromGinContext(c *gin.Context) string {
 	}
 
 	return ""
+}
+
+func init() {
+	// 将 common.FromContext + SlogAttrs 桥接到 gateway 侧，
+	// 使 gateway 的流执行器能够从 context.Context 读取 Handler 透传的统一日志字段。
+	gateway.RegisterLogCtxAttrsFromContext(func(ctx context.Context) []any {
+		if lc, ok := FromContext(ctx); ok {
+			return lc.SlogAttrs()
+		}
+		return nil
+	})
 }
