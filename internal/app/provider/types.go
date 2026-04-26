@@ -27,6 +27,13 @@ type service struct {
 	workerDone       chan struct{}
 	workerRunning    bool
 	workerPollSecond int
+
+	taskQueue         chan uint
+	taskQueueSize     int
+	taskStateMu       sync.RWMutex
+	taskStateCache    map[uint]*ModelBatchTaskSummary
+	taskEnqueued      map[uint]struct{}
+	workerRecoverOnce sync.Once
 }
 
 // PlatformStatusCount 平台维度健康状态统计。

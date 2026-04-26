@@ -27,6 +27,9 @@ func New(logger *slog.Logger, healthStorage *health.Storage) Service {
 		controlTx:           NewQueryControlTx(),
 		controlAudit:        NewNoOpControlAuditLogger(logger.WithGroup("control_audit")),
 		workerPollSecond:    1,
+		taskQueueSize:       256,
+		taskStateCache:      make(map[uint]*ModelBatchTaskSummary),
+		taskEnqueued:        make(map[uint]struct{}),
 	}
 }
 

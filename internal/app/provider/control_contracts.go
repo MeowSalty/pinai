@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
@@ -102,7 +103,8 @@ type EndpointControlRepository interface {
 type ModelBatchTaskRepository interface {
 	CreateModelBatchTask(ctx context.Context, task *types.ModelBatchTask) error
 	GetModelBatchTaskByID(ctx context.Context, taskID uint) (*types.ModelBatchTask, error)
-	ClaimNextPendingModelBatchTask(ctx context.Context) (*types.ModelBatchTask, error)
+	ListUnfinishedModelBatchTasks(ctx context.Context) ([]*types.ModelBatchTask, error)
+	MarkModelBatchTaskRunning(ctx context.Context, taskID uint, startedAt time.Time) error
 	FinishModelBatchTask(ctx context.Context, taskID uint, status, result, errorMessage string) error
 }
 
