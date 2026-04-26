@@ -38,6 +38,10 @@ func SetupProviderRoutes(router *gin.RouterGroup, llmService provider.Service) {
 	modelRoutes.DELETE("/:modelId", handler.DeleteModel)
 	modelRoutes.PATCH("/:modelId/health", handler.UpdateModelHealth)
 
+	// 模型批量任务路由
+	modelTaskRoutes := router.Group("/model-tasks")
+	modelTaskRoutes.GET("/:taskId", handler.GetModelBatchTask)
+
 	// 密钥 (Keys) 相关路由 (嵌套在平台下)
 	keys := platform.Group("/keys")
 	keys.POST("", handler.AddKeyToPlatform)

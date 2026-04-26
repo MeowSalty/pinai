@@ -56,13 +56,13 @@ func (h *Handler) AddModelToPlatform(c *gin.Context) {
 
 // BatchAddModelsToPlatform godoc
 // @Summary      批量为指定平台添加模型
-// @Description  批量创建多个模型，采用原子性事务（全部成功或全部失败）
+// @Description  提交批量创建模型异步任务，返回任务 ID
 // @Tags         models
 // @Accept       json
 // @Produce      json
 // @Param        platformId  path      int                                      true  "平台 ID"
 // @Param        request     body      provider.BatchCreateModelsRequest        true  "批量创建模型的请求体"
-// @Success      201         {object}  provider.BatchCreateModelsResponse       "全部创建成功"
+// @Success      202         {object}  provider.BatchTaskAcceptedResponse       "任务提交成功"
 // @Failure      400         {object}  response.ErrorResponse                    "请求参数错误"
 // @Failure      404         {object}  response.ErrorResponse                    "平台未找到"
 // @Failure      500         {object}  response.ErrorResponse                    "服务器内部错误"
@@ -87,19 +87,13 @@ func (h *Handler) BatchAddModelsToPlatform(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	createdModels, err := h.service.BatchAddModelsToPlatform(ctx, uint(platformId), req.Models)
+	accepted, err := h.service.EnqueueBatchAddModelsTask(ctx, uint(platformId), req.Models)
 	if err != nil {
-		respondProviderServiceError(c, err, "平台未找到", "批量创建模型失败")
+		respondProviderServiceError(c, err, "平台未找到", "提交批量创建模型任务失败")
 		return
 	}
 
-	response := provider.BatchCreateModelsResponse{
-		Models:       createdModels,
-		TotalCount:   len(req.Models),
-		CreatedCount: len(createdModels),
-	}
-
-	c.JSON(http.StatusCreated, response)
+	c.JSON(http.StatusAccepted, accepted)
 }
 
 // GetModelsByPlatform godoc
@@ -213,13 +207,13 @@ func (h *Handler) DeleteModel(c *gin.Context) {
 
 // BatchUpdateModels godoc
 // @Summary      批量更新指定平台的模型
-// @Description  批量更新多个模型的信息，采用原子性事务（全部成功或全部失败）
+// @Description  提交批量更新模型异步任务，返回任务 ID
 // @Tags         models
 // @Accept       json
 // @Produce      json
 // @Param        platformId  path      int                                      true  "平台 ID"
 // @Param        request     body      provider.BatchUpdateModelsRequest        true  "批量更新模型的请求体"
-// @Success      200         {object}  provider.BatchUpdateModelsResponse       "全部更新成功"
+// @Success      202         {object}  provider.BatchTaskAcceptedResponse       "任务提交成功"
 // @Failure      400         {object}  response.ErrorResponse                    "请求参数错误"
 // @Failure      404         {object}  response.ErrorResponse                    "平台或模型未找到"
 // @Failure      500         {object}  response.ErrorResponse                    "服务器内部错误"
@@ -252,19 +246,13 @@ func (h *Handler) BatchUpdateModels(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	updatedModels, err := h.service.BatchUpdateModels(ctx, uint(platformId), req.Models)
+	accepted, err := h.service.EnqueueBatchUpdateModelsTask(ctx, uint(platformId), req.Models)
 	if err != nil {
-		respondProviderServiceError(c, err, "模型未找到", "批量更新模型失败")
+		respondProviderServiceError(c, err, "平台未找到", "提交批量更新模型任务失败")
 		return
 	}
 
-	response := provider.BatchUpdateModelsResponse{
-		Models:       updatedModels,
-		TotalCount:   len(req.Models),
-		UpdatedCount: len(updatedModels),
-	}
-
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusAccepted, accepted)
 }
 
 // UpdateModelHealth godoc
@@ -324,13 +312,13 @@ func (h *Handler) updateModelHealthWithEnabled(c *gin.Context, enabled *bool) {
 
 // BatchDeleteModels godoc
 // @Summary      批量删除指定平台的模型
-// @Description  批量删除多个模型，采用原子性事务（全部成功或全部失败）
+// @Description  提交批量删除模型异步任务，返回任务 ID
 // @Tags         models
 // @Accept       json
 // @Produce      json
 // @Param        platformId  path      int                                      true  "平台 ID"
 // @Param        request     body      provider.BatchDeleteModelsRequest        true  "批量删除模型的请求体"
-// @Success      200         {object}  provider.BatchDeleteModelsResponse       "全部删除成功"
+// @Success      202         {object}  provider.BatchTaskAcceptedResponse       "任务提交成功"
 // @Failure      400         {object}  response.ErrorResponse                    "请求参数错误"
 // @Failure      404         {object}  response.ErrorResponse                    "平台或模型未找到"
 // @Failure      500         {object}  response.ErrorResponse                    "服务器内部错误"
@@ -355,16 +343,39 @@ func (h *Handler) BatchDeleteModels(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	deletedCount, err := h.service.BatchDeleteModels(ctx, uint(platformId), req.ModelIDs)
+	accepted, err := h.service.EnqueueBatchDeleteModelsTask(ctx, uint(platformId), req.ModelIDs)
 	if err != nil {
-		respondProviderServiceError(c, err, "模型未找到", "批量删除模型失败")
+		respondProviderServiceError(c, err, "平台未找到", "提交批量删除模型任务失败")
 		return
 	}
 
-	response := provider.BatchDeleteModelsResponse{
-		TotalCount:   len(req.ModelIDs),
-		DeletedCount: deletedCount,
+	c.JSON(http.StatusAccepted, accepted)
+}
+
+// GetModelBatchTask godoc
+// @Summary      查询模型批量任务详情
+// @Description  根据任务 ID 查询模型批量异步任务状态和结果
+// @Tags         models
+// @Produce      json
+// @Param        taskId       path      int                                   true  "任务 ID"
+// @Success      200          {object}  provider.ModelBatchTaskSummary       "任务详情"
+// @Failure      400          {object}  response.ErrorResponse                "请求参数错误"
+// @Failure      404          {object}  response.ErrorResponse                "任务未找到"
+// @Failure      500          {object}  response.ErrorResponse                "服务器内部错误"
+// @Router       /api/model-tasks/{taskId} [get]
+func (h *Handler) GetModelBatchTask(c *gin.Context) {
+	taskID, err := strconv.ParseUint(c.Param("taskId"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "无效的任务 ID")
+		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	ctx := c.Request.Context()
+	task, err := h.service.GetModelBatchTask(ctx, uint(taskID))
+	if err != nil {
+		respondProviderServiceError(c, err, "任务未找到", "查询模型批量任务失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, task)
 }

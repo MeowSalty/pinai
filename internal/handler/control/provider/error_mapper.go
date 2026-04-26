@@ -15,6 +15,11 @@ func respondProviderServiceError(c *gin.Context, err error, notFoundMessage, int
 		return
 	}
 
+	if errors.Is(err, serviceprovider.ErrTaskNotFound) {
+		response.NotFound(c, notFoundMessage)
+		return
+	}
+
 	if errors.Is(err, serviceprovider.ErrResourceNotBelong) ||
 		errors.Is(err, serviceprovider.ErrInvalidArgument) ||
 		errors.Is(err, serviceprovider.ErrDefaultConflict) {

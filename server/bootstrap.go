@@ -190,6 +190,18 @@ func (r *bootstrapRuntime) shutdown() {
 		}
 	}
 
+	// 关闭模型批量任务 worker
+	if r.svcs.ProviderService != nil {
+		r.appLogger.Info("正在关闭模型批量任务 worker")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := r.svcs.ProviderService.StopModelBatchTaskWorker(ctx); err != nil {
+			r.appLogger.Error("关闭模型批量任务 worker 失败", "error", err)
+		} else {
+			r.appLogger.Info("模型批量任务 worker 已成功关闭")
+		}
+		cancel()
+	}
+
 	// 关闭 Web 服务
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

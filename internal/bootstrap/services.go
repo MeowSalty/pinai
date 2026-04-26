@@ -45,6 +45,9 @@ func NewServices(ctx context.Context, logger *slog.Logger, modelMapping string) 
 
 	// 初始化供应商服务
 	providerService := provider.New(logger.WithGroup("provider"), healthStorage)
+	if err := providerService.StartModelBatchTaskWorker(ctx); err != nil {
+		return nil, err
+	}
 
 	// 初始化统计服务（主路径：装配阶段显式创建并注入采集器）
 	statsLogger := logger.WithGroup("stats")
