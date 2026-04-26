@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/MeowSalty/pinai/database/types"
 )
@@ -130,8 +131,10 @@ func (s *service) batchDeleteModelsApp(ctx context.Context, platformID uint, mod
 	})
 	if err != nil {
 		logger.Warn("批量删除模型事务失败，开始恢复关联关系", slog.Any("error", err))
+		recoveryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 		for _, backup := range backups {
-			if restoreErr := s.modelControlRepo.AppendModelAPIKeys(ctx, backup.modelID, backup.apiKeys); restoreErr != nil {
+			if restoreErr := s.modelControlRepo.AppendModelAPIKeys(recoveryCtx, backup.modelID, backup.apiKeys); restoreErr != nil {
 				logger.Error("恢复模型与密钥关联关系失败",
 					slog.Uint64("model_id", uint64(backup.modelID)),
 					slog.Any("error", restoreErr),

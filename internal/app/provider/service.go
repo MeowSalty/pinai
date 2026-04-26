@@ -14,6 +14,8 @@ func New(logger *slog.Logger, healthStorage *health.Storage) Service {
 		logger = slog.Default()
 	}
 
+	taskRepo := NewModelBatchTaskGormRepository(logger.WithGroup("model_batch_task_repo"))
+
 	return &service{
 		logger:              logger,
 		healthReader:        healthStorage,
@@ -21,8 +23,10 @@ func New(logger *slog.Logger, healthStorage *health.Storage) Service {
 		modelControlRepo:    NewModelControlQueryRepository(healthStorage, logger.WithGroup("model_control_repo")),
 		keyControlRepo:      NewKeyControlQueryRepository(healthStorage, logger.WithGroup("key_control_repo")),
 		endpointControlRepo: NewEndpointControlQueryRepository(logger.WithGroup("endpoint_control_repo")),
+		modelBatchTaskRepo:  taskRepo,
 		controlTx:           NewQueryControlTx(),
 		controlAudit:        NewNoOpControlAuditLogger(logger.WithGroup("control_audit")),
+		workerPollSecond:    1,
 	}
 }
 
@@ -66,6 +70,24 @@ type Service interface {
 
 	// BatchDeleteModels 批量删除指定平台的模型（原子性操作）
 	BatchDeleteModels(ctx context.Context, platformId uint, modelIds []uint) (int, error)
+
+	// EnqueueBatchAddModelsTask 提交批量新增模型异步任务。
+	EnqueueBatchAddModelsTask(ctx context.Context, platformId uint, models []types.Model) (*BatchTaskAcceptedResponse, error)
+
+	// EnqueueBatchUpdateModelsTask 提交批量更新模型异步任务。
+	EnqueueBatchUpdateModelsTask(ctx context.Context, platformId uint, updateItems []ModelUpdateItem) (*BatchTaskAcceptedResponse, error)
+
+	// EnqueueBatchDeleteModelsTask 提交批量删除模型异步任务。
+	EnqueueBatchDeleteModelsTask(ctx context.Context, platformId uint, modelIds []uint) (*BatchTaskAcceptedResponse, error)
+
+	// GetModelBatchTask 查询模型批量任务状态。
+	GetModelBatchTask(ctx context.Context, taskID uint) (*ModelBatchTaskSummary, error)
+
+	// StartModelBatchTaskWorker 启动模型批量任务后台 worker。
+	StartModelBatchTaskWorker(ctx context.Context) error
+
+	// StopModelBatchTaskWorker 停止模型批量任务后台 worker。
+	StopModelBatchTaskWorker(ctx context.Context) error
 
 	// UpdateModelHealthEnabled 更新模型健康状态（enabled=true 启用，false 禁用）
 	UpdateModelHealthEnabled(ctx context.Context, modelID uint, enabled bool) (types.HealthStatus, error)
