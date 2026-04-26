@@ -53,6 +53,13 @@ func (s *service) EnqueueBatchAddModelsTask(ctx context.Context, platformId uint
 		return nil, err
 	}
 
+	s.ensureTaskRuntimeInitialized()
+	s.cacheTaskSummary(s.loadTaskSummaryFromEntity(task))
+	if err := s.enqueueTaskInMemory(task.ID); err != nil {
+		s.logger.Error("模型批量新增任务入队失败", slog.Uint64("task_id", uint64(task.ID)), slog.Any("error", err))
+		return nil, fmt.Errorf("模型批量新增任务入队失败：%w", err)
+	}
+
 	return &BatchTaskAcceptedResponse{TaskID: task.ID, Type: task.Type, Status: task.Status}, nil
 }
 
@@ -90,6 +97,13 @@ func (s *service) EnqueueBatchUpdateModelsTask(ctx context.Context, platformId u
 		return nil, err
 	}
 
+	s.ensureTaskRuntimeInitialized()
+	s.cacheTaskSummary(s.loadTaskSummaryFromEntity(task))
+	if err := s.enqueueTaskInMemory(task.ID); err != nil {
+		s.logger.Error("模型批量更新任务入队失败", slog.Uint64("task_id", uint64(task.ID)), slog.Any("error", err))
+		return nil, fmt.Errorf("模型批量更新任务入队失败：%w", err)
+	}
+
 	return &BatchTaskAcceptedResponse{TaskID: task.ID, Type: task.Type, Status: task.Status}, nil
 }
 
@@ -121,48 +135,46 @@ func (s *service) EnqueueBatchDeleteModelsTask(ctx context.Context, platformId u
 		return nil, err
 	}
 
+	s.ensureTaskRuntimeInitialized()
+	s.cacheTaskSummary(s.loadTaskSummaryFromEntity(task))
+	if err := s.enqueueTaskInMemory(task.ID); err != nil {
+		s.logger.Error("模型批量删除任务入队失败", slog.Uint64("task_id", uint64(task.ID)), slog.Any("error", err))
+		return nil, fmt.Errorf("模型批量删除任务入队失败：%w", err)
+	}
+
 	return &BatchTaskAcceptedResponse{TaskID: task.ID, Type: task.Type, Status: task.Status}, nil
 }
 
 func (s *service) GetModelBatchTask(ctx context.Context, taskID uint) (*ModelBatchTaskSummary, error) {
+	if cached, ok := s.getCachedTaskSummary(taskID); ok {
+		return cached, nil
+	}
+
 	task, err := s.modelBatchTaskRepo.GetModelBatchTaskByID(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
 
-	toTime := func(t *time.Time) *string {
-		if t == nil {
-			return nil
-		}
-		v := t.Format(time.RFC3339)
-		return &v
+	summary := s.loadTaskSummaryFromEntity(task)
+	if summary == nil {
+		return nil, fmt.Errorf("读取模型批量任务失败：任务为空")
 	}
-
-	return &ModelBatchTaskSummary{
-		ID:           task.ID,
-		Type:         task.Type,
-		Status:       task.Status,
-		PlatformID:   task.PlatformID,
-		Result:       json.RawMessage(task.Result),
-		ErrorMessage: task.ErrorMessage,
-		StartedAt:    toTime(task.StartedAt),
-		FinishedAt:   toTime(task.FinishedAt),
-		CreatedAt:    task.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:    task.UpdatedAt.Format(time.RFC3339),
-	}, nil
+	s.cacheTaskSummary(summary)
+	return summary, nil
 }
 
 func (s *service) StartModelBatchTaskWorker(ctx context.Context) error {
 	s.workerMu.Lock()
-	defer s.workerMu.Unlock()
-
 	if s.workerRunning {
+		s.workerMu.Unlock()
 		return nil
 	}
 
 	if s.modelBatchTaskRepo == nil {
+		s.workerMu.Unlock()
 		return fmt.Errorf("启动模型批量任务 worker 失败：任务仓储未初始化")
 	}
+	s.ensureTaskRuntimeInitializedLocked()
 
 	if ctx == nil {
 		ctx = context.Background()
@@ -173,32 +185,32 @@ func (s *service) StartModelBatchTaskWorker(ctx context.Context) error {
 	s.workerCancel = cancel
 	s.workerDone = done
 	s.workerRunning = true
-
-	pollInterval := time.Second
-	if s.workerPollSecond > 0 {
-		pollInterval = time.Duration(s.workerPollSecond) * time.Second
-	}
+	s.workerMu.Unlock()
 
 	logger := s.logger.With(
 		slog.String("operation", "model_batch_task_worker"),
-		slog.Duration("poll_interval", pollInterval),
+		slog.Int("queue_size", s.taskQueueSize),
 	)
+
+	if err := s.recoverModelBatchTasks(workerCtx); err != nil {
+		cancel()
+		s.workerMu.Lock()
+		s.workerCancel = nil
+		s.workerDone = nil
+		s.workerRunning = false
+		s.workerMu.Unlock()
+		return fmt.Errorf("启动模型批量任务 worker 失败：恢复任务失败：%w", err)
+	}
 
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(pollInterval)
-		defer ticker.Stop()
-
 		for {
 			if err := s.processOneModelBatchTask(workerCtx); err != nil {
+				if err == context.Canceled {
+					logger.Info("模型批量任务 worker 已停止")
+					return
+				}
 				logger.Error("处理模型批量任务失败", slog.Any("error", err))
-			}
-
-			select {
-			case <-workerCtx.Done():
-				logger.Info("模型批量任务 worker 已停止")
-				return
-			case <-ticker.C:
 			}
 		}
 	}()
@@ -242,41 +254,81 @@ func (s *service) StopModelBatchTaskWorker(ctx context.Context) error {
 }
 
 func (s *service) processOneModelBatchTask(ctx context.Context) error {
-	task, err := s.modelBatchTaskRepo.ClaimNextPendingModelBatchTask(ctx)
-	if err != nil {
-		return err
-	}
-	if task == nil {
+	select {
+	case <-ctx.Done():
+		return context.Canceled
+	case taskID := <-s.taskQueue:
+		defer s.removeQueuedMark(taskID)
+
+		task, err := s.modelBatchTaskRepo.GetModelBatchTaskByID(ctx, taskID)
+		if err != nil {
+			return err
+		}
+
+		startedAt := time.Now()
+		if err := s.modelBatchTaskRepo.MarkModelBatchTaskRunning(ctx, task.ID, startedAt); err != nil {
+			s.logger.Error("标记模型批量任务运行中失败", slog.Uint64("task_id", uint64(task.ID)), slog.Any("error", err))
+			return nil
+		}
+
+		task.Status = types.ModelBatchTaskStatusRunning
+		task.StartedAt = &startedAt
+		task.ErrorMessage = ""
+		task.Result = ""
+		s.cacheTaskSummary(s.loadTaskSummaryFromEntity(task))
+
+		logger := s.logger.With(
+			slog.String("operation", "model_batch_task"),
+			slog.Uint64("task_id", uint64(task.ID)),
+			slog.String("task_type", task.Type),
+			slog.Uint64("platform_id", uint64(task.PlatformID)),
+		)
+
+		result, runErr := s.executeModelBatchTask(ctx, task)
+		if runErr != nil {
+			finishedAt := time.Now()
+			task.Status = types.ModelBatchTaskStatusFailed
+			task.FinishedAt = &finishedAt
+			task.ErrorMessage = runErr.Error()
+			s.cacheTaskSummary(s.loadTaskSummaryFromEntity(task))
+
+			if err := s.modelBatchTaskRepo.FinishModelBatchTask(context.Background(), task.ID, types.ModelBatchTaskStatusFailed, "", runErr.Error()); err != nil {
+				logger.Error("更新模型批量任务失败状态失败", slog.Any("error", err))
+			}
+			logger.Error("模型批量任务执行失败", slog.Any("error", runErr))
+			return nil
+		}
+
+		resultBytes, err := json.Marshal(result)
+		if err != nil {
+			finishedAt := time.Now()
+			task.Status = types.ModelBatchTaskStatusFailed
+			task.FinishedAt = &finishedAt
+			task.ErrorMessage = fmt.Sprintf("序列化任务结果失败：%v", err)
+			s.cacheTaskSummary(s.loadTaskSummaryFromEntity(task))
+
+			if finishErr := s.modelBatchTaskRepo.FinishModelBatchTask(context.Background(), task.ID, types.ModelBatchTaskStatusFailed, "", task.ErrorMessage); finishErr != nil {
+				logger.Error("更新模型批量任务失败状态失败", slog.Any("error", finishErr))
+			}
+			logger.Error("序列化模型批量任务结果失败", slog.Any("error", err))
+			return nil
+		}
+
+		finishedAt := time.Now()
+		task.Status = types.ModelBatchTaskStatusSucceeded
+		task.FinishedAt = &finishedAt
+		task.ErrorMessage = ""
+		task.Result = string(resultBytes)
+		s.cacheTaskSummary(s.loadTaskSummaryFromEntity(task))
+
+		if err := s.modelBatchTaskRepo.FinishModelBatchTask(context.Background(), task.ID, types.ModelBatchTaskStatusSucceeded, string(resultBytes), ""); err != nil {
+			logger.Error("更新模型批量任务成功状态失败", slog.Any("error", err))
+			return nil
+		}
+
+		logger.Info("模型批量任务执行成功")
 		return nil
 	}
-
-	logger := s.logger.With(
-		slog.String("operation", "model_batch_task"),
-		slog.Uint64("task_id", uint64(task.ID)),
-		slog.String("task_type", task.Type),
-		slog.Uint64("platform_id", uint64(task.PlatformID)),
-	)
-
-	result, runErr := s.executeModelBatchTask(ctx, task)
-	if runErr != nil {
-		_ = s.modelBatchTaskRepo.FinishModelBatchTask(context.Background(), task.ID, types.ModelBatchTaskStatusFailed, "", runErr.Error())
-		logger.Error("模型批量任务执行失败", slog.Any("error", runErr))
-		return nil
-	}
-
-	resultBytes, err := json.Marshal(result)
-	if err != nil {
-		_ = s.modelBatchTaskRepo.FinishModelBatchTask(context.Background(), task.ID, types.ModelBatchTaskStatusFailed, "", fmt.Sprintf("序列化任务结果失败：%v", err))
-		logger.Error("序列化模型批量任务结果失败", slog.Any("error", err))
-		return nil
-	}
-
-	if err := s.modelBatchTaskRepo.FinishModelBatchTask(context.Background(), task.ID, types.ModelBatchTaskStatusSucceeded, string(resultBytes), ""); err != nil {
-		logger.Error("更新模型批量任务成功状态失败", slog.Any("error", err))
-	}
-
-	logger.Info("模型批量任务执行成功")
-	return nil
 }
 
 func (s *service) executeModelBatchTask(ctx context.Context, task *types.ModelBatchTask) (*BatchTaskResult, error) {
