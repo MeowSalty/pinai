@@ -30,13 +30,29 @@ func (r *modelBatchTaskGormRepository) taskDB(ctx context.Context) *gorm.DB {
 	return q.Model.WithContext(ctx).UnderlyingDB()
 }
 
+func (r *modelBatchTaskGormRepository) taskModelDB(ctx context.Context) *gorm.DB {
+	db := r.taskDB(ctx).
+		Session(&gorm.Session{NewDB: true}).
+		WithContext(ctx)
+
+	if db.Statement != nil {
+		db.Statement.Table = ""
+		db.Statement.TableExpr = nil
+		db.Statement.Model = nil
+		db.Statement.Schema = nil
+		db.Statement.Dest = nil
+	}
+
+	return db.Model(&types.ModelBatchTask{})
+}
+
 // CreateModelBatchTask 创建模型批量任务。
 func (r *modelBatchTaskGormRepository) CreateModelBatchTask(ctx context.Context, task *types.ModelBatchTask) error {
 	if task == nil {
 		return fmt.Errorf("创建模型批量任务失败：任务参数不能为空")
 	}
 
-	if err := r.taskDB(ctx).Create(task).Error; err != nil {
+	if err := r.taskModelDB(ctx).Create(task).Error; err != nil {
 		r.logger.Error("创建模型批量任务失败", slog.Any("error", err))
 		return fmt.Errorf("创建模型批量任务失败：%w", err)
 	}
@@ -47,7 +63,7 @@ func (r *modelBatchTaskGormRepository) CreateModelBatchTask(ctx context.Context,
 // GetModelBatchTaskByID 根据 ID 查询模型批量任务。
 func (r *modelBatchTaskGormRepository) GetModelBatchTaskByID(ctx context.Context, taskID uint) (*types.ModelBatchTask, error) {
 	var task types.ModelBatchTask
-	err := r.taskDB(ctx).Where("id = ?", taskID).First(&task).Error
+	err := r.taskModelDB(ctx).Where("id = ?", taskID).First(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("未找到 ID 为 %d 的任务：%w", taskID, ErrTaskNotFound)
@@ -66,8 +82,9 @@ func (r *modelBatchTaskGormRepository) ClaimNextPendingModelBatchTask(ctx contex
 	for range 3 {
 		var claimed *types.ModelBatchTask
 		err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			taskTx := tx.Session(&gorm.Session{NewDB: true}).Model(&types.ModelBatchTask{})
 			var task types.ModelBatchTask
-			if err := tx.Where("status = ?", types.ModelBatchTaskStatusPending).
+			if err := taskTx.Where("status = ?", types.ModelBatchTaskStatusPending).
 				Order("id ASC").
 				First(&task).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -77,7 +94,8 @@ func (r *modelBatchTaskGormRepository) ClaimNextPendingModelBatchTask(ctx contex
 			}
 
 			now := time.Now()
-			result := tx.Model(&types.ModelBatchTask{}).
+			result := tx.Session(&gorm.Session{NewDB: true}).
+				Model(&types.ModelBatchTask{}).
 				Where("id = ? AND status = ?", task.ID, types.ModelBatchTaskStatusPending).
 				Updates(map[string]any{
 					"status":        types.ModelBatchTaskStatusRunning,
@@ -123,7 +141,7 @@ func (r *modelBatchTaskGormRepository) FinishModelBatchTask(ctx context.Context,
 		"finished_at":   now,
 	}
 
-	resultDB := r.taskDB(ctx).Model(&types.ModelBatchTask{}).
+	resultDB := r.taskModelDB(ctx).
 		Where("id = ?", taskID).
 		Updates(updateMap)
 	if resultDB.Error != nil {
