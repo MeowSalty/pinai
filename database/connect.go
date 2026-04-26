@@ -14,6 +14,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const sqliteBusyTimeoutMS = 5000
+
 // Connect 连接到数据库
 //
 // 该函数根据提供的数据库类型和连接信息连接到数据库，并配置 slog-gorm 日志记录器。
@@ -66,7 +68,8 @@ func Connect(dbType, host, port, user, password, dbname, sslMode, tlsConfig stri
 	case "sqlite":
 		fallthrough
 	default:
-		db, err = gorm.Open(sqlite.Open("data/pinai.db"), gormConfig)
+		sqliteDSN := fmt.Sprintf("data/pinai.db?_busy_timeout=%d", sqliteBusyTimeoutMS)
+		db, err = gorm.Open(sqlite.Open(sqliteDSN), gormConfig)
 	}
 
 	if err != nil {
