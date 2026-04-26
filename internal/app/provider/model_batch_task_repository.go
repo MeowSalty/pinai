@@ -75,56 +75,40 @@ func (r *modelBatchTaskGormRepository) GetModelBatchTaskByID(ctx context.Context
 	return &task, nil
 }
 
-// ClaimNextPendingModelBatchTask 抢占下一个待执行任务并设置为运行中。
-func (r *modelBatchTaskGormRepository) ClaimNextPendingModelBatchTask(ctx context.Context) (*types.ModelBatchTask, error) {
-	db := r.taskDB(ctx)
-
-	for range 3 {
-		var claimed *types.ModelBatchTask
-		err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			taskTx := tx.Session(&gorm.Session{NewDB: true}).Model(&types.ModelBatchTask{})
-			var task types.ModelBatchTask
-			if err := taskTx.Where("status = ?", types.ModelBatchTaskStatusPending).
-				Order("id ASC").
-				First(&task).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return nil
-				}
-				return err
-			}
-
-			now := time.Now()
-			result := tx.Session(&gorm.Session{NewDB: true}).
-				Model(&types.ModelBatchTask{}).
-				Where("id = ? AND status = ?", task.ID, types.ModelBatchTaskStatusPending).
-				Updates(map[string]any{
-					"status":        types.ModelBatchTaskStatusRunning,
-					"started_at":    now,
-					"error_message": "",
-					"result":        "",
-				})
-			if result.Error != nil {
-				return result.Error
-			}
-			if result.RowsAffected == 0 {
-				return nil
-			}
-
-			task.Status = types.ModelBatchTaskStatusRunning
-			task.StartedAt = &now
-			claimed = &task
-			return nil
-		})
-		if err != nil {
-			r.logger.Error("抢占模型批量任务失败", slog.Any("error", err))
-			return nil, fmt.Errorf("抢占模型批量任务失败：%w", err)
-		}
-		if claimed != nil {
-			return claimed, nil
-		}
+// ListUnfinishedModelBatchTasks 查询未完成任务（pending/running）。
+func (r *modelBatchTaskGormRepository) ListUnfinishedModelBatchTasks(ctx context.Context) ([]*types.ModelBatchTask, error) {
+	var tasks []*types.ModelBatchTask
+	err := r.taskModelDB(ctx).
+		Where("status IN ?", []string{types.ModelBatchTaskStatusPending, types.ModelBatchTaskStatusRunning}).
+		Order("id ASC").
+		Find(&tasks).Error
+	if err != nil {
+		r.logger.Error("查询未完成模型批量任务失败", slog.Any("error", err))
+		return nil, fmt.Errorf("查询未完成模型批量任务失败：%w", err)
 	}
 
-	return nil, nil
+	return tasks, nil
+}
+
+// MarkModelBatchTaskRunning 将任务标记为运行中。
+func (r *modelBatchTaskGormRepository) MarkModelBatchTaskRunning(ctx context.Context, taskID uint, startedAt time.Time) error {
+	resultDB := r.taskModelDB(ctx).
+		Where("id = ?", taskID).
+		Updates(map[string]any{
+			"status":        types.ModelBatchTaskStatusRunning,
+			"started_at":    startedAt,
+			"error_message": "",
+			"result":        "",
+		})
+	if resultDB.Error != nil {
+		r.logger.Error("标记模型批量任务为运行中失败", slog.Uint64("task_id", uint64(taskID)), slog.Any("error", resultDB.Error))
+		return fmt.Errorf("标记模型批量任务为运行中失败：%w", resultDB.Error)
+	}
+	if resultDB.RowsAffected == 0 {
+		return fmt.Errorf("标记模型批量任务为运行中失败：未找到 ID 为 %d 的任务：%w", taskID, ErrTaskNotFound)
+	}
+
+	return nil
 }
 
 // FinishModelBatchTask 完成模型批量任务。

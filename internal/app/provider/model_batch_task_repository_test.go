@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/MeowSalty/pinai/database/query"
 	"github.com/MeowSalty/pinai/database/types"
@@ -59,44 +60,104 @@ func TestModelBatchTaskRepository_CreateAndGetTask(t *testing.T) {
 	}
 }
 
-func TestModelBatchTaskRepository_ClaimNextPendingTask(t *testing.T) {
+func TestModelBatchTaskRepository_ListUnfinishedTasks(t *testing.T) {
 	ctx, db := newModelBatchTaskRepoTestContext(t)
 	repo := NewModelBatchTaskGormRepository(slog.Default())
 
-	seed := &types.ModelBatchTask{
+	pending := &types.ModelBatchTask{
 		Type:       types.ModelBatchTaskTypeUpdate,
 		Status:     types.ModelBatchTaskStatusPending,
 		PlatformID: 11,
 		Payload:    `{"platform_id":11,"models":[]}`,
 	}
+	running := &types.ModelBatchTask{
+		Type:       types.ModelBatchTaskTypeDelete,
+		Status:     types.ModelBatchTaskStatusRunning,
+		PlatformID: 11,
+		Payload:    `{"platform_id":11,"model_ids":[1]}`,
+	}
+	succeeded := &types.ModelBatchTask{
+		Type:       types.ModelBatchTaskTypeAdd,
+		Status:     types.ModelBatchTaskStatusSucceeded,
+		PlatformID: 11,
+		Payload:    `{"platform_id":11,"models":[]}`,
+	}
+
+	if err := db.WithContext(ctx).Create(pending).Error; err != nil {
+		t.Fatalf("准备 pending 任务数据失败: %v", err)
+	}
+	if err := db.WithContext(ctx).Create(running).Error; err != nil {
+		t.Fatalf("准备 running 任务数据失败: %v", err)
+	}
+	if err := db.WithContext(ctx).Create(succeeded).Error; err != nil {
+		t.Fatalf("准备 succeeded 任务数据失败: %v", err)
+	}
+
+	tasks, err := repo.ListUnfinishedModelBatchTasks(ctx)
+	if err != nil {
+		t.Fatalf("查询未完成任务失败: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("未完成任务数量不匹配：got=%d, want=2", len(tasks))
+	}
+	if tasks[0].ID != pending.ID {
+		t.Fatalf("未完成任务应按 id 升序：first=%d, want=%d", tasks[0].ID, pending.ID)
+	}
+	if tasks[1].ID != running.ID {
+		t.Fatalf("未完成任务应按 id 升序：second=%d, want=%d", tasks[1].ID, running.ID)
+	}
+}
+
+func TestModelBatchTaskRepository_MarkTaskRunning(t *testing.T) {
+	ctx, db := newModelBatchTaskRepoTestContext(t)
+	repo := NewModelBatchTaskGormRepository(slog.Default())
+
+	seed := &types.ModelBatchTask{
+		Type:         types.ModelBatchTaskTypeUpdate,
+		Status:       types.ModelBatchTaskStatusPending,
+		PlatformID:   11,
+		Payload:      `{"platform_id":11,"models":[]}`,
+		Result:       "old_result",
+		ErrorMessage: "old_error",
+	}
 	if err := db.WithContext(ctx).Create(seed).Error; err != nil {
 		t.Fatalf("准备测试任务数据失败: %v", err)
 	}
 
-	claimed, err := repo.ClaimNextPendingModelBatchTask(ctx)
-	if err != nil {
-		t.Fatalf("抢占待执行任务失败: %v", err)
-	}
-	if claimed == nil {
-		t.Fatalf("应抢占到一个待执行任务")
-	}
-	if claimed.ID != seed.ID {
-		t.Fatalf("抢占到的任务 ID 不匹配: got=%d, want=%d", claimed.ID, seed.ID)
-	}
-	if claimed.Status != types.ModelBatchTaskStatusRunning {
-		t.Fatalf("抢占后任务状态应为 running: got=%s", claimed.Status)
-	}
-	if claimed.StartedAt == nil {
-		t.Fatalf("抢占后 StartedAt 不应为 nil")
+	if err := repo.MarkModelBatchTaskRunning(ctx, seed.ID, seed.CreatedAt); err != nil {
+		t.Fatalf("标记任务为 running 失败: %v", err)
 	}
 
 	var stored types.ModelBatchTask
 	if err := db.WithContext(ctx).Where("id = ?", seed.ID).First(&stored).Error; err != nil {
-		t.Fatalf("查询抢占后的任务记录失败: %v", err)
+		t.Fatalf("查询更新后的任务记录失败: %v", err)
 	}
 	if stored.Status != types.ModelBatchTaskStatusRunning {
-		t.Fatalf("数据库中的任务状态应为 running: got=%s", stored.Status)
+		t.Fatalf("任务状态应为 running: got=%s", stored.Status)
 	}
+	if stored.StartedAt == nil {
+		t.Fatalf("任务 StartedAt 不应为 nil")
+	}
+	if stored.Result != "" {
+		t.Fatalf("任务 result 应被清空: got=%q", stored.Result)
+	}
+	if stored.ErrorMessage != "" {
+		t.Fatalf("任务 error_message 应被清空: got=%q", stored.ErrorMessage)
+	}
+}
+
+func TestModelBatchTaskRepository_MarkTaskRunning_NotFound(t *testing.T) {
+	ctx, _ := newModelBatchTaskRepoTestContext(t)
+	repo := NewModelBatchTaskGormRepository(slog.Default())
+
+	err := repo.MarkModelBatchTaskRunning(ctx, 9999, seedTime())
+	if err == nil {
+		t.Fatalf("标记不存在任务应返回错误")
+	}
+}
+
+func seedTime() time.Time {
+	return time.Date(2026, 4, 26, 0, 0, 0, 0, time.UTC)
 }
 
 func TestModelBatchTaskRepository_FinishTask(t *testing.T) {
