@@ -1,7 +1,10 @@
 package provider
 
 import (
+	"context"
+	"encoding/json"
 	"log/slog"
+	"sync"
 
 	"github.com/MeowSalty/pinai/database/types"
 	"github.com/MeowSalty/pinai/internal/app/health"
@@ -15,8 +18,15 @@ type service struct {
 	modelControlRepo    ModelControlRepository
 	keyControlRepo      KeyControlRepository
 	endpointControlRepo EndpointControlRepository
+	modelBatchTaskRepo  ModelBatchTaskRepository
 	controlTx           ControlTx
 	controlAudit        ControlAuditLogger
+
+	workerMu         sync.Mutex
+	workerCancel     context.CancelFunc
+	workerDone       chan struct{}
+	workerRunning    bool
+	workerPollSecond int
 }
 
 // PlatformStatusCount 平台维度健康状态统计。
@@ -70,6 +80,35 @@ type BatchDeleteModelsRequest struct {
 type BatchDeleteModelsResponse struct {
 	TotalCount   int `json:"total_count"`   // 请求删除的模型总数
 	DeletedCount int `json:"deleted_count"` // 实际删除的模型数
+}
+
+// BatchTaskAcceptedResponse 表示异步任务已接受响应。
+type BatchTaskAcceptedResponse struct {
+	TaskID uint   `json:"task_id"`
+	Type   string `json:"type"`
+	Status string `json:"status"`
+}
+
+// BatchTaskResult 表示任务结果详情。
+type BatchTaskResult struct {
+	TotalCount   int `json:"total_count"`
+	CreatedCount int `json:"created_count,omitempty"`
+	UpdatedCount int `json:"updated_count,omitempty"`
+	DeletedCount int `json:"deleted_count,omitempty"`
+}
+
+// ModelBatchTaskSummary 表示模型批量任务查询结果。
+type ModelBatchTaskSummary struct {
+	ID           uint            `json:"id"`
+	Type         string          `json:"type"`
+	Status       string          `json:"status"`
+	PlatformID   uint            `json:"platform_id"`
+	Result       json.RawMessage `json:"result,omitempty"`
+	ErrorMessage string          `json:"error_message,omitempty"`
+	StartedAt    *string         `json:"started_at,omitempty"`
+	FinishedAt   *string         `json:"finished_at,omitempty"`
+	CreatedAt    string          `json:"created_at"`
+	UpdatedAt    string          `json:"updated_at"`
 }
 
 // BatchCreateEndpointsRequest 批量创建端点的请求体

@@ -98,6 +98,14 @@ type EndpointControlRepository interface {
 	CountDefaultEndpointsByPlatform(ctx context.Context, platformID uint) (int64, error)
 }
 
+// ModelBatchTaskRepository 定义模型批量异步任务仓储能力。
+type ModelBatchTaskRepository interface {
+	CreateModelBatchTask(ctx context.Context, task *types.ModelBatchTask) error
+	GetModelBatchTaskByID(ctx context.Context, taskID uint) (*types.ModelBatchTask, error)
+	ClaimNextPendingModelBatchTask(ctx context.Context) (*types.ModelBatchTask, error)
+	FinishModelBatchTask(ctx context.Context, taskID uint, status, result, errorMessage string) error
+}
+
 type controlTxQueryKey struct{}
 
 func queryFromControlTx(ctx context.Context) *query.Query {

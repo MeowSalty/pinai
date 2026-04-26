@@ -13,4 +13,7 @@ var Types = []interface{}{
 
 	// Stats
 	RequestLog{},
+
+	// Async Tasks
+	ModelBatchTask{},
 }
