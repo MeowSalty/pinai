@@ -18,6 +18,7 @@ func SetupStatsRoutes(router *gin.RouterGroup, statsService stats.Service, logge
 
 	statsGroup := router.Group("/stats")
 	statsGroup.GET("/dashboard", handler.GetDashboard)
+	statsGroup.GET("/model-status", handler.GetModelStatus)
 	statsGroup.GET("/requests", handler.ListRequestLogs)
 	statsGroup.GET("/realtime", handler.GetRealtime)
 }

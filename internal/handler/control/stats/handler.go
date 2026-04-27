@@ -9,8 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/MeowSalty/pinai/handlers/query"
-	"github.com/MeowSalty/pinai/internal/handler/response"
 	"github.com/MeowSalty/pinai/internal/app/stats"
+	"github.com/MeowSalty/pinai/internal/handler/response"
 )
 
 // StatsHandler 统计处理器结构体
@@ -119,6 +119,70 @@ func (h *StatsHandler) GetRealtime(c *gin.Context) {
 	)
 
 	c.JSON(http.StatusOK, realtime)
+}
+
+// GetModelStatus 获取模型状态监控数据。
+//
+// @Summary      获取模型状态监控数据
+// @Description  获取滑动窗口内模型请求总量、成功数、成功率，以及按颗粒度拆分的时间序列数据
+// @Tags         统计
+// @Accept       json
+// @Produce      json
+// @Param        range       query     string  false  "时间范围"  Enums(24h, 7d, 30d)  default(24h)
+// @Param        model_name  query     string  false  "模型名称（按请求原始模型名过滤）"
+// @Success      200         {object}  stats.ModelStatusResponse
+// @Failure      400         {object}  response.ErrorResponse  "无效的时间范围参数"
+// @Failure      500         {object}  response.ErrorResponse  "服务器内部错误"
+// @Router       /api/stats/model-status [get]
+func (h *StatsHandler) GetModelStatus(c *gin.Context) {
+	start := time.Now()
+	logger := h.newRequestLogger(c, "get_model_status")
+
+	rangeStr := c.DefaultQuery("range", string(stats.TrendRange24h))
+	trendRange := stats.TrendRange(rangeStr)
+
+	switch trendRange {
+	case stats.TrendRange24h, stats.TrendRange7d, stats.TrendRange30d:
+		// 参数有效
+	default:
+		logger.Warn("请求参数校验失败",
+			"error_type", "validation_error",
+			"error", "无效的时间范围参数",
+			"range", rangeStr,
+			"client_ip", c.ClientIP(),
+		)
+		response.BadRequest(c, "无效的时间范围参数，可选值：24h, 7d, 30d")
+		return
+	}
+
+	var modelName *string
+	if v := c.Query("model_name"); v != "" {
+		modelName = &v
+	}
+
+	logger = logger.With("range", rangeStr)
+	if modelName != nil {
+		logger = logger.With("model_name", *modelName)
+	}
+
+	result, err := h.StatsService.GetModelStatus(c.Request.Context(), trendRange, modelName)
+	if err != nil {
+		logger.Error("获取模型状态监控数据失败",
+			"error", err,
+			"error_type", "service_error",
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+		response.InternalError(c, "获取模型状态监控数据失败")
+		return
+	}
+
+	logger.Debug("获取模型状态监控数据成功",
+		"status_code", http.StatusOK,
+		"latency_ms", time.Since(start).Milliseconds(),
+		"model_count", len(result.Models),
+	)
+
+	c.JSON(http.StatusOK, result)
 }
 
 // ListRequestLogs 获取请求状态列表
