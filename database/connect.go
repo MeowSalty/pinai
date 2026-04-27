@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/MeowSalty/pinai/database/query"
 	slogGorm "github.com/orandin/slog-gorm"
@@ -15,6 +16,8 @@ import (
 )
 
 const sqliteBusyTimeoutMS = 5000
+
+const sqliteJournalModeWAL = "WAL"
 
 // Connect 连接到数据库
 //
@@ -37,6 +40,7 @@ const sqliteBusyTimeoutMS = 5000
 func Connect(dbType, host, port, user, password, dbname, sslMode, tlsConfig string, logger *slog.Logger) (*sql.DB, error) {
 	var db *gorm.DB
 	var err error
+	isSQLite := false
 
 	gormConfig := &gorm.Config{
 		Logger: slogGorm.New(
@@ -68,12 +72,19 @@ func Connect(dbType, host, port, user, password, dbname, sslMode, tlsConfig stri
 	case "sqlite":
 		fallthrough
 	default:
+		isSQLite = true
 		sqliteDSN := fmt.Sprintf("data/pinai.db?_busy_timeout=%d", sqliteBusyTimeoutMS)
 		db, err = gorm.Open(sqlite.Open(sqliteDSN), gormConfig)
 	}
 
 	if err != nil {
 		return nil, errors.New("无法打开数据库：" + err.Error())
+	}
+
+	if isSQLite {
+		if err := enableSQLiteWAL(db, logger); err != nil {
+			return nil, fmt.Errorf("无法启用 SQLite WAL 模式：%w", err)
+		}
 	}
 
 	err = autoMigrate(db)
@@ -94,4 +105,25 @@ func Connect(dbType, host, port, user, password, dbname, sslMode, tlsConfig stri
 	query.SetDefault(db)
 
 	return dbConn, nil
+}
+
+func enableSQLiteWAL(db *gorm.DB, logger *slog.Logger) error {
+	if db == nil {
+		return errors.New("数据库连接为空")
+	}
+
+	var journalMode string
+	if err := db.Raw("PRAGMA journal_mode=WAL;").Scan(&journalMode).Error; err != nil {
+		return fmt.Errorf("执行 PRAGMA journal_mode=WAL 失败：%w", err)
+	}
+
+	if !strings.EqualFold(journalMode, sqliteJournalModeWAL) {
+		return fmt.Errorf("SQLite journal_mode=%s，未成功切换为 WAL", journalMode)
+	}
+
+	if logger != nil {
+		logger.Debug("SQLite WAL 模式已启用")
+	}
+
+	return nil
 }
