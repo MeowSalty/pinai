@@ -47,6 +47,9 @@ type Service interface {
 	// GetDashboard 获取仪表盘所有数据（单次查询优化版本）
 	GetDashboard(ctx context.Context, trendRange TrendRange) (*DashboardResponse, error)
 
+	// GetModelStatus 获取模型状态监控数据
+	GetModelStatus(ctx context.Context, trendRange TrendRange, modelName *string) (*ModelStatusResponse, error)
+
 	// GetOverview 获取全局概览数据
 	//
 	// Deprecated: 请改用 GetDashboard 获取统一仪表盘数据。

@@ -120,6 +120,30 @@ type TrendResponse struct {
 	Summary     TrendSummary     `json:"summary"`     // 汇总统计
 }
 
+// ModelStatusPoint 定义模型状态监控中的单个时间点
+type ModelStatusPoint struct {
+	Timestamp    time.Time `json:"timestamp"`     // 数据点时间戳
+	RequestCount int64     `json:"request_count"` // 请求数
+	SuccessCount int64     `json:"success_count"` // 成功数
+}
+
+// ModelStatusItem 定义单个模型的状态统计
+type ModelStatusItem struct {
+	ModelName     string             `json:"model_name"`     // 模型名称
+	TotalRequests int64              `json:"total_requests"` // 总请求数
+	SuccessCount  int64              `json:"success_count"`  // 总成功数
+	Points        []ModelStatusPoint `json:"points"`         // 按颗粒度拆分的数据点
+}
+
+// ModelStatusResponse 定义模型状态监控响应
+type ModelStatusResponse struct {
+	Range       string            `json:"range"`        // 时间范围
+	Granularity string            `json:"granularity"`  // 颗粒度
+	WindowStart time.Time         `json:"window_start"` // 窗口开始时间
+	WindowEnd   time.Time         `json:"window_end"`   // 窗口结束时间
+	Models      []ModelStatusItem `json:"models"`       // 模型状态列表
+}
+
 // DashboardRequest 仪表盘数据请求参数
 type DashboardRequest struct {
 	Range TrendRange `json:"range"` // 时间范围：24h/7d/30d
